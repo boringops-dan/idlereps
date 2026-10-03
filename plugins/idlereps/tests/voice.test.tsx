@@ -177,7 +177,7 @@ test('the introduction, verbatim, its address term only in the last line', () =>
     const mate = pickAddress(day, 'intro-header')
     expect(lines).toEqual([
       "Hi! I'm Swolomon, your IdleReps trainer.",
-      'Welcome to my... your CLI. Cardio, Lifts and Iron. Bit cramped.',
+      'Welcome to my... your CLI. Come Lift It. Says so right on the door.',
       "You hand your agent work? Cute. While it's out, I hand YOU work.",
       `Quick start, or just a nudge to move, ${mate}?`,
     ])
