@@ -197,7 +197,7 @@ test('export, erase (asked first), restore (asked first): the store comes back i
   expect(w.files.get(`${HOME}/history.csv`)?.startsWith('date,workout,')).toBe(true)
   await $.command.run(workout('erase'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(drawnRows(await ui.drawn())).toEqual([line('erase-ask', { day: TODAY }), line('plan-file-stays', { day: TODAY }), '1: Erase   2: Cancel'])
+  expect(drawnRows(await ui.drawn())).toEqual([line('erase-ask', { day: TODAY }), line('plan-file-stays', { day: TODAY }), '', '1: Erase   2: Cancel'])
   await ui.press({ key: 'erase' })
   expect(store.get('totalDoneSets')).toBeUndefined()
   expect(w.file.text).not.toBeNull()

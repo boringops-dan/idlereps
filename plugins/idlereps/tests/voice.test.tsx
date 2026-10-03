@@ -265,23 +265,23 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await $.turn.start({ text: 'go', turnId: 't1' })
     await $.tool.call({ tool: 'Agent', description: 'x', prompt: 'y', subagent_type: 'Explore' } as never)
     await clock.advance(5_000)
-    expect(['ask', await rows()]).toEqual(['ask', 3])
+    expect(['ask', await rows()]).toEqual(['ask', 4])
     // The first set after Start speaks, with the form note and the control hint: 4 + 2.
     await ui.press({ key: 'start' })
-    expect(['set speaking', await rows()]).toEqual(['set speaking', 6])
+    expect(['set speaking', await rows()]).toEqual(['set speaking', 7])
     // Edit: question · values · buttons · typed hint.
     await ui.press({ key: 'edit' })
-    expect(['edit', await rows()]).toEqual(['edit', 4])
+    expect(['edit', await rows()]).toEqual(['edit', 5])
     await ui.press({ key: 'save' })
     // The first set ever adds one row: what happens next.
     expect(['logged, first ever', await rows()]).toEqual(['logged, first ever', 2])
     // A later set is silent; no form note after the first set; the hint still shows (bands 2 and 3).
     await $.command.run(workout('now'))
-    expect(['set silent', await rows()]).toEqual(['set silent', 4])
+    expect(['set silent', await rows()]).toEqual(['set silent', 5])
     await ui.press({ key: 'skip' })
     expect(['logged after a skip', await rows()]).toEqual(['logged after a skip', 2])
     await $.command.run(workout('now'))
-    expect(['set silent', await rows()]).toEqual(['set silent', 4])
+    expect(['set silent', await rows()]).toEqual(['set silent', 5])
     await ui.press({ key: 'done' })
     // The plan's one week-8 workout: finishing it crosses the week's finish line, a tall band (§1.10b).
     expect(['rating, week done', (await rows()) <= 8]).toEqual(['rating, week done', true])
@@ -289,7 +289,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
   })
 }
 
-test('a silent set band without the note or hint is 3 rows', OPTIONS, async ($, on) => {
+test('a silent set band without the note or hint is 4 rows, the blank above its buttons', OPTIONS, async ($, on) => {
   world(on, TINY, { seen: { hint: { at: 1, n: 3 } } })
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
@@ -297,7 +297,7 @@ test('a silent set band without the note or hint is 3 rows', OPTIONS, async ($, 
   await $.command.run(workout('now'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   expect(await ui.find({ key: 'done' })).toBeDefined()
-  expect(rowsOf(await ui.drawn())).toBe(3)
+  expect(rowsOf(await ui.drawn())).toBe(4)
   await ui.unmount()
 })
 

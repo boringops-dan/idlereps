@@ -40,7 +40,8 @@ export function bandRows(spec: BandSpec): number {
     (spec.header === undefined ? 0 : 1) +
     spec.body.length +
     (spec.extras?.length ?? 0) +
-    (spec.inline === true || spec.actions.length === 0 ? 0 : 1) +
+    // The buttons, and the blank row above them.
+    (spec.inline === true || spec.actions.length === 0 ? 0 : 2) +
     (spec.footer?.length ?? 0)
   )
 }

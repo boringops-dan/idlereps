@@ -149,7 +149,7 @@ test('the check-in: after the third completed workout, behind the rating, number
   expect((await bandRows($)).some(row => row.includes(line('pulse-ask', { day: TODAY })))).toBe(false)
   await $.command.run(workout('good'))
   const rows = await bandRows($)
-  expect(rows).toEqual([line('pulse-ask', { day: TODAY }), "1: Love it   2: It's fine   3: Not for me   4: Tell us more"])
+  expect(rows).toEqual([line('pulse-ask', { day: TODAY }), '', "1: Love it   2: It's fine   3: Not for me   4: Tell us more"])
 })
 
 test('no check-in after the second workout, nor once it was asked', OPTIONS, async ($, on) => {

@@ -221,7 +221,7 @@ test('mid-week, the rating band carries the finish line: 3 rows', OPTIONS, async
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   const rows = drawnRows(await ui.drawn())
   expect(rows).toContain('Week 1: 1 of 2 workouts  ●○')
-  expect(rows.length).toBe(3)
+  expect(rows.length).toBe(4)
   expect(await ui.find({ type: 'Text', text: line('workout-done', { day: TODAY, workout: 'A' }) })).toBeDefined()
   await ui.unmount()
 })

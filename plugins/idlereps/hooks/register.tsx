@@ -2605,6 +2605,8 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
         {text}
       </Text>
     )),
+    // A blank row between what is said and what can be pressed (owner, 2026-10-03).
+    spec.inline !== true && buttons.length > 0 ? <Text key="before-buttons"> </Text> : null,
     spec.inline !== true && buttons.length > 0 ? (
       <Box key="buttons">
         {buttons}
