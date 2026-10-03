@@ -42,9 +42,10 @@ import {
 } from './bands'
 import { agentDoing, COACH_NAME, emphasisRuns, fill, plainOf, pickAddress, COMMUNITY_URL, FEEDBACK_URL, line, progressDots, REASON_LINE, TELEMETRY_URL, usesAgent, whatsNewLine } from './copy'
 import type { LineContext, LineId } from './copy'
-import { appendHistory, movedSeconds, rankFor, RANKS, setsThisWeek } from './history'
+import { appendHistory, isMovement, movedSeconds, rankFor, RANKS, setsThisWeek } from './history'
 import { ideasFor, isMoved, MOVED, movedOn } from './remind'
 import { expectedWaitMs, keptTurns, waitSize } from './waits'
+import { greetingOf } from './greeting'
 import { ASIDE_GAP, ASIDE_MS, ASIDES, asideSpot, asideText, hasAsides } from './asides'
 import { collected, dueUnlock, setsToNext, STARTER_MOVES, UNLOCK_ORDER } from './collection'
 import { due, mark, mondayOf } from './ledger'
@@ -2120,6 +2121,28 @@ async function mondayRecap($: EngineInterface): Promise<boolean> {
   return true
 }
 
+/** The first session of a day: Swolomon's hello, if he has one (hooks/greeting.ts); whether he said it. */
+async function greet($: EngineInterface): Promise<boolean> {
+  const day = await today($)
+  const lastSeenOn = await load<number | undefined>($, 'lastSeenOn', undefined)
+  if (lastSeenOn === day) return false
+  const history = await load<HistoryEntry[]>($, 'history', [])
+  const greeting = greetingOf({
+    lastSeenOn,
+    today: day,
+    movedYesterday: history.filter(e => e.d === day - 1 && isMovement(e)).length,
+    workedYesterdayMs: workedMs(await load<WorkIntervals>($, 'workIntervals', {}), day - 1, day - 1),
+  })
+  // Held back (quiet hours): said at a later session today instead, so the day is not marked seen yet.
+  if (greeting !== null && (await decide($, { channel: 'toast', cause: 'timer' })) !== 'show') return false
+  await save($, 'lastSeenOn', day)
+  if (greeting === null) return false
+  $.ui.toast(line(greeting.id, { day, ...greeting.ctx }))
+  // The hello takes the day toast's place, so it uses up the day toast too.
+  await markSeen($, 'day-toast')
+  return true
+}
+
 /** Once per calendar day, at the first session start on a training day: Swolomon's day toast (§1.10c). */
 async function dayToast($: EngineInterface, plan: Plan) {
   const ctx = await cueContextOf($, plan)
@@ -2942,8 +2965,11 @@ export const register: Register = (on, options) => {
     await whatsNew($, migrated === 'fresh')
     const training = await trainingPlan($)
     // Monday's recap for anyone training, plan or not; the day toast is a plan's.
-    const isRecapped = (training !== null || (await isRemindMode($))) && (await mondayRecap($))
-    if (training !== null && !isRecapped) await dayToast($, training)
+    const isTraining = training !== null || (await isRemindMode($))
+    // His hello first; then Monday's recap; the day toast only when neither said anything.
+    const isGreeted = isTraining && (await greet($))
+    const isRecapped = isTraining && (await mondayRecap($))
+    if (training !== null && !isRecapped && !isGreeted) await dayToast($, training)
     // A block finished but not answered (Later, or the rating dismissed): asked again on a training day, once.
     if (training !== null && e.isInteractive && (await isDue($, 'program-end-ask', 'day'))) {
       const progress = await load($, 'progress', START)

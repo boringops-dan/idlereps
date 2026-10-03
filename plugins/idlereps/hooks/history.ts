@@ -12,6 +12,9 @@ import { mondayOf } from './ledger'
 /** D12: the newest entries kept. */
 export const HISTORY_CAP = 5000
 
+/** Anything that counts as moving: a set done, a set of their own, a stretch. */
+export const isMovement = (e: HistoryEntry): boolean => (e.kind === 'set' && e.result === 'done') || e.kind === 'moved' || e.kind === 'stretch'
+
 export const appendHistory = (list: readonly HistoryEntry[], ...entries: HistoryEntry[]): HistoryEntry[] =>
   [...list, ...entries].slice(-HISTORY_CAP)
 

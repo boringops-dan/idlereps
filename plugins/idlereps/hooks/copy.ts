@@ -189,6 +189,20 @@ export const LINES = [
     voice: 'swolomon',
     variants: ["Your agent's busy, {mate}. Drop and give me a set. Anything.", '{AgentDoing}. Your turn, {mate}: one set.', 'The iron is calling, {mate}. One set, any set.'],
   },
+  // The day's hello (hooks/greeting.ts): toasts at the first session of a day.
+  {
+    id: 'greet-missed',
+    voice: 'swolomon',
+    variants: ['Missed you, {mate}. Did legs alone. It was sad.', "There you are, {mate}! The bench missed you. I mean I did.", '{n} days, {mate}. I counted. Not in a weird way.'],
+  },
+  { id: 'greet-long-away', voice: 'swolomon', variants: ["You're back! I kept your spot warm, {mate}.", 'Look who it is! Your locker is right where you left it, {mate}.', 'Welcome back, {mate}. No speeches. Just glad.'] },
+  {
+    id: 'greet-yesterday',
+    voice: 'swolomon',
+    variants: ['Yesterday: {n} moves for you, {worked} for your agent. Teamwork, {mate}.', '{n} moves yesterday, {mate}. Your agent did {worked}. You both win.'],
+  },
+  { id: 'greet-yesterday-moved', voice: 'swolomon', variants: ['{n} moves yesterday, {mate}. Same again? Or one more?', 'You moved {n} times yesterday, {mate}. I wrote it on my arm.'] },
+  { id: 'greet-yesterday-agent', voice: 'swolomon', variants: ['Your agent worked {worked} yesterday, {mate}. Today you get a turn too.', '{worked} of work for your agent yesterday, {mate}. Your turn today.'] },
   // Sized to the wait (hooks/waits.ts).
   { id: 'remind-quick', voice: 'swolomon', variants: ['Quick one while it thinks, {mate}. Anything counts.', "Short wait, {mate}. Short set. Let's go.", 'Blink and it is back, {mate}. Ten of something?'] },
   { id: 'remind-long', voice: 'swolomon', variants: ['Long one coming, {mate}. Go for a walk. Or anything.', '{AgentDoing}. Stretch your legs, {mate}.', 'Your agent will be gone a bit, {mate}. So should you.'] },

@@ -59,6 +59,7 @@ const FILLS = {
   schedule: 'Mon Wed Fri',
   status: 'status',
   sets: 9999,
+  worked: '23 h 59 m',
   what: 'Cardio',
   ideas: 'a minute of jumping jacks · a minute of high knees · 10 lunges a leg',
   week: 9999,
@@ -123,6 +124,11 @@ test('lines fit: Swolomon’s and band rows within 80 columns, his band lines wi
   // Toasts, and the tall bands' lines (§1.10b: up to 8 rows), are never drawn beside a name tag in a short band.
   const TOASTS: readonly LineId[] = [
     'day-toast',
+    'greet-missed',
+    'greet-long-away',
+    'greet-yesterday',
+    'greet-yesterday-moved',
+    'greet-yesterday-agent',
     'not-today',
     'recap',
     'recap-zero',
