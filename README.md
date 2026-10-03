@@ -235,6 +235,7 @@ All in `/config`, under IdleReps:
 | Warm up first | on, off | on | A one-minute warm-up before the first set of a workout, once a day. |
 | Animate Swolomon | on, off | on | Swolomon walks on, and the line types out while the portrait talks. Off shows it whole. |
 | Swolomon's sound | off, blips, voice | off | Soft blips while Swolomon talks, or the lines read aloud in your system voice. |
+| How much Swolomon says | adaptive, chatty, quiet | adaptive | Adaptive reads the room: answer his bands and he's livelier, ignore them and he goes quiet (fewer extras, no asides). Chatty is all of him. Quiet is the workout and nothing else. |
 | Share anonymous usage | on, off | off | Anonymous counts (sets done, workouts rated) to help improve IdleReps. Not live yet: it sends nothing today. See [Privacy](#privacy). |
 
 ## Status

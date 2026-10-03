@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { ElementTable, EngineInterface, PluginOptions, Register, RenderSurface, Timer } from 'claude-code'
 
-import type { Answers, BandPart, BandSpec, Cue, Draft, HistoryEntry, LongTaskReason, Mode, Moved, Plan, Progress, Rating, Seen, SetupState, Targets, Tone, Weekday } from '../types'
+import type { Answers, BandKind, BandPart, BandSpec, Cue, Draft, HistoryEntry, LongTaskReason, Mode, Moved, Plan, Progress, Rating, Seen, SetupState, Targets, Tone, Weekday } from '../types'
 import { STORE_KEYS } from '../types/store-keys'
 import type { StoreKey } from '../types/store-keys'
 import { ACTIONS, actionOf, loadLabel, stepperLabel } from './actions'
@@ -54,6 +54,8 @@ import { dailyTarget, ideasFor, isMoved, MOVED, movedOn, movesOn } from './remin
 import { sittingMs, STILL_MS } from './still'
 import { expectedWaitMs, keptTurns, waitSize } from './waits'
 import { greetingOf } from './greeting'
+import { asidesAllowed, engagementOf, extrasCap, recordOutcome, spend, START_ATTENTION } from './attention'
+import type { Attention, Chat } from './attention'
 import { EMPTY_CARD, stamp } from './punch'
 import type { PunchCard } from './punch'
 import { isShinyAt, SHINY_COLOURS } from './shiny'
@@ -187,6 +189,8 @@ type Options = {
   timerBeep: boolean
   warmUp: boolean
   coachSound: 'off' | 'blips' | 'voice'
+  /** How much Swolomon says beyond the workout (hooks/attention.ts). */
+  coachChat: Chat
   telemetry: boolean
 }
 
@@ -200,6 +204,7 @@ const readOptions = (options: PluginOptions): Options => ({
   timerBeep: typeof options.timerBeep === 'boolean' ? options.timerBeep : true,
   warmUp: typeof options.warmUp === 'boolean' ? options.warmUp : true,
   coachSound: options.coachSound === 'blips' || options.coachSound === 'voice' ? options.coachSound : 'off',
+  coachChat: options.coachChat === 'chatty' || options.coachChat === 'quiet' ? options.coachChat : 'adaptive',
   telemetry: options.telemetry === true,
 })
 
@@ -279,6 +284,10 @@ const coach: {
   turnCanRemind: boolean
   /** This turn may ask them to stand up: sitting a long while (hooks/still.ts). */
   turnCanStill: boolean
+  /** A band he raised unasked, still showing: answered or ignored when it goes (hooks/attention.ts). */
+  unprompted: BandSpec | null
+  /** A press or a /workout command is being handled: a band leaving now was answered. */
+  isAnswering: boolean
   /** The band showing is a shiny one (hooks/shiny.ts): every blit to its portrait recoloured. */
   isShiny: boolean
   /** A timer band waiting for the prompt to empty (the gate's clause (c)). */
@@ -345,6 +354,8 @@ const coach: {
   turnCanNudge: false,
   turnCanRemind: false,
   turnCanStill: false,
+  unprompted: null,
+  isAnswering: false,
   isShiny: false,
   deferred: null,
   isIntroDismissed: false,
@@ -545,6 +556,7 @@ async function placeBand($: EngineInterface, given: BandSpec) {
     await update($, pending, () => slot.pending)
     return
   }
+  await settleUnprompted($)
   cancelTimers('band')
   const placed = await startTalk($, spec)
   await update($, band, () => placed)
@@ -561,6 +573,7 @@ async function placeIfFree($: EngineInterface, spec: BandSpec): Promise<boolean>
 
 /** Puts a band in the slot whatever is there: the person's own answer replaced it (Undo, Edit). */
 async function replaceBand($: EngineInterface, spec: BandSpec) {
+  await settleUnprompted($)
   cancelTimers('band')
   const placed = await startTalk($, spec)
   await update($, band, () => placed)
@@ -584,6 +597,7 @@ async function syncBandPane($: EngineInterface) {
 
 /** Empties the slot; the highest waiting band that passes the gate takes it. */
 async function clearBand($: EngineInterface) {
+  await settleUnprompted($)
   cancelTimers('band')
   await stopTalk($)
   await update($, band, () => null)
@@ -785,9 +799,12 @@ async function showStage($: EngineInterface, t: number) {
 
 /** His asides while the band waits on a choice (hooks/asides.ts); the band's timers end them when it goes. */
 async function asidesWhileShowing($: EngineInterface, key: number) {
+  // As many as the room allows: none when Quiet or ignored lately (hooks/attention.ts).
+  const allowed = asidesAllowed(coach.options.coachChat, await engagement($))
+  if (allowed === 0) return
   const day = (await today($)) + key
   const first = await firstAside($)
-  for (const [i, aside] of ASIDES.entries()) {
+  for (const [i, aside] of ASIDES.slice(0, allowed).entries()) {
     const isFirst = i === 0 && first !== null
     timer($, 'band', aside.at, () =>
       void (async () => {
@@ -941,8 +958,38 @@ async function expireBand($: EngineInterface, spec: BandSpec) {
 /** Shows a band through the gate: now, once the prompt is empty, or not at all. */
 async function offerBand($: EngineInterface, spec: BandSpec, cause: Message['cause']) {
   const decision = await decide($, { channel: 'band', cause })
-  if (decision === 'show') await placeBand($, spec)
-  else if (decision === 'defer') coach.deferred = spec
+  if (decision === 'show') {
+    await placeBand($, spec)
+    // Raised unasked: whether it is answered tells him how much to say (hooks/attention.ts).
+    const shown = await read($, band)
+    if (cause === 'timer' && UNPROMPTED.has(spec.kind) && shown?.kind === spec.kind) coach.unprompted = shown
+  } else if (decision === 'defer') coach.deferred = spec
+}
+
+/** The bands he raises unasked that ask for an answer. */
+const UNPROMPTED: ReadonlySet<BandKind> = new Set<BandKind>(['ask', 'remind', 'question', 'spotme', 'still', 'stretch'])
+
+/** The band he raised unasked is going: answered if a press or a command is taking it away, else ignored. */
+async function settleUnprompted($: EngineInterface) {
+  if (coach.unprompted === null) return
+  coach.unprompted = null
+  await save($, 'attention', recordOutcome(await load<Attention>($, 'attention', START_ATTENTION), coach.isAnswering))
+}
+
+/** How engaged they have been with his bands lately (hooks/attention.ts). */
+async function engagement($: EngineInterface): Promise<number> {
+  return engagementOf((await load<Attention>($, 'attention', START_ATTENTION)).outcomes)
+}
+
+/**
+ * Whether he may do an extra (his hello, a new gym, prep news, a question, spot me) today: the setting and
+ * how engaged they are set the day's cap. `isSpending`: it is happening now, so it counts.
+ */
+async function mayExtra($: EngineInterface, isSpending: boolean): Promise<boolean> {
+  const attention = await load<Attention>($, 'attention', START_ATTENTION)
+  const { attention: next, allowed } = spend(attention, await today($), extrasCap(coach.options.coachChat, engagementOf(attention.outcomes)))
+  if (allowed && isSpending) await save($, 'attention', next)
+  return allowed
 }
 
 /** `whenPromptIsEmpty`: a deferred band shows on the edit that empties the prompt. */
@@ -1196,7 +1243,7 @@ async function couldQuietMomentThisTurn($: EngineInterface): Promise<boolean> {
   if (inQuietHours(coach.options.quietHours, hourOf(at))) return false
   const met = (await load<Seen>($, 'seen', {})).onboarded?.at
   if (met === undefined || dayNumberOf(met) >= (await today($))) return false
-  if (!(await isDue($, 'question', 'day')) || (await quietMoment($)) === null) return false
+  if (!(await isDue($, 'question', 'day')) || (await quietMoment($)) === null || !(await mayExtra($, false))) return false
   const isSetDue = (coach.turnCanCue || coach.turnCanRemind || coach.turnCanStretch) && (await load<number | undefined>($, 'nextCueAt', undefined) ?? 0) <= at
   return !isSetDue
 }
@@ -1216,7 +1263,7 @@ async function offerQuietMoment($: EngineInterface) {
   if (!coach.isTurnRunning || (await read($, band)) !== null) return
   const moment = await quietMoment($)
   const day = await today($)
-  if (moment === null) return
+  if (moment === null || !(await mayExtra($, true))) return
   // One quiet moment a day, whichever it is.
   await markSeen($, 'question')
   if (moment === 'spotme') {
@@ -1544,7 +1591,7 @@ async function advancePrep($: EngineInterface) {
   const { prep, news } = afterSet(await load<Prep | undefined>($, 'prep', undefined), await load($, 'totalDoneSets', 0))
   if (prep === undefined) return
   await save($, 'prep', prep)
-  if (news !== undefined) $.ui.toast(line(news, { day: await today($), competition: competitionOf(prep.stage) }))
+  if (news !== undefined && (await mayExtra($, true))) $.ui.toast(line(news, { day: await today($), competition: competitionOf(prep.stage) }))
 }
 
 /** His prep done: he competed between sessions, and is back with a medal. */
@@ -2380,7 +2427,7 @@ async function noticeGym($: EngineInterface, cwd: string) {
   const gyms = await load<string[]>($, 'gyms', [])
   if (gyms.includes(gym)) return
   await save($, 'gyms', [...gyms, gym].slice(-GYMS_KEPT))
-  if (gyms.length === 0 || (await decide($, { channel: 'toast', cause: 'timer' })) !== 'show') return
+  if (gyms.length === 0 || (await decide($, { channel: 'toast', cause: 'timer' })) !== 'show' || !(await mayExtra($, true))) return
   $.ui.toast(line('new-gym', { day: await today($), gym: gym.length > 24 ? `${gym.slice(0, 23)}…` : gym }))
 }
 
@@ -2399,7 +2446,7 @@ async function greet($: EngineInterface): Promise<boolean> {
   // Held back (quiet hours): said at a later session today instead, so the day is not marked seen yet.
   if (greeting !== null && (await decide($, { channel: 'toast', cause: 'timer' })) !== 'show') return false
   await save($, 'lastSeenOn', day)
-  if (greeting === null) return false
+  if (greeting === null || !(await mayExtra($, true))) return false
   $.ui.toast(line(greeting.id, { day, ...greeting.ctx }))
   // The hello takes the day toast's place, so it uses up the day toast too.
   await markSeen($, 'day-toast')
@@ -2440,6 +2487,16 @@ async function backToIntro($: EngineInterface) {
 // Buttons: every press goes through the action's id, so a button and `/workout <id>` do the same thing.
 
 async function runAction($: EngineInterface, kind: ActionKind, id: string, surface: string): Promise<void> {
+  const was = coach.isAnswering
+  coach.isAnswering = true
+  try {
+    await answerAction($, kind, id, surface)
+  } finally {
+    coach.isAnswering = was
+  }
+}
+
+async function answerAction($: EngineInterface, kind: ActionKind, id: string, surface: string): Promise<void> {
   if (kind === 'intro') {
     if (id === 'quickstart') await quickStart($)
     else if (id === 'keep') await keepPlan($)
@@ -3312,6 +3369,8 @@ export const register: Register = (on, options) => {
     coach.hasStrongSign = false
     coach.idleTimer?.cancel()
     coach.idleTimer = null
+    // A band he raised, still unanswered when they prompt again: they chose to keep working. Ignored.
+    await settleUnprompted($)
     // The next prompt ends the chance to undo from the band, and dismisses an unanswered rating or a replay.
     // The first-run band goes once a plan exists, however it got there (by hand, another session).
     const shown = await read($, band)
@@ -3406,7 +3465,10 @@ export const register: Register = (on, options) => {
   })
 
   on('command.run', { command: 'workout' }, async ($, e) => {
-    const text = await workoutCommand($, e.args)
+    coach.isAnswering = true
+    const text = await workoutCommand($, e.args).finally(() => {
+      coach.isAnswering = false
+    })
     if (text === null) return {}
     const isPauseReply = /^\s*(pause|resume)\b/.test(e.args)
     return { text: !isPauseReply && (await load($, 'paused', false)) ? `${line('reply-paused-prefix', { day: await today($) })} ${text}` : text }

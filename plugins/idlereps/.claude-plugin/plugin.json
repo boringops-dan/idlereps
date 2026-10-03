@@ -91,6 +91,17 @@
         "voice"
       ]
     },
+    "coachChat": {
+      "type": "string",
+      "title": "How much Swolomon says",
+      "description": "Adaptive: he reads the room, quieter when you ignore him, livelier when you don't. Chatty: all of him. Quiet: the workout and nothing else.",
+      "default": "adaptive",
+      "options": [
+        "adaptive",
+        "chatty",
+        "quiet"
+      ]
+    },
     "telemetry": {
       "type": "boolean",
       "title": "Share anonymous usage",
