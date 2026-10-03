@@ -1057,20 +1057,3 @@ export function poseAt(move: Move, t: number): number | null {
   }
   return null
 }
-
-/**
- * `/workout flex` plays these in turn: a flex or a gag, then an exercise, and so on, so a few presses show
- * a bit of everything.
- */
-export const REEL: readonly Move[] = (() => {
-  const show = MOVES.filter(move => move.family !== 'exercise')
-  const exercises = MOVES.filter(move => move.family === 'exercise')
-  const reel: Move[] = []
-  for (let i = 0; i < Math.max(show.length, exercises.length); i += 1) {
-    const a = show[i]
-    const b = exercises[i]
-    if (a !== undefined) reel.push(a)
-    if (b !== undefined) reel.push(b)
-  }
-  return reel
-})()

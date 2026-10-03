@@ -35,6 +35,7 @@ import {
   offerToSlot,
   pulseBand,
   rankupBand,
+  unlockBand,
   ratingBand,
   replayBand,
   setBand,
@@ -43,6 +44,7 @@ import { agentDoing, COACH_NAME, fill, pickAddress, COMMUNITY_URL, FEEDBACK_URL,
 import type { LineContext, LineId } from './copy'
 import { appendHistory, movedSeconds, rankFor, RANKS, setsThisWeek } from './history'
 import { ideasFor, isMoved, MOVED, movedOn } from './remind'
+import { collected, dueUnlock, setsToNext, STARTER_MOVES, UNLOCK_ORDER } from './collection'
 import { due, mark, mondayOf } from './ledger'
 import type { Scope } from './ledger'
 import { CURRENT_SCHEMA, STEP_READS, STEPS } from './migrations'
@@ -75,7 +77,7 @@ import {
 import { drawMicro, MICRO_HEIGHT, MICRO_WIDTH } from './figure'
 import { misreadOf } from './misreads'
 import type { Misread } from './misreads'
-import { drawMove, moveById, moveForExercise, MOVES, poseAt, REEL } from './moves'
+import { drawMove, moveById, moveForExercise, MOVES, poseAt } from './moves'
 import type { Move } from './moves'
 import {
   encodeMicro,
@@ -1017,7 +1019,7 @@ async function logMoved($: EngineInterface, what: Moved) {
   const n = movedOn(await load<HistoryEntry[]>($, 'history', []), day)
   $.ui.toast(await coachLine($, 'moved-logged', { day, what: MOVED[what], n }))
   const rank = rankFor(before + 1).name
-  if (rank !== rankFor(before).name) await showRankUp($, rank, undefined)
+  if (!(rank !== rankFor(before).name && (await showRankUp($, rank, undefined)))) await showUnlock($, undefined)
   await refreshStatus($)
 }
 
@@ -1196,7 +1198,7 @@ async function recordSet($: EngineInterface, outcome: { result: 'done' | 'skip';
     }
     await offerPulse($)
   } else {
-    if (!rankShown) {
+    if (!rankShown && !(outcome.result === 'done' && (await showUnlock($, result.inverse.id)))) {
       const isBest = result.effects.isNewBest === true
       const said = isBest ? line('new-best', { day }) : outcome.result === 'skip' ? line('skip', { day }) : undefined
       const progress = result.patch.set.progress as Progress
@@ -1216,6 +1218,18 @@ async function recordSet($: EngineInterface, outcome: { result: 'done' | 'skip';
   }
   await refreshStatus($)
   return 'recorded'
+}
+
+/** A move unlocked by the sets done (collection.ts): its band, Swolomon performing it; whether it showed. */
+async function showUnlock($: EngineInterface, undoId: number | undefined): Promise<boolean> {
+  const unlocked = await load<string[]>($, 'moves', [])
+  const move = dueUnlock(await load($, 'totalDoneSets', 0), unlocked)
+  if (move === null) return false
+  const have = [...unlocked, move.id]
+  await save($, 'moves', have)
+  const day = await today($)
+  await placeBand($, unlockBand(move, STARTER_MOVES.length + have.length, STARTER_MOVES.length + UNLOCK_ORDER.length, line('unlock', { day }), undoId))
+  return true
 }
 
 /** A new rank: its band, once per rank ever (§1.13.1); Undo drops the rank but keeps the mark. */
@@ -1873,6 +1887,7 @@ async function statusFacts($: EngineInterface, plan: Plan): Promise<StatusFacts>
     totalDoneSets: await load($, 'totalDoneSets', 0),
     since: await planStartedOn($),
     memory: await load($, 'lastByExercise', {}),
+    moves: await load<string[]>($, 'moves', []),
   }
 }
 
@@ -1910,6 +1925,7 @@ async function remindFacts($: EngineInterface): Promise<RemindFacts> {
     today: await today($),
     paused: await load($, 'paused', false),
     totalDoneSets: await load($, 'totalDoneSets', 0),
+    moves: await load<string[]>($, 'moves', []),
   }
 }
 
@@ -2086,6 +2102,13 @@ async function runAction($: EngineInterface, kind: ActionKind, id: string, surfa
   }
   if (kind === 'pulse') {
     await answerPulse($, id, surface)
+    return
+  }
+  if (kind === 'unlock' && id !== 'undo') {
+    const shown = await read($, band)
+    // Again: the same band, from the top, so he performs it once more.
+    if (id === 'again' && shown?.kind === 'unlock') await replaceBand($, { ...shown })
+    else await clearBand($)
     return
   }
   if (kind === 'warmup') {
@@ -2310,10 +2333,19 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
   }
   // Easter eggs (§1.13.5): the only replies in Swolomon's voice.
   if (arg === 'flex') {
-    coach.reel = coach.reel === null ? day % REEL.length : (coach.reel + 1) % REEL.length
-    const move = REEL[coach.reel] ?? REEL[0]
+    // Only the moves they have: the collection is the reel.
+    const reel = collected(await load<string[]>($, 'moves', []))
+    coach.reel = coach.reel === null ? day % reel.length : (coach.reel + 1) % reel.length
+    const move = reel[coach.reel] ?? reel[0]
     if (move !== undefined && (await placeIfFree($, flexBand(day, move)))) return null
     return `${COACH_NAME}: ${line('flex', { day })}`
+  }
+  if (arg === 'moves') {
+    const unlocked = await load<string[]>($, 'moves', [])
+    const toGo = setsToNext(await load($, 'totalDoneSets', 0), unlocked)
+    const next = toGo === null ? 'All of them. Legend.' : `Next one in ${toGo} ${toGo === 1 ? 'set' : 'sets'}.`
+    const have = collected(unlocked)
+    return `${line('reply-moves', { day, n: have.length, total: STARTER_MOVES.length + UNLOCK_ORDER.length, next })}\n${have.map(m => m.title).join(' · ')}`
   }
   if (arg === 'protein' || arg === 'wisdom') return `${COACH_NAME}: ${line(arg, { day })}`
 

@@ -12,7 +12,7 @@ import { PUSH_NAMES } from './programs'
 import { weekdayName } from './schedule'
 
 /** Which band keeps the slot when two want it (§4.3 item 4). A logged line gives way to anything. */
-export const BAND_PRIORITY: Record<BandKind, number> = { program: 1, byoplan: 1, remind: 2, pulse: 0, rankup: 7, rating: 6, bonus: 5, programEnd: 5, restore: 8, erase: 8, warmup: 3, logged: 4, edit: 3, set: 3, ask: 2, ready: 2, stretch: 2, where: 1, reschedule: 2, timer: 3, switch: 3, time: 3, safety: 1, intro: 1, replay: 1, flex: 1 }
+export const BAND_PRIORITY: Record<BandKind, number> = { unlock: 6, program: 1, byoplan: 1, remind: 2, pulse: 0, rankup: 7, rating: 6, bonus: 5, programEnd: 5, restore: 8, erase: 8, warmup: 3, logged: 4, edit: 3, set: 3, ask: 2, ready: 2, stretch: 2, where: 1, reschedule: 2, timer: 3, switch: 3, time: 3, safety: 1, intro: 1, replay: 1, flex: 1 }
 
 export const LOGGED_MS = 120_000
 
@@ -259,6 +259,22 @@ export function rankupBand(rank: string, coachLine: string, totalSets: number, u
     body: [],
     // A set with nothing to undo (Just remind me) has only Let's go.
     actions: undoId === undefined ? ['letsgo'] : actionIdsOf('rankup'),
+    ...(undoId === undefined ? {} : { undoId }),
+    tall: true,
+  }
+}
+
+/** A move unlocked (collection.ts): Swolomon performs it for the first time; Again plays it once more. */
+export function unlockBand(move: { id: string; title: string }, n: number, total: number, coachLine: string, undoId?: number): BandSpec {
+  return {
+    kind: 'unlock',
+    header: `New move: ${move.title} · ${n} of ${total}`,
+    coach: [coachLine],
+    portrait: 'full',
+    isWin: true,
+    act: move.id,
+    body: [],
+    actions: undoId === undefined ? ['nice', 'again'] : actionIdsOf('unlock'),
     ...(undoId === undefined ? {} : { undoId }),
     tall: true,
   }

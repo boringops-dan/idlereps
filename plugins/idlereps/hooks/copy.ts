@@ -192,6 +192,12 @@ export const LINES = [
   { id: 'moved-logged', voice: 'swolomon', variants: ['{what} logged, {mate}. {n} today.', '{what}, {mate}. Written in the scrolls. {n} today.'] },
   { id: 'remind-pane-fresh', voice: 'swolomon', variants: ["No sets yet today, {mate}. Your agent's next long task is yours."] },
   { id: 'remind-pane-done', voice: 'swolomon', variants: ['{n} sets today, {mate}. The iron remembers.'] },
+  // A move unlocked: he performs it for you, the first time.
+  {
+    id: 'unlock',
+    voice: 'swolomon',
+    variants: ['New move unlocked, {mate}. Watch closely.', 'You earned this one, {mate}. Behold.', 'Showing up pays, {mate}. Witness this.', 'A gift, {mate}. Do not tell the others.'],
+  },
   { id: 'program-ask', voice: 'swolomon', variants: ["A program! Now we're talking, {mate}. How do we build it?"] },
   { id: 'byoplan-ask', voice: 'swolomon', variants: ['Got your own program, {mate}? Show me.'] },
   { id: 'pane-finished', voice: 'swolomon', variants: ['The whole program, {mate}. Legends are made like this.'] },
@@ -336,6 +342,7 @@ export const LINES = [
   { id: 'reply-remind-on', voice: 'plain', variants: ['Just remind me is on: any set you like, while your agent works.'] },
   { id: 'reply-no-remind', voice: 'plain', variants: ['Just remind me is off. /workout remind turns it on.'] },
   { id: 'reply-dontask', voice: 'plain', variants: ["Swolomon won't ask again. /workout setup or /workout remind any time."] },
+  { id: 'reply-moves', voice: 'plain', variants: ["Swolomon's moves: {n} of {total}. {next} /workout flex shows them off."] },
   { id: 'safety-short', voice: 'plain', variants: ['Not medical advice. Stop if anything hurts; ask a doctor if unsure.'] },
   { id: 'program-detail', voice: 'plain', variants: ['Quick start: a starter plan now. Build: your gear, days, goal. Own: paste yours.'] },
   { id: 'byoplan-paste', voice: 'plain', variants: ['Type /workout plan, then paste it: any format, any app. It reads it.'] },

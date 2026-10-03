@@ -6,6 +6,7 @@ import type { On, PromptEditInput, PromptEditResult, RenderSurface } from 'claud
 
 import type { Plan, Progress } from '../types'
 import { isStoreKey } from '../types/store-keys'
+import { UNLOCK_ORDER } from '../hooks/collection'
 import { dayNumberOf } from '../hooks/plan'
 
 /** Noon UTC on Friday 2026-10-02. */
@@ -80,10 +81,13 @@ type WorldOptions = { legacy?: string; now?: number; surfaces?: RenderSurface[];
 
 export const ONBOARDED = { onboarded: { at: 1, n: 1 }, safety: { at: 1, n: 1 } }
 
-/** The seed as the store starts: onboarding and the safety note already done, unless the test is about them. */
+/**
+ * The seed as the store starts: onboarding and the safety note already done, and every move of Swolomon's
+ * already collected (so no unlock band takes a set's place), unless the test is about them.
+ */
 function withOnboarding(seed: Record<string, unknown>, fresh: boolean): Record<string, unknown> {
   if (fresh) return seed
-  return { ...seed, seen: { ...ONBOARDED, ...(seed.seen as Record<string, unknown> | undefined) } }
+  return { moves: [...UNLOCK_ORDER], ...seed, seen: { ...ONBOARDED, ...(seed.seen as Record<string, unknown> | undefined) } }
 }
 type Clock = ReturnType<typeof mock.clock>
 

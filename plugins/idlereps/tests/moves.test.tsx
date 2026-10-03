@@ -4,7 +4,8 @@ import type { Engine } from 'claude-code/testing'
 
 import type { Answers, Plan } from '../types'
 import { flexBand } from '../hooks/bands'
-import { drawMove, moveById, moveForExercise, moveMs, MOVES, poseAt, REEL } from '../hooks/moves'
+import { drawMove, moveById, moveForExercise, moveMs, MOVES, poseAt } from '../hooks/moves'
+import { collected, STARTER_MOVES, UNLOCK_ORDER } from '../hooks/collection'
 import { drawMicro, MICRO_HEIGHT, MICRO_WIDTH } from '../hooks/figure'
 import { encodeMicro, encodeMove, encodeSprite } from '../hooks/portrait'
 import { DESK_STRETCHES, generateProgram, LIBRARY } from '../hooks/programs'
@@ -105,10 +106,13 @@ test('names map to the move that shows them: specific before general', () => {
   ).toEqual(['squat', 'squat', 'wall-sit', 'push-up', 'plank', 'plank', 'deadlift', 'pull-up', 'curl', 'press', 'row', 'bridge', 'burpee', null])
 })
 
-test('the reel alternates a show move with an exercise, and holds every move once', () => {
-  expect(REEL.length).toBe(MOVES.length)
-  expect(new Set(REEL.map(m => m.id)).size).toBe(MOVES.length)
-  expect([REEL[0]?.family !== 'exercise', REEL[1]?.family]).toEqual([true, 'exercise'])
+/** The flex reel once every move is collected (the test world's default). */
+const REEL = collected([...UNLOCK_ORDER])
+
+test('the collection holds every move once: three to start, the rest to unlock', () => {
+  expect(STARTER_MOVES.length + UNLOCK_ORDER.length).toBe(MOVES.length)
+  expect(new Set([...STARTER_MOVES, ...UNLOCK_ORDER]).size).toBe(MOVES.length)
+  expect(REEL.map(m => m.id).sort()).toEqual(MOVES.map(m => m.id).sort())
 })
 
 test('the flex band names the move under the line', () => {

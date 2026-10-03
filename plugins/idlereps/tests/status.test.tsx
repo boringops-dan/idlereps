@@ -72,6 +72,7 @@ test('the status pane on a training day: Swolomon, the workout as a table, the b
     'Mon ·  Tue ·  Wed ·  Thu ·  Fri ○  Sat ·  Sun ·',
     'Streak 0 · 0 sets this week · 112 total',
     'Rank: Rack Regular  ━━━━━━━━━━  112/250 to Iron Disciple',
+    'Moves 33 of 33  ━━━━━━━━━━  all of them',
     'Bests  Squats 14 reps',
     '',
     'Beginner general fitness · 3x/week · 4 weeks',

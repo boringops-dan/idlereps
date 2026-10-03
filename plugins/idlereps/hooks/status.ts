@@ -11,6 +11,7 @@ import type { LineId } from './copy'
 import { daysShowedUp, movedSeconds, nextRank, rankFor, setsThisWeek, sparkline, streak, trendOf, weekMarks } from './history'
 import type { WeekMark } from './history'
 import { lastMovedText, movedOn, movedThisWeek, remindWeekMarks } from './remind'
+import { collected, setsToNext, STARTER_MOVES, UNLOCK_ORDER } from './collection'
 import { mondayOf } from './ledger'
 import { describeAmount, effectiveExercise, minutesWords, shortWorkoutName, setsOf, stepsFor, targetFor, targetOf, weekProgress } from './plan'
 import { isTrainingDay, longDayName, nextTrainingDay, shortDayName } from './schedule'
@@ -30,6 +31,8 @@ export type StatusFacts = {
   since: number
   /** Each exercise's last set and bests. */
   memory: LastByExercise
+  /** Swolomon's moves unlocked so far (collection.ts). */
+  moves: readonly string[]
 }
 
 type Day = 'training' | 'rest' | 'done' | 'declined' | 'finished'
@@ -275,6 +278,7 @@ export function statusViewOf(facts: StatusFacts): StatusView {
     { text: ` · ${plural(setsThisWeek(history, today), 'set')} this week · ${facts.totalDoneSets} total`, tone: 'muted' },
   ])
   more.push(rankBar(facts.totalDoneSets))
+  more.push(movesRow(facts.totalDoneSets, facts.moves))
   const bests = plan.workouts
     .flatMap(w => w.exercises)
     .map(planned => effectiveExercise(planned, targetFor(planned, facts.targets)))
@@ -307,6 +311,19 @@ export function statusViewOf(facts: StatusFacts): StatusView {
   // §1.6: where to say what works and what doesn't.
   more.push([{ text: `Feedback: /workout feedback · Ideas and plans: ${COMMUNITY_URL.replace('https://', '')}`, tone: 'muted', truncate: true }])
   return { ...paneLine(facts, day, steps.length), head, more, isRestDay: day === 'rest', canShare: setsThisWeek(history, today) > 0 }
+}
+
+/** `Moves 4 of 33 ▰▱▱▱▱▱▱▱▱▱ next in 2 sets`: Swolomon's collection, and when the next move comes. */
+export function movesRow(totalSets: number, unlocked: readonly string[]): BandPart[] {
+  const have = collected(unlocked).length
+  const total = STARTER_MOVES.length + UNLOCK_ORDER.length
+  const toGo = setsToNext(totalSets, unlocked)
+  return [
+    { text: `Moves ${have} of ${total}`, bold: true },
+    { text: '  ' },
+    ...bar(Math.floor((have / total) * 10), 10),
+    { text: toGo === null ? '  all of them' : `  next in ${plural(toGo, 'set')} · /workout moves`, tone: 'muted' },
+  ]
 }
 
 /** The rank and how far the next one is, as a bar: `Rank: Regular ▰▰▰▱▱▱▱▱▱▱ 40/100 to Rack Regular`. */
@@ -369,6 +386,7 @@ export type RemindFacts = {
   today: number
   paused: boolean
   totalDoneSets: number
+  moves: readonly string[]
 }
 
 /** The pane in Just remind me: Swolomon's line, today and the week, the rank, the last set. */
@@ -385,6 +403,7 @@ export function remindViewOf(facts: RemindFacts): StatusView {
   const showedUp = daysShowedUp(history, today)
   if (showedUp > 0) more.push([{ text: `Showed up ${plural(showedUp, 'day')} this month`, bold: true }])
   more.push(rankBar(facts.totalDoneSets))
+  more.push(movesRow(facts.totalDoneSets, facts.moves))
   const last = lastMovedText(history, today, shortDayName)
   if (last !== null) more.push([{ text: `Last set: ${last}`, tone: 'muted' }])
   more.push('')

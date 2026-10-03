@@ -4,7 +4,7 @@
  * every button has a command by construction. Pure data.
  */
 
-export type ActionKind = 'remindPane' | 'remind' | 'program' | 'byoplan' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex' | 'status' | 'safety' | 'byo'
+export type ActionKind = 'unlock' | 'remindPane' | 'remind' | 'program' | 'byoplan' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex' | 'status' | 'safety' | 'byo'
 
 export type Action = {
   id: string
@@ -91,6 +91,9 @@ export const ACTIONS: readonly Action[] = [
 
   { kind: 'rankup', id: 'letsgo', hotkey: '1', label: "Let's go", isPrimary: true },
   { kind: 'rankup', id: 'undo', hotkey: '0', label: 'Undo' },
+  { kind: 'unlock', id: 'nice', hotkey: '1', label: 'Nice', isPrimary: true },
+  { kind: 'unlock', id: 'again', hotkey: '2', label: 'Again' },
+  { kind: 'unlock', id: 'undo', hotkey: '0', label: 'Undo' },
 
   // An Easy workout: push a little further while it feels good.
   { kind: 'bonus', id: 'bonus', hotkey: '1', label: 'One more', isPrimary: true },

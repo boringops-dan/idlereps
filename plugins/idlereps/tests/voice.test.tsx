@@ -60,6 +60,8 @@ const FILLS = {
   what: 'Cardio',
   ideas: 'a minute of jumping jacks · a minute of high knees · 10 lunges a leg',
   week: 9999,
+  total: 33,
+  next: 'Next one in 99 sets.',
   wait: 'about 55 min',
   minutes: '12 h 45 min',
   from: 'Wednesday',
