@@ -166,8 +166,10 @@ jump when you finish a week, and tosses his laurel when you finish a program.
 3 sets, then one more set each time. When one unlocks, he performs it for you (`2` plays it again).
 `/workout flex` shows off the ones you have; `/workout moves` lists them.
 
-**He idles.** While a band or the pane is up, he blinks, glances around, now and then stares straight out
-of the screen at you, deadpan, and winks. On a win, his sparkles twinkle.
+**He lives in his square.** While a band or the pane is up, he blinks, glances around, now and then
+stares straight out of the screen at you, deadpan, and winks. Where his portrait is drawn full size (the
+introduction and the `/workout` pane), he also turns side to side, strolls out of his square and back, and
+knocks out a few reps of the moves you've collected. On a win, his sparkles twinkle.
 
 **Beside every set**, a tiny Swolomon does the exercise with you, a few reps, then holds still.
 

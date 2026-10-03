@@ -80,6 +80,7 @@ import type { Misread } from './misreads'
 import { drawMove, moveById, moveForExercise, MOVES, poseAt } from './moves'
 import type { Move } from './moves'
 import {
+  encodeCells,
   encodeMicro,
   encodeMove,
   encodeSprite,
@@ -98,8 +99,9 @@ import {
   stageCells,
   TICK_MS,
   timelineOf,
+  walkGrid,
 } from './portrait'
-import type { Fit, Pose, PortraitSize, Timeline } from './portrait'
+import type { Fit, IdleStep, Pose, PortraitSize, Timeline } from './portrait'
 import { backupOf, BACKUP_KEYS, backupPathOf, csvPathOf, historyCsv, parseBackup } from './data'
 import { PUSH_NAMES, STARTER_ANSWERS, generateProgram, stretchFor } from './programs'
 import { addInterval, shareLine, workedMs } from './worktime'
@@ -747,28 +749,62 @@ async function showStage($: EngineInterface, t: number) {
 }
 
 /**
- * Once the line is out, Swolomon idles while the band shows: a beat every few seconds (a blink, a glance,
- * a look around, a deadpan stare out at you and a wink). The band's timers end it when the band goes.
+ * Once the line is out, Swolomon lives in his square while the band shows (owner, 2026-10-03: "walking
+ * around, turning his head side to side, maybe he goes and does some push-ups"): a beat every few seconds.
+ * The band's timers end it when the band goes.
  */
 function idleWhileShowing($: EngineInterface, key: number, n = 0, isWin = false) {
   const size = coach.portrait?.size
   if (size === undefined || (isWin && size !== 'full')) return
-  const beat = idleBeat(n, size, isWin)
-  timer($, 'band', beat.wait, () => {
-    if (coach.talkSeq !== key || coach.portrait === null) return
-    let at = 0
-    for (const step of beat.steps) {
-      timer($, 'band', at, () => {
-        if (coach.talkSeq === key) void showPose($, step.pose)
+  idleLoop($, 'band', { size, isWin, alive: () => coach.talkSeq === key && coach.portrait !== null, blit: cells => void blitPortrait($, cells) }, n)
+}
+
+type IdleOptions = { size: PortraitSize; isWin: boolean; alive: () => boolean; blit: (cells: string) => void }
+
+/** One idle beat after its wait, then the next: the frames it resolves to, each blitted in turn. */
+function idleLoop($: EngineInterface, owner: 'band' | 'pane', opts: IdleOptions, n = 0) {
+  timer($, owner, idleBeat(n, opts.size, opts.isWin).wait, () =>
+    void (async () => {
+      if (!opts.alive()) return
+      // Between lines he does the moves you have collected, the wins aside.
+      const moves = opts.isWin || opts.size !== 'full' ? [] : collected(await load<string[]>($, 'moves', [])).filter(move => move.family !== 'flex').map(move => move.id)
+      const beat = idleBeat(n, opts.size, opts.isWin, moves)
+      let at = 0
+      for (const frame of [...beat.steps.flatMap(step => idleFrames(step, opts.size)), { cells: FRAMES[frameFor(opts.size, beat.rest)], ms: 0 }]) {
+        timer($, owner, at, () => {
+          if (opts.alive()) opts.blit(frame.cells)
+        })
+        at += frame.ms
+      }
+      timer($, owner, at, () => {
+        if (opts.alive()) idleLoop($, owner, opts, n + 1)
       })
-      at += step.ms
-    }
-    timer($, 'band', at, () => {
-      if (coach.talkSeq !== key) return
-      void showPose($, beat.rest)
-      idleWhileShowing($, key, n + 1, isWin)
-    })
-  })
+    })(),
+  )
+}
+
+const WALK_CELLS = new Map<string, string>()
+
+/** An idle step as the cells to show and for how long: a pose, a place on a walk, or a move's poses. */
+function idleFrames(step: IdleStep, size: PortraitSize): { cells: string; ms: number }[] {
+  if ('pose' in step) return [{ cells: FRAMES[frameFor(size, step.pose)], ms: step.ms }]
+  if ('walk' in step) {
+    const id = JSON.stringify(step.walk)
+    if (!WALK_CELLS.has(id)) WALK_CELLS.set(id, encodeCells(walkGrid(SPRITE, step.walk)))
+    return [{ cells: WALK_CELLS.get(id) ?? FRAMES.idle, ms: step.ms }]
+  }
+  const move = moveById(step.move)
+  const cells = MOVE_CELLS[step.move]
+  if (move === undefined || cells === undefined) return []
+  return Array.from({ length: move.reps }, () => move.beats.map(([pose, ms]) => ({ cells: cells[pose] ?? FRAMES.idle, ms }))).flat()
+}
+
+/** Blits cells to the band's portrait, whichever size it is drawn at; a refused blit is ignored. */
+async function blitPortrait($: EngineInterface, cells: string) {
+  const portrait = coach.portrait
+  if (portrait === null) return
+  const { columns, rows } = portraitCells(SPRITE, portrait.size)
+  await $.ui.blit({ requestId: portrait.requestId, key: 'swolomon', cells, columns, rows }).catch(() => undefined)
 }
 
 async function expireBand($: EngineInterface, spec: BandSpec) {
@@ -2450,21 +2486,15 @@ function playPaneMove($: EngineInterface, move: Move | undefined) {
   })
 }
 
-/** The pane's Swolomon idles too, once his move is done, while the pane is open (the bands' beats). */
-function idlePane($: EngineInterface, n = 0) {
-  const beat = idleBeat(n, 'full')
-  timer($, 'pane', beat.wait, () => {
-    let at = 0
-    for (const step of [...beat.steps, { pose: 'idle' as const, ms: 0 }]) {
-      timer($, 'pane', at, () => {
-        const requestId = coach.panePortrait
-        if (coach.isStatusOpen && requestId !== null) void blitFull($, requestId, FRAMES[frameFor('full', step.pose)])
-      })
-      at += step.ms
-    }
-    timer($, 'pane', at, () => {
-      if (coach.isStatusOpen && coach.panePortrait !== null) idlePane($, n + 1)
-    })
+/** The pane's Swolomon lives in his square too, once his move is done, while the pane is open. */
+function idlePane($: EngineInterface) {
+  idleLoop($, 'pane', {
+    size: 'full',
+    isWin: false,
+    alive: () => coach.isStatusOpen && coach.panePortrait !== null,
+    blit: cells => {
+      if (coach.panePortrait !== null) void blitFull($, coach.panePortrait, cells)
+    },
   })
 }
 

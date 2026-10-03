@@ -20,7 +20,11 @@ import {
   stageGrid,
   STOP_X,
   timelineOf,
+  walkGrid,
+  encodeMove,
 } from '../hooks/portrait'
+import type { IdleStep } from '../hooks/portrait'
+import { drawMove, moveById } from '../hooks/moves'
 import { generateProgram, STARTER_ANSWERS } from '../hooks/programs'
 import { record } from '../hooks/record'
 import type { RecordStore } from '../hooks/record'
@@ -95,14 +99,70 @@ test('idle beats: varied, the same for the same n, within their waits; the mini 
     expect(beat.wait).toBeGreaterThanOrEqual(IDLE_WAIT_MS.min)
     expect(beat.wait).toBeLessThanOrEqual(IDLE_WAIT_MS.max)
   }
-  const poses = new Set(beats.flatMap(beat => beat.steps.map(step => step.pose)))
+  const poses = new Set(beats.flatMap(beat => beat.steps.flatMap(step => ('pose' in step ? [step.pose] : []))))
   expect([...poses].sort()).toEqual(['blink', 'glanceL', 'glanceR', 'idle', 'lookYou', 'smirk', 'wink'])
   // A win: the sparkles twinkle, and he rests on the flex.
   const win = idleBeat(3, 'full', true)
-  expect([new Set(win.steps.map(step => step.pose)), win.rest]).toEqual([new Set(['flex', 'flexB']), 'flex'])
-  const mini = new Set(Array.from({ length: 200 }, (_, n) => idleBeat(n, 'mini')).flatMap(beat => beat.steps.map(step => step.pose)))
+  expect([new Set(win.steps.flatMap(step => ('pose' in step ? [step.pose] : ['not a pose']))), win.rest]).toEqual([new Set(['flex', 'flexB']), 'flex'])
+  const mini = new Set(Array.from({ length: 200 }, (_, n) => idleBeat(n, 'mini')).flatMap(beat => beat.steps.map(step => ('pose' in step ? step.pose : 'not a pose'))))
   expect([...mini].sort()).toEqual(['blink', 'glanceL', 'glanceR', 'idle'])
   expect(frameFor('mini', 'glanceL')).toBe('miniGlanceL')
+})
+
+// Living in his square (owner, 2026-10-03: "walking around, turning his head side to side, maybe he goes
+// and does some push-ups").
+
+const walksOf = (steps: readonly IdleStep[]) => steps.flatMap(step => ('walk' in step ? [step.walk] : []))
+const fullBeats = (moves: readonly string[] = []) => Array.from({ length: 400 }, (_, n) => idleBeat(n, 'full', false, moves))
+
+test('walkGrid: in profile where the walk has him, mirrored facing left, nothing past the edge', () => {
+  const walkA = decodeFrame(SPRITE, 'walkA')
+  expect(walkGrid(SPRITE, { frame: 'walkA', facing: 'right', x: 0, y: 0 })).toEqual(walkA)
+  expect(walkGrid(SPRITE, { frame: 'walkA', facing: 'left', x: 0, y: 0 })).toEqual(walkA.map(row => [...row].reverse()))
+  const shifted = walkGrid(SPRITE, { frame: 'walkA', facing: 'right', x: 3, y: 0 })
+  expect(shifted.map(row => row.slice(3))).toEqual(walkA.map(row => row.slice(0, SPRITE.width - 3)))
+  expect(shifted.every(row => row.slice(0, 3).every(px => px === null))).toBe(true)
+  // A bob up a pixel: the top row gone, the bottom one empty.
+  const bob = walkGrid(SPRITE, { frame: 'walkB', facing: 'right', x: 0, y: -1 })
+  expect(bob.slice(0, -1)).toEqual(decodeFrame(SPRITE, 'walkB').slice(1))
+  expect(bob.at(-1)?.every(px => px === null)).toBe(true)
+  // All the way out: an empty square.
+  expect(walkGrid(SPRITE, { frame: 'walkA', facing: 'left', x: -16, y: 0 }).flat().every(px => px === null)).toBe(true)
+})
+
+test('his walks: out one side and back, two pixels a step, home at the end facing us again', () => {
+  const walking = fullBeats().filter(beat => walksOf(beat.steps).some(walk => walk.x !== 0))
+  expect(walking.length).toBeGreaterThan(0)
+  for (const beat of walking) {
+    const walks = walksOf(beat.steps)
+    expect(walks.at(-1)?.x).toBe(0)
+    expect(walks.every(walk => Math.abs(walk.x) <= SPRITE.width && (walk.y === 0 || walk.y === -1))).toBe(true)
+    for (let i = 1; i < walks.length; i += 1) expect(Math.abs((walks[i]?.x ?? 0) - (walks[i - 1]?.x ?? 0))).toBeLessThanOrEqual(2)
+    // The way he faces is the way he goes.
+    for (let i = 1; i < walks.length; i += 1) {
+      const dx = (walks[i]?.x ?? 0) - (walks[i - 1]?.x ?? 0)
+      if (dx !== 0) expect(walks[i]?.facing).toBe(dx > 0 ? 'right' : 'left')
+    }
+    expect(beat.rest).toBe('idle')
+  }
+})
+
+test('he turns his head both ways, on the full portrait only', () => {
+  const facings = new Set(fullBeats().flatMap(beat => walksOf(beat.steps).filter(walk => walk.x === 0).map(walk => walk.facing)))
+  expect([...facings].sort()).toEqual(['left', 'right'])
+  const mini = Array.from({ length: 400 }, (_, n) => idleBeat(n, 'mini', false, ['squat']))
+  expect(mini.every(beat => beat.steps.every(step => 'pose' in step))).toBe(true)
+})
+
+test('move beats: only the moves given, and none without any', () => {
+  expect(fullBeats().some(beat => beat.steps.some(step => 'move' in step))).toBe(false)
+  const done = new Set(fullBeats(['squat', 'push-up']).flatMap(beat => beat.steps.flatMap(step => ('move' in step ? [step.move] : []))))
+  expect([...done].sort()).toEqual(['push-up', 'squat'])
+  expect(idleBeat(5, 'full', false, ['squat'])).toEqual(idleBeat(5, 'full', false, ['squat']))
+})
+
+test('a win only twinkles, moves or not', () => {
+  for (let n = 0; n < 50; n += 1) expect(idleBeat(n, 'full', true, ['squat']).steps.every(step => 'pose' in step)).toBe(true)
 })
 
 // ---------------------------------------------------------------------------------------------------------
@@ -259,6 +319,21 @@ test('animated: once the line is out he idles while the band shows, a beat every
   const gone = blits.length
   await clock.advance(60_000)
   expect(blits.length).toBe(gone)
+  await ui.unmount()
+})
+
+test('animated: on the full portrait, between lines he walks out of his square and back, and does the moves they have', ANIMATED, async ($, on) => {
+  const { clock } = world(on, null, { moves: [] }, { fresh: true })
+  const blits = blitLog(on)
+  await $.session.start(SESSION)
+  const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
+  for (let i = 0; i < 40; i += 1) await clock.advance(10_000)
+  const seen = new Set(blits)
+  expect(seen.has(encodeCells(walkGrid(SPRITE, { frame: 'walkA', facing: 'left', x: 0, y: 0 })))).toBe(true)
+  const cellsOf = (id: string) => encodeMove(SPRITE, id, drawMove(moveById(id)!))
+  // The starters he may idle with: the squat and the curl; never a move they have not got.
+  expect(['squat', 'curl'].some(id => cellsOf(id).some(cells => seen.has(cells)))).toBe(true)
+  expect(cellsOf('push-up').some(cells => seen.has(cells) && !cellsOf('squat').includes(cells) && !cellsOf('curl').includes(cells))).toBe(false)
   await ui.unmount()
 })
 

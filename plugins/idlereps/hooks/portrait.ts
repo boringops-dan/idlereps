@@ -201,41 +201,91 @@ export function frameAt(timeline: Timeline, t: number, isWin: boolean): Frame {
 // Idling (owner, 2026-10-03: "keep Swolomon blinking and moving around a little as he idles ... looking
 // around through the 4th wall"): once his line is out, a beat every few seconds while the band shows.
 
-/** One idle beat: a wait, then poses in turn, then back to rest (idle, or the flex on a win). */
-export type IdleBeat = { wait: number; steps: readonly { pose: Pose; ms: number }[]; rest: Pose }
+/** Where he is in his square while walking: the profile frame, which way, and its left edge and bob. */
+export type Walk = { frame: 'walkA' | 'walkB'; facing: 'left' | 'right'; x: number; y: number }
+
+/** One step of an idle beat: a pose of the bust, a place on a walk, or one of his moves played through. */
+export type IdleStep = { pose: Pose; ms: number } | { walk: Walk; ms: number } | { move: string; ms: number }
+
+/** One idle beat: a wait, then its steps in turn, then back to rest (idle, or the flex on a win). */
+export type IdleBeat = { wait: number; steps: readonly IdleStep[]; rest: Pose }
 
 /** On a win he holds the flex, and its sparkles twinkle. */
-const TWINKLE = [
-  { pose: 'flexB' as const, ms: 300 },
-  { pose: 'flex' as const, ms: 300 },
-  { pose: 'flexB' as const, ms: 300 },
+const TWINKLE: readonly IdleStep[] = [
+  { pose: 'flexB', ms: 300 },
+  { pose: 'flex', ms: 300 },
+  { pose: 'flexB', ms: 300 },
 ]
 
-const BEATS: readonly { weight: number; steps: readonly { pose: Pose; ms: number }[]; isFullOnly?: true }[] = [
+const turned = (facing: Walk['facing'], ms: number): IdleStep => ({ walk: { frame: 'walkA', facing, x: 0, y: 0 }, ms })
+
+/** Walking `from` to `to` (left edges), two pixels a step, the stride and the bob changing every other step. */
+function walking(facing: Walk['facing'], from: number, to: number): IdleStep[] {
+  const steps: IdleStep[] = []
+  const dir = to > from ? 2 : -2
+  for (let x = from, i = 0; dir > 0 ? x <= to : x >= to; x += dir, i += 1) {
+    const isB = Math.floor(i / 2) % 2 === 1
+    steps.push({ walk: { frame: isB ? 'walkB' : 'walkA', facing, x, y: isB ? -1 : 0 }, ms: WALK_IDLE_STEP_MS })
+  }
+  return steps
+}
+
+/** A walk's pace in his square: slower than the entrance's, a stroll. */
+export const WALK_IDLE_STEP_MS = 90
+
+/** Off for a bit, then back: out one side, a moment away, in again facing the way he went. */
+const STROLL_LEFT: readonly IdleStep[] = [turned('left', 300), ...walking('left', 0, -16), { walk: { frame: 'walkA', facing: 'left', x: -16, y: 0 }, ms: 700 }, ...walking('right', -16, 0), turned('right', 250)]
+const STROLL_RIGHT: readonly IdleStep[] = [turned('right', 300), ...walking('right', 0, 16), { walk: { frame: 'walkA', facing: 'right', x: 16, y: 0 }, ms: 700 }, ...walking('left', 16, 0), turned('left', 250)]
+
+type BeatDef = { weight: number; steps: readonly IdleStep[]; isFullOnly?: true; isMove?: true }
+
+const BEATS: readonly BeatDef[] = [
   { weight: 5, steps: [{ pose: 'blink', ms: BLINK_MS }] },
   { weight: 2, steps: [{ pose: 'blink', ms: BLINK_MS }, { pose: 'idle', ms: 120 }, { pose: 'blink', ms: BLINK_MS }] },
   { weight: 3, steps: [{ pose: 'glanceL', ms: 900 }] },
   { weight: 3, steps: [{ pose: 'glanceR', ms: 900 }] },
   // Looking around: who else is here?
   { weight: 2, steps: [{ pose: 'glanceL', ms: 500 }, { pose: 'glanceR', ms: 500 }, { pose: 'glanceL', ms: 350 }] },
+  // Turning his head to the side, then the other side.
+  { weight: 2, steps: [turned('right', 1000)], isFullOnly: true },
+  { weight: 2, steps: [turned('left', 1000)], isFullOnly: true },
+  { weight: 2, steps: [turned('left', 700), { pose: 'idle', ms: 200 }, turned('right', 700)], isFullOnly: true },
   // The 4th wall: a deadpan stare out of the screen, at you; then the wink.
   { weight: 2, steps: [{ pose: 'lookYou', ms: 1400 }, { pose: 'wink', ms: 350 }], isFullOnly: true },
   { weight: 1, steps: [{ pose: 'lookYou', ms: 2200 }], isFullOnly: true },
   { weight: 2, steps: [{ pose: 'smirk', ms: 1200 }], isFullOnly: true },
+  // A stroll out of his square and back.
+  { weight: 2, steps: STROLL_LEFT, isFullOnly: true },
+  { weight: 2, steps: STROLL_RIGHT, isFullOnly: true },
+  // A few reps of something, right there: one of his moves (the step's move is picked per beat).
+  { weight: 3, steps: [{ move: '', ms: 0 }], isFullOnly: true, isMove: true },
 ]
 
 /** The shortest and longest wait before a beat. */
 export const IDLE_WAIT_MS = { min: 2500, max: 5500 } as const
 
-/** The n-th idle beat: the same for the same n (tests and replays), varied from one to the next. */
-export function idleBeat(n: number, size: PortraitSize, isWin = false): IdleBeat {
+/**
+ * The n-th idle beat: the same for the same n (tests and replays), varied from one to the next. `moves` are
+ * the moves he may do between lines (none: no move beats); a win only twinkles.
+ */
+export function idleBeat(n: number, size: PortraitSize, isWin = false, moves: readonly string[] = []): IdleBeat {
   if (isWin) return { wait: Math.round(IDLE_WAIT_MS.min + ((n * 997) % 2000)), steps: TWINKLE, rest: 'flex' }
-  const pool = BEATS.filter(beat => size === 'full' || beat.isFullOnly !== true)
+  const pool = BEATS.filter(beat => (size === 'full' || beat.isFullOnly !== true) && (beat.isMove !== true || moves.length > 0))
   const total = pool.reduce((sum, beat) => sum + beat.weight, 0)
   const hash = (x: number) => ((Math.imul(x + 1, 2654435761) >>> 0) % 10007) / 10007
   let pick = hash(n * 2) * total
   const beat = pool.find(b => (pick -= b.weight) < 0) ?? pool[0]!
-  return { wait: Math.round(IDLE_WAIT_MS.min + hash(n * 2 + 1) * (IDLE_WAIT_MS.max - IDLE_WAIT_MS.min)), steps: beat.steps, rest: 'idle' }
+  const steps = beat.isMove === true ? [{ move: moves[Math.floor(hash(n * 3 + 7) * moves.length)] ?? moves[0] ?? '', ms: 0 }] : beat.steps
+  return { wait: Math.round(IDLE_WAIT_MS.min + hash(n * 2 + 1) * (IDLE_WAIT_MS.max - IDLE_WAIT_MS.min)), steps, rest: 'idle' }
+}
+
+/** The 16 × 16 square with him walking in it: in profile, facing either way, wherever the walk has him. */
+export function walkGrid(sprite: Sprite, walk: Walk): Grid {
+  const frame = decodeFrame(sprite, walk.frame)
+  const src = walk.facing === 'right' ? frame : frame.map(row => [...row].reverse())
+  return Array.from({ length: sprite.height }, (_, r) =>
+    Array.from({ length: sprite.width }, (_, c) => src[r - walk.y]?.[c - walk.x] ?? null),
+  )
 }
 
 // ---------------------------------------------------------------------------------------------------------
