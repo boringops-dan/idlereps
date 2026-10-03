@@ -39,6 +39,7 @@ import {
   offerToSlot,
   pulseBand,
   rankupBand,
+  showOffBand,
   unlockBand,
   ratingBand,
   replayBand,
@@ -57,7 +58,7 @@ import type { Prep } from './prep'
 import { ANSWER_IDS, nextQuestion, recallFor } from './questions'
 import type { About } from './questions'
 import { ASIDE_GAP, ASIDE_MS, ASIDES, asideSpot, asideText, hasAsides } from './asides'
-import { collected, dueUnlock, setsToNext, STARTER_MOVES, UNLOCK_ORDER } from './collection'
+import { collected, dueUnlock, setsForUnlock, setsToNext, STARTER_MOVES, UNLOCK_ORDER } from './collection'
 import { due, mark, mondayOf } from './ledger'
 import type { Scope } from './ledger'
 import { CURRENT_SCHEMA, STEP_READS, STEPS } from './migrations'
@@ -2643,6 +2644,30 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
     return `${line('reply-moves', { day, n: have.length, total: STARTER_MOVES.length + UNLOCK_ORDER.length, next })}\n${have.map(m => m.title).join(' · ')}`
   }
   if (arg === 'protein' || arg === 'wisdom') return `${COACH_NAME}: ${line(arg, { day })}`
+  // Hidden ones (owner, 2026-10-03: "found by word of mouth"): in no usage line, never tracked.
+  // On a logged set, high five is that band's own button.
+  if (arg === 'highfive' && shown?.kind === 'logged') {
+    await highFive($)
+    return null
+  }
+  if (arg === 'hug' || arg === 'highfive') {
+    const move = moveById(arg === 'hug' ? 'hug' : 'high-five')
+    if (move !== undefined && (await placeIfFree($, showOffBand(line(arg === 'hug' ? 'hug' : 'high-five', { day }), move)))) {
+      if (arg === 'highfive') await save($, 'highFives', (await load($, 'highFives', 0)) + 1)
+      return null
+    }
+    return `${COACH_NAME}: ${line(arg === 'hug' ? 'hug' : 'high-five', { day })}`
+  }
+  if (arg === 'dance') {
+    const unlocked = await load<string[]>($, 'moves', [])
+    const move = moveById('dance')
+    if (!unlocked.includes('dance')) {
+      const toGo = Math.max(1, setsForUnlock(UNLOCK_ORDER.indexOf('dance') + 1) - (await load($, 'totalDoneSets', 0)))
+      return `${COACH_NAME}: ${line('dance-locked', { day, n: toGo })}`
+    }
+    if (move !== undefined && (await placeIfFree($, showOffBand(line('dance', { day }), move)))) return null
+    return `${COACH_NAME}: ${line('dance', { day })}`
+  }
 
   // Quick start straight from the introduction or the nudge, past Give me a plan.
   if (arg === 'quickstart' && (shown?.kind === 'intro' || shown?.kind === 'program')) {

@@ -1019,7 +1019,27 @@ const highFive: Move = {
   reps: 1,
 }
 
-export const GESTURES: readonly Move[] = [highFive]
+/** A hug, the only kind he knows: arms wide, then wrapped around himself, eyes shut, for you. */
+const hug: Move = {
+  id: 'hug',
+  title: 'Hug',
+  family: 'gag',
+  poses: [
+    front({ arms: arms([2.5, 6], [0.5, 4.5]), expr: 'grin' }),
+    front({
+      arms: [
+        [SHOULDER_L, [6, 9.5], [10.5, 8]],
+        [SHOULDER_R, [10, 9.5], [5.5, 8]],
+      ],
+      expr: 'blink',
+      fx: [{ kind: 'heart', at: [13, 1] }],
+    }),
+  ],
+  beats: beat([0, 600], [1, 1400]),
+  reps: 1,
+}
+
+export const GESTURES: readonly Move[] = [highFive, hug]
 
 export type MoveId = string
 

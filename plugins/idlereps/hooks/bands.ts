@@ -282,6 +282,11 @@ export function flexBand(day: number, move: { id: string; title: string }): Band
   }
 }
 
+/** A hidden command's moment (hug, dance, high five): his line and the move, like a flex. */
+export function showOffBand(coachLine: string, move: { id: string }): BandSpec {
+  return { kind: 'flex', coach: [coachLine], portrait: 'full', act: move.id, body: [], actions: actionIdsOf('flex'), tall: true }
+}
+
 /** A new rank (§1.13.1): its line with the portrait flexing, in place of the logged line. */
 export function rankupBand(rank: string, coachLine: string, totalSets: number, undoId?: number): BandSpec {
   return {

@@ -203,6 +203,10 @@ export const LINES = [
   },
   { id: 'greet-yesterday-moved', voice: 'swolomon', variants: ['{n} moves yesterday, {mate}. Same again? Or one more?', 'You moved {n} times yesterday, {mate}. I wrote it on my arm.'] },
   { id: 'greet-yesterday-agent', voice: 'swolomon', variants: ['Your agent worked {worked} yesterday, {mate}. Today you get a turn too.', '{worked} of work for your agent yesterday, {mate}. Your turn today.'] },
+  // Hidden commands, found by word of mouth: /workout hug, /workout dance, /workout highfive.
+  { id: 'hug', voice: 'swolomon', variants: ['Bring it in, {mate}.', 'Hug accepted, {mate}. Spotting your heart.', 'Come here, {mate}. Gentle. I know my strength.'] },
+  { id: 'dance', voice: 'swolomon', variants: ['You found the music, {mate}. Watch the hips.', 'Leg day, but fun, {mate}.'] },
+  { id: 'dance-locked', voice: 'swolomon', variants: ['Not ready to show you that one yet, {mate}. {n} more sets.'] },
   // High five on a logged set.
   { id: 'high-five', voice: 'swolomon', variants: ['Up top, {mate}!', 'Yes, {mate}! Felt that one in my soul.', 'Clean contact, {mate}. Textbook.', 'Ow. Worth it, {mate}.'] },
   // The shiny Swolomon (hooks/shiny.ts): the first one ever.
