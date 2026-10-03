@@ -8,6 +8,9 @@ import type { Plan, Progress } from '../types'
 import { isStoreKey } from '../types/store-keys'
 import { UNLOCK_ORDER } from '../hooks/collection'
 import { dayNumberOf } from '../hooks/plan'
+import { drawMove, moveById, MOVES } from '../hooks/moves'
+import { encodeMove } from '../hooks/portrait'
+import { SPRITE } from '../hooks/swolomon-sprite'
 
 /** Noon UTC on Friday 2026-10-02. */
 export const NOON = Date.UTC(2026, 9, 2, 12)
@@ -42,6 +45,25 @@ export const BAND = {
 /** The options the prototype's tests ran with: a 15-minute gap and a 30 s wait. */
 /** The warm-up is off here: the tests of it turn it on. */
 export const OPTIONS = { options: { cueEvery: '15', cueAfter: '30', coachAnimation: false, warmUp: false } } as const
+
+/** As OPTIONS, with Swolomon animated: typing, moves, idling, asides. */
+export const ANIMATED = { options: { ...OPTIONS.options, coachAnimation: true } } as const
+
+/** Every blit, with where it went and the columns it was drawn at. */
+export function blitLog(on: On) {
+  const blits: { requestId: string; cells: string; columns: number }[] = []
+  on('ui.blit', ($, e) => {
+    if ('cells' in e) blits.push({ requestId: e.requestId, cells: e.cells, columns: e.columns ?? 0 })
+    return { value: {} }
+  })
+  return blits
+}
+
+/** The band mounted at `bodyColumns` wide. */
+export const mountAt = ($: Engine, bodyColumns: number) => $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND, props: { ...BAND.props, bodyColumns } })
+
+/** A move's full-portrait cells, pose by pose. */
+export const cellsOf = (id: string): string[] => encodeMove(SPRITE, id, drawMove(moveById(id) ?? MOVES[0]!))
 
 export const TINY: Plan = {
   version: 1,

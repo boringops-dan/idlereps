@@ -1,14 +1,14 @@
 import { expect, test } from 'claude-code/testing'
-import type { Engine } from 'claude-code/testing'
 
 import type { Cue, HistoryEntry, Plan } from '../types'
 import { firstSetLineId, ratingBand } from '../hooks/bands'
-import { COACH_NAME, introLines, plainOf, line, replayLines, SAFETY_SENTENCES } from '../hooks/copy'
+import { COACH_NAME, emphasisRuns, introLines, plainOf, line, replayLines, SAFETY_SENTENCES } from '../hooks/copy'
 import { nextRank, rankFor, RANKS, weekMarks } from '../hooks/history'
 import { START, cueFor } from '../hooks/plan'
 import {
   decodeFrame,
   encodeCells,
+  encodeSprite,
   ENTRANCE_MS,
   entranceAt,
   fitPortrait,
@@ -22,17 +22,15 @@ import {
   STOP_X,
   timelineOf,
   walkGrid,
-  encodeMove,
 } from '../hooks/portrait'
 import type { IdleStep } from '../hooks/portrait'
-import { drawMove, moveById } from '../hooks/moves'
 import { generateProgram, STARTER_ANSWERS } from '../hooks/programs'
 import { record } from '../hooks/record'
 import type { RecordStore } from '../hooks/record'
 import { rankText } from '../hooks/status'
 import { SPRITE } from '../hooks/swolomon-sprite'
 import type { FrameName, MiniFrameName } from '../hooks/swolomon-sprite'
-import { BAND, drawnRows, NOON, OPTIONS, PLAN_PATH, SESSION, STATUS, tallyOf, TINY, TODAY, workout, ownStore, world } from './world'
+import { ANIMATED, BAND, blitLog, cellsOf, drawnRows, mountAt, NOON, OPTIONS, PLAN_PATH, SESSION, STATUS, tallyOf, TINY, TODAY, workout, ownStore, world } from './world'
 
 /** Swolomon as a character (plan §1.11, §1.13), and the first-run and status polish around him. */
 
@@ -42,7 +40,6 @@ const MONDAY = TODAY + 3
 /** Thursday 2026-10-15: a regulars day that is not a Monday. */
 const REGULARS_DAY = TODAY + 13
 const ACKED = { seen: { safety: { at: NOON - 1, n: 1 } } }
-const ANIMATED = { options: { cueEvery: '15', cueAfter: '30', coachAnimation: true, warmUp: false } } as const
 
 // ---------------------------------------------------------------------------------------------------------
 // The sprite and the cells (pure).
@@ -264,14 +261,6 @@ test('the ask band and the speaking set band draw the mini head; a silent set ba
 // ---------------------------------------------------------------------------------------------------------
 // The typewriter, drawn.
 
-function blitLog(on: Parameters<typeof world>[0]) {
-  const blits: string[] = []
-  on('ui.blit', ($, e) => {
-    if ('cells' in e) blits.push(e.cells)
-    return { value: {} }
-  })
-  return blits
-}
 
 test('animated: the line types out while the buttons already work', ANIMATED, async ($, on) => {
   const { clock, w } = world(on, TINY)
@@ -329,9 +318,8 @@ test('animated: on the full portrait, between lines he walks out of his square a
   await $.session.start(SESSION)
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   for (let i = 0; i < 40; i += 1) await clock.advance(10_000)
-  const seen = new Set(blits)
+  const seen = new Set(blits.map(b => b.cells))
   expect(seen.has(encodeCells(walkGrid(SPRITE, { frame: 'walkA', facing: 'left', x: 0, y: 0 })))).toBe(true)
-  const cellsOf = (id: string) => encodeMove(SPRITE, id, drawMove(moveById(id)!))
   // The starters he may idle with: the squat and the curl; never a move they have not got.
   expect(['squat', 'curl'].some(id => cellsOf(id).some(cells => seen.has(cells)))).toBe(true)
   expect(cellsOf('push-up').some(cells => seen.has(cells) && !cellsOf('squat').includes(cells) && !cellsOf('curl').includes(cells))).toBe(false)
@@ -353,17 +341,13 @@ test('animated: he idles for as long as the band is up, ten minutes on', ANIMATE
 
 test('animated: a redraw with no room for him pauses his idling; room again, and he carries on', ANIMATED, async ($, on) => {
   const { clock } = world(on, TINY)
-  const blits: { cells: string; columns: number }[] = []
-  on('ui.blit', ($, e) => {
-    if ('cells' in e) blits.push({ cells: e.cells, columns: e.columns ?? 0 })
-    return { value: {} }
-  })
+  const blits = blitLog(on)
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
-  const wide = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
+  const wide = await mountAt($, 100)
   await clock.advance(20_000)
   await wide.unmount()
-  const narrow = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND, props: { ...BAND.props, bodyColumns: 20 } })
+  const narrow = await mountAt($, 20)
   const paused = blits.length
   await clock.advance(30_000)
   expect(blits.length).toBe(paused)
@@ -376,21 +360,9 @@ test('animated: a redraw with no room for him pauses his idling; room again, and
   await again.unmount()
 })
 
-/** Blits with the columns they were drawn at. */
-function sizedBlits(on: Parameters<typeof world>[0]) {
-  const blits: { cells: string; columns: number }[] = []
-  on('ui.blit', ($, e) => {
-    if ('cells' in e) blits.push({ cells: e.cells, columns: e.columns ?? 0 })
-    return { value: {} }
-  })
-  return blits
-}
-
-const mountAt = ($: Engine, bodyColumns: number) => $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND, props: { ...BAND.props, bodyColumns } })
-
 test('animated: once the band is answered, no idling comes back with the room', ANIMATED, async ($, on) => {
   const { clock } = world(on, TINY)
-  const blits = sizedBlits(on)
+  const blits = blitLog(on)
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   const narrow = await mountAt($, 20)
@@ -406,7 +378,7 @@ test('animated: once the band is answered, no idling comes back with the room', 
 
 test('animated: a band never drawn with room for him: no blits, however long', ANIMATED, async ($, on) => {
   const { clock } = world(on, TINY)
-  const blits = sizedBlits(on)
+  const blits = blitLog(on)
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   const ui = await mountAt($, 20)
@@ -417,7 +389,7 @@ test('animated: a band never drawn with room for him: no blits, however long', A
 
 test('animated: full size to the mini head and back: each blit the size it is drawn at', ANIMATED, async ($, on) => {
   const { clock } = world(on, null, {}, { fresh: true })
-  const blits = sizedBlits(on)
+  const blits = blitLog(on)
   await $.session.start(SESSION)
   const full = await mountAt($, 100)
   await clock.advance(40_000)
@@ -439,7 +411,7 @@ test('animated: full size to the mini head and back: each blit the size it is dr
 
 test('animated: a win twinkles only at full size; squeezed, it waits, and twinkles again with room', ANIMATED, async ($, on) => {
   const { clock } = world(on, TINY, { totalDoneSets: 24 })
-  const blits = sizedBlits(on)
+  const blits = blitLog(on)
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   await $.command.run(workout('done'))
@@ -458,9 +430,140 @@ test('animated: a win twinkles only at full size; squeezed, it waits, and twinkl
   await again.unmount()
 })
 
+test('animated: a move cut short by a redraw with no room: he idles once there is room again', ANIMATED, async ($, on) => {
+  const { clock } = world(on, TINY, { totalDoneSets: 24 })
+  const blits = blitLog(on)
+  await $.session.start(SESSION)
+  await $.command.run(workout('start'))
+  await $.command.run(workout('done'))
+  // The rank-up: his line, then the trophy; squeezed to nothing as the move starts.
+  const full = await mountAt($, 100)
+  await clock.advance(4_000)
+  await full.unmount()
+  const squeezed = await mountAt($, 20)
+  await clock.advance(20_000)
+  await squeezed.unmount()
+  const again = await mountAt($, 100)
+  const before = blits.length
+  await clock.advance(30_000)
+  expect(blits.length).toBeGreaterThan(before)
+  await again.unmount()
+})
+
+test('animated: a redraw mid-stroll draws him where he is, not back at rest', ANIMATED, async ($, on) => {
+  const { clock } = world(on, null, { moves: [] }, { fresh: true })
+  const blits = blitLog(on)
+  await $.session.start(SESSION)
+  let ui = await mountAt($, 100)
+  const rest = new Set(Object.values(encodeSprite(SPRITE)))
+  let away: string | undefined
+  for (let t = 0; t < 300_000 && away === undefined; t += 50) {
+    await clock.advance(50)
+    const last = blits.at(-1)
+    if (last !== undefined && last.columns === SPRITE.width && !rest.has(last.cells)) away = last.cells
+  }
+  expect(away).toBeDefined()
+  await ui.unmount()
+  ui = await mountAt($, 100)
+  expect(((await ui.find({ key: 'swolomon' })) as { props: { cells: string } } | undefined)?.props.cells).toBe(away)
+  await ui.unmount()
+})
+
+test('emphasis as far as it is out: runs cut at the characters shown, the stars never counted', () => {
+  expect(emphasisRuns('*You* hand', 4)).toEqual([
+    { text: 'You', isEmphasis: true },
+    { text: ' ', isEmphasis: false },
+  ])
+  expect(emphasisRuns('*You* hand', 0)).toEqual([])
+  expect(emphasisRuns('*You* hand', 2)).toEqual([{ text: 'Yo', isEmphasis: true }])
+  expect(emphasisRuns('a *b* c', 99)).toEqual(emphasisRuns('a *b* c'))
+  expect(timelineOf([plainOf('*You* hand')]).doneAt).toBe(timelineOf(['You hand']).doneAt)
+})
+
+test('animated: while the intro types, what shows is the line so far without a star', ANIMATED, async ($, on) => {
+  const { clock } = world(on, null, {}, { fresh: true })
+  blitLog(on)
+  await $.session.start(SESSION)
+  const ui = await mountAt($, 100)
+  const starred = plainOf(introLines(TODAY)[2] ?? '')
+  let partial = 0
+  for (let t = 0; t < 20_000; t += 100) {
+    await clock.advance(100)
+    const row = drawnRows(await ui.drawn()).find(r => r.length > 0 && starred.startsWith(r) && r !== starred)
+    if (row !== undefined) partial += 1
+    expect(drawnRows(await ui.drawn()).some(r => r.includes('*'))).toBe(false)
+  }
+  expect(partial).toBeGreaterThan(0)
+  await ui.unmount()
+})
+
+test('animated: each aside drawn and cleared, and nothing more written for it', ANIMATED, async ($, on) => {
+  const asides: (string | undefined)[] = []
+  on('state.set', ($, e, next) => {
+    const write = e as unknown as { key: string; value: { aside?: string } | null }
+    if (write.key === 'talk' && write.value !== null) asides.push(write.value.aside)
+    return next(e)
+  })
+  const { clock } = world(on, null, {}, { fresh: true })
+  blitLog(on)
+  await $.session.start(SESSION)
+  const ui = await mountAt($, 100)
+  await clock.advance(240_000)
+  const shown = asides.filter(a => a !== undefined)
+  expect(shown).toHaveLength(5)
+  // Each one shown, then cleared: they alternate, and never twice in a row the same.
+  const after = asides.slice(asides.indexOf(shown[0]))
+  for (let i = 1; i < after.length; i += 1) expect(after[i]).not.toBe(after[i - 1])
+  await ui.unmount()
+})
+
+test('animated: mid-stroll, a redraw at the mini size starts him from rest there, then at full', ANIMATED, async ($, on) => {
+  const { clock } = world(on, null, { moves: [] }, { fresh: true })
+  const blits = blitLog(on)
+  await $.session.start(SESSION)
+  let ui = await mountAt($, 100)
+  const frames = encodeSprite(SPRITE)
+  const rest = new Set(Object.values(frames))
+  let isAway = false
+  for (let t = 0; t < 300_000 && !isAway; t += 50) {
+    await clock.advance(50)
+    const last = blits.at(-1)
+    isAway = last !== undefined && last.columns === SPRITE.width && !rest.has(last.cells)
+  }
+  expect(isAway).toBe(true)
+  await ui.unmount()
+  ui = await mountAt($, 84)
+  expect(rest.has(((await ui.find({ key: 'swolomon' })) as { props: { cells: string } } | undefined)?.props.cells ?? '')).toBe(true)
+  await ui.unmount()
+  ui = await mountAt($, 100)
+  expect(((await ui.find({ key: 'swolomon' })) as { props: { cells: string } } | undefined)?.props.cells).toBe(frames.idle)
+  await ui.unmount()
+})
+
+test('animated: the pane, reopened mid-idle, draws him where he is', ANIMATED, async ($, on) => {
+  const { clock } = world(on, TINY)
+  const blits = blitLog(on)
+  await $.session.start(SESSION)
+  await $.command.run(workout(''))
+  let pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...STATUS })
+  const rest = new Set(Object.values(encodeSprite(SPRITE)))
+  let away: string | undefined
+  await clock.advance(10_000)
+  for (let t = 0; t < 300_000 && away === undefined; t += 50) {
+    await clock.advance(50)
+    const last = blits.filter(b => b.requestId === STATUS.requestId).at(-1)
+    if (last !== undefined && !rest.has(last.cells)) away = last.cells
+  }
+  expect(away).toBeDefined()
+  await pane.unmount()
+  pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...STATUS })
+  expect(((await pane.find({ key: 'swolomon' })) as { props: { cells: string } } | undefined)?.props.cells).toBe(away)
+  await pane.unmount()
+})
+
 test('not animated: no idling, whatever the room', OPTIONS, async ($, on) => {
   const { clock } = world(on, TINY)
-  const blits = sizedBlits(on)
+  const blits = blitLog(on)
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   for (const columns of [100, 20, 100]) {
@@ -487,7 +590,7 @@ test('animated: over the intro the band redraws only when more text shows, never
   // The last write settles the pose with the whole line out; every other one reveals more of it.
   const reveals = talking.slice(0, -1).map(w => w.shown.join(','))
   expect(new Set(reveals).size).toBe(reveals.length)
-  expect(talking.at(-1)?.shown).toEqual(introLines(TODAY).map(l => [...l].length))
+  expect(talking.at(-1)?.shown).toEqual(introLines(TODAY).map(l => [...plainOf(l)].length))
   // Far fewer redraws than the 50 ms ticks over 20 s.
   expect(talking.length).toBeLessThan(20_000 / 50)
   await ui.unmount()

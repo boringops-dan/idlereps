@@ -5,16 +5,15 @@ import { ASIDE_MS, ASIDES, asideSpot, asideText, hasAsides } from '../hooks/asid
 import { introBand, rankupBand, remindBand } from '../hooks/bands'
 import { entryOf, line } from '../hooks/copy'
 import type { LineId } from '../hooks/copy'
+import { ANIMATED, BAND, drawnRows, OPTIONS, SESSION, TINY, TODAY, workout, world } from './world'
 
 const variantsOf = (id: LineId): readonly string[] => entryOf(id).variants
-import { BAND, drawnRows, OPTIONS, SESSION, TINY, TODAY, workout, world } from './world'
 
 /**
  * Swolomon's asides (owner, 2026-10-03: "so.. we doing this or what? hello? I'm bored"): while a band waits
  * on a choice, a quick word now and then, after a `/`, in its own colour, gone in a moment.
  */
 
-const ANIMATED = { options: { cueEvery: '15', cueAfter: '30', coachAnimation: true, warmUp: false } } as const
 const WIDE = { ...BAND, props: { ...BAND.props, bodyColumns: 160 } }
 
 type Clock = { advance: (ms: number) => Promise<void> }

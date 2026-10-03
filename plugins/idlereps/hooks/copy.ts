@@ -532,9 +532,14 @@ export const REASON_LINE: Record<LongTaskReason, LineId> = {
 /** Emphasis in a line: `*word*`, drawn in italics; the stars never show. */
 export const plainOf = (text: string): string => text.replaceAll('*', '')
 
-/** A line (or as much of it as is out) as runs, each emphasized or not. */
-export function emphasisRuns(text: string): { text: string; isEmphasis: boolean }[] {
-  return text.split('*').flatMap((run, i) => (run === '' ? [] : [{ text: run, isEmphasis: i % 2 === 1 }]))
+/** A line as runs, each emphasized or not, as far as its first `upTo` characters shown (stars aside). */
+export function emphasisRuns(text: string, upTo = Infinity): { text: string; isEmphasis: boolean }[] {
+  let left = upTo
+  return text.split('*').flatMap((run, i) => {
+    const shown = run.slice(0, Math.max(0, left))
+    left -= run.length
+    return shown === '' ? [] : [{ text: shown, isEmphasis: i % 2 === 1 }]
+  })
 }
 
 /** §1.10a: the introduction, verbatim; the address term only in the last line. */

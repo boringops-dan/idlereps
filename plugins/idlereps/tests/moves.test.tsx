@@ -1,5 +1,4 @@
 import { expect, test } from 'claude-code/testing'
-import type { On } from 'claude-code'
 import type { Engine } from 'claude-code/testing'
 
 import type { Answers, Plan } from '../types'
@@ -10,25 +9,13 @@ import { drawMicro, MICRO_HEIGHT, MICRO_WIDTH } from '../hooks/figure'
 import { encodeCells, encodeMicro, encodeMove, encodeSprite, idleBeat, walkGrid } from '../hooks/portrait'
 import { DESK_STRETCHES, generateProgram, LIBRARY } from '../hooks/programs'
 import { SPRITE } from '../hooks/swolomon-sprite'
-import { BAND, drawnRows, SESSION, STATUS, TINY, TODAY, workout, world } from './world'
+import { ANIMATED, BAND, blitLog, cellsOf, drawnRows, OPTIONS, SESSION, STATUS, TINY, TODAY, workout, world } from './world'
 
 /** Swolomon's moves (§1.11 Moves): his whole body, acting out exercises, flexes and gags. */
 
-const ANIMATED = { options: { cueEvery: '15', cueAfter: '30', coachAnimation: true, warmUp: false } } as const
-const STILL = { options: { cueEvery: '15', cueAfter: '30', coachAnimation: false, warmUp: false } } as const
 const FRAMES = encodeSprite(SPRITE)
-const cellsOf = (id: string) => encodeMove(SPRITE, id, drawMove(moveById(id) ?? MOVES[0]!))
 
 /** Every blit, with where it went. */
-function blitLog(on: On) {
-  const blits: { requestId: string; cells: string }[] = []
-  on('ui.blit', ($, e) => {
-    if ('cells' in e) blits.push({ requestId: e.requestId, cells: e.cells })
-    return { value: {} }
-  })
-  return blits
-}
-
 // ---------------------------------------------------------------------------------------------------------
 // The moves themselves.
 
@@ -162,7 +149,7 @@ test('/workout flex again: the next move in the reel', ANIMATED, async ($, on) =
   await ui.unmount()
 })
 
-test('not animated: no move, the flex drawn still', STILL, async ($, on) => {
+test('not animated: no move, the flex drawn still', OPTIONS, async ($, on) => {
   const { clock } = world(on, TINY)
   const blits = blitLog(on)
   await $.session.start(SESSION)
@@ -250,7 +237,7 @@ test('closing the pane stops its move', ANIMATED, async ($, on) => {
   await pane.unmount()
 })
 
-test('not animated: the pane’s portrait stays still', STILL, async ($, on) => {
+test('not animated: the pane’s portrait stays still', OPTIONS, async ($, on) => {
   const { clock } = world(on, TINY)
   const blits = blitLog(on)
   await $.session.start(SESSION)
@@ -316,7 +303,7 @@ test('the set Swolomon speaks on keeps his talking head, not the tiny one', ANIM
   await ui.unmount()
 })
 
-test('not animated: the tiny Swolomon stands in the start position, no blits', STILL, async ($, on) => {
+test('not animated: the tiny Swolomon stands in the start position, no blits', OPTIONS, async ($, on) => {
   const { clock } = world(on, TINY)
   const blits = blitLog(on)
   await $.session.start(SESSION)

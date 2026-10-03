@@ -234,10 +234,14 @@ function walking(facing: Walk['facing'], from: number, to: number): IdleStep[] {
 export const WALK_IDLE_STEP_MS = 90
 
 /** Off for a bit, then back: out one side, a moment away, in again facing the way he went. */
-const STROLL_LEFT: readonly IdleStep[] = [turned('left', 300), ...walking('left', 0, -16), { walk: { frame: 'walkA', facing: 'left', x: -16, y: 0 }, ms: 700 }, ...walking('right', -16, 0), turned('right', 250)]
-const STROLL_RIGHT: readonly IdleStep[] = [turned('right', 300), ...walking('right', 0, 16), { walk: { frame: 'walkA', facing: 'right', x: 16, y: 0 }, ms: 700 }, ...walking('left', 16, 0), turned('left', 250)]
+function stroll(side: Walk['facing']): IdleStep[] {
+  const far = side === 'left' ? -16 : 16
+  const back = side === 'left' ? 'right' : 'left'
+  return [turned(side, 300), ...walking(side, 0, far), { walk: { frame: 'walkA', facing: side, x: far, y: 0 }, ms: 700 }, ...walking(back, far, 0), turned(back, 250)]
+}
 
-type BeatDef = { weight: number; steps: readonly IdleStep[]; isFullOnly?: true; isMove?: true }
+/** A beat's steps; none for a move beat, its move picked per beat from the moves given. */
+type BeatDef = { weight: number; steps?: readonly IdleStep[]; isFullOnly?: true }
 
 const BEATS: readonly BeatDef[] = [
   { weight: 5, steps: [{ pose: 'blink', ms: BLINK_MS }] },
@@ -255,28 +259,33 @@ const BEATS: readonly BeatDef[] = [
   { weight: 1, steps: [{ pose: 'lookYou', ms: 2200 }], isFullOnly: true },
   { weight: 2, steps: [{ pose: 'smirk', ms: 1200 }], isFullOnly: true },
   // A stroll out of his square and back.
-  { weight: 2, steps: STROLL_LEFT, isFullOnly: true },
-  { weight: 2, steps: STROLL_RIGHT, isFullOnly: true },
-  // A few reps of something, right there: one of his moves (the step's move is picked per beat).
-  { weight: 3, steps: [{ move: '', ms: 0 }], isFullOnly: true, isMove: true },
+  { weight: 2, steps: stroll('left'), isFullOnly: true },
+  { weight: 2, steps: stroll('right'), isFullOnly: true },
+  // A few reps of something, right there: one of his moves.
+  { weight: 3, isFullOnly: true },
 ]
 
 /** The shortest and longest wait before a beat. */
 export const IDLE_WAIT_MS = { min: 2500, max: 5500 } as const
+
+const hash = (x: number) => ((Math.imul(x + 1, 2654435761) >>> 0) % 10007) / 10007
+
+/** The wait before the n-th idle beat: the same for the same n, whatever the beat. */
+export const idleWait = (n: number, isWin = false): number =>
+  isWin ? Math.round(IDLE_WAIT_MS.min + ((n * 997) % 2000)) : Math.round(IDLE_WAIT_MS.min + hash(n * 2 + 1) * (IDLE_WAIT_MS.max - IDLE_WAIT_MS.min))
 
 /**
  * The n-th idle beat: the same for the same n (tests and replays), varied from one to the next. `moves` are
  * the moves he may do between lines (none: no move beats); a win only twinkles.
  */
 export function idleBeat(n: number, size: PortraitSize, isWin = false, moves: readonly string[] = []): IdleBeat {
-  if (isWin) return { wait: Math.round(IDLE_WAIT_MS.min + ((n * 997) % 2000)), steps: TWINKLE, rest: 'flex' }
-  const pool = BEATS.filter(beat => (size === 'full' || beat.isFullOnly !== true) && (beat.isMove !== true || moves.length > 0))
+  const wait = idleWait(n, isWin)
+  if (isWin) return { wait, steps: TWINKLE, rest: 'flex' }
+  const pool = BEATS.filter(beat => (size === 'full' || beat.isFullOnly !== true) && (beat.steps !== undefined || moves.length > 0))
   const total = pool.reduce((sum, beat) => sum + beat.weight, 0)
-  const hash = (x: number) => ((Math.imul(x + 1, 2654435761) >>> 0) % 10007) / 10007
   let pick = hash(n * 2) * total
   const beat = pool.find(b => (pick -= b.weight) < 0) ?? pool[0]!
-  const steps = beat.isMove === true ? [{ move: moves[Math.floor(hash(n * 3 + 7) * moves.length)] ?? moves[0] ?? '', ms: 0 }] : beat.steps
-  return { wait: Math.round(IDLE_WAIT_MS.min + hash(n * 2 + 1) * (IDLE_WAIT_MS.max - IDLE_WAIT_MS.min)), steps, rest: 'idle' }
+  return { wait, steps: beat.steps ?? [{ move: moves[Math.floor(hash(n * 3 + 7) * moves.length)]!, ms: 0 }], rest: 'idle' }
 }
 
 /** The 16 × 16 square with him walking in it: in profile, facing either way, wherever the walk has him. */

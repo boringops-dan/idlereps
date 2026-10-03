@@ -90,6 +90,7 @@ import {
   fitPortrait,
   frameAt,
   idleBeat,
+  idleWait,
   frameFor,
   PORTRAIT_GAP,
   portraitCells,
@@ -102,7 +103,7 @@ import {
   timelineOf,
   walkGrid,
 } from './portrait'
-import type { Fit, IdleStep, Pose, PortraitSize, Timeline } from './portrait'
+import type { Fit, IdleStep, Pose, PortraitSize, Timeline, Walk } from './portrait'
 import { backupOf, BACKUP_KEYS, backupPathOf, csvPathOf, historyCsv, parseBackup } from './data'
 import { PUSH_NAMES, STARTER_ANSWERS, generateProgram, stretchFor } from './programs'
 import { addInterval, shareLine, workedMs } from './worktime'
@@ -592,7 +593,8 @@ async function startTalk($: EngineInterface, spec: BandSpec): Promise<BandSpec> 
   coach.moveFrame = null
   const key = coach.talkSeq
   const isWin = spec.isWin === true
-  const timeline = timelineOf(spec.coach)
+  // Typed as read: the emphasis stars are no characters.
+  const timeline = timelineOf(spec.coach.map(plainOf))
   const startedAt = await now($)
   const isEntering = spec.entrance === true
   coach.talkTimeline = timeline
@@ -643,10 +645,11 @@ async function tick($: EngineInterface, key: number, isWin: boolean, stop: () =>
     coach.pose = frame.pose
     await update($, talk, () => ({ key, shown: frame.shown, pose: frame.pose }))
     const shown = await read($, band)
-    if (shown !== null && shown.talkKey === key && hasAsides(shown)) asidesWhileShowing($, key)
+    if (shown?.talkKey !== key) return
+    if (hasAsides(shown)) void asidesWhileShowing($, key)
     const move = coach.talkMove === undefined ? undefined : moveById(coach.talkMove)
     if (move !== undefined && coach.portrait?.size === 'full') await playMove($, move, key, isWin)
-    else idleWhileShowing($, key, 0, isWin)
+    else if (shown.portrait !== undefined) idleWhileShowing($, key, isWin)
     return
   }
   // Each time the mouth opens, a blip (none while it rests between sentences).
@@ -670,17 +673,18 @@ async function playMove($: EngineInterface, move: Move, key: number, isWin: bool
   let showing = -1
   ticker($, 'band', TICK_MS, stop =>
     void (async () => {
-      const portrait = coach.portrait
-      if (coach.talkSeq !== key || portrait === null || portrait.size !== 'full') {
+      if (coach.talkSeq !== key) {
         stop()
         return
       }
-      const pose = poseAt(move, (await now($)) - startedAt)
-      if (pose === null) {
+      // Done, or no full portrait to do it in (a redraw with no room for it): he idles from here.
+      const portrait = coach.portrait
+      const pose = portrait?.size === 'full' ? poseAt(move, (await now($)) - startedAt) : null
+      if (portrait === null || pose === null) {
         stop()
         coach.moveFrame = null
         await showPose($, isWin ? 'flex' : 'idle')
-        idleWhileShowing($, key, 0, isWin)
+        idleWhileShowing($, key, isWin)
         return
       }
       if (pose === showing) return
@@ -734,10 +738,8 @@ async function blitFull($: EngineInterface, requestId: string, cells: string | n
 
 /** Repaints the portrait in a pose, where one is drawn; a refused blit (the band moved on) is ignored. */
 async function showPose($: EngineInterface, pose: Pose) {
-  const portrait = coach.portrait
-  if (portrait === null) return
-  const { columns, rows } = portraitCells(SPRITE, portrait.size)
-  await $.ui.blit({ requestId: portrait.requestId, key: 'swolomon', cells: FRAMES[frameFor(portrait.size, pose)], columns, rows }).catch(() => undefined)
+  const size = coach.portrait?.size
+  if (size !== undefined) await blitPortrait($, FRAMES[frameFor(size, pose)])
 }
 
 /** Repaints the entrance's stage `t` ms in, where one is drawn and the frame has changed. */
@@ -752,17 +754,19 @@ async function showStage($: EngineInterface, t: number) {
 }
 
 /** His asides while the band waits on a choice (hooks/asides.ts); the band's timers end them when it goes. */
-function asidesWhileShowing($: EngineInterface, key: number) {
+async function asidesWhileShowing($: EngineInterface, key: number) {
+  const day = (await today($)) + key
   for (const aside of ASIDES) {
-    timer($, 'band', aside.at, () => void (async () => setAside($, key, line(aside.id, { day: (await today($)) + key })))())
+    timer($, 'band', aside.at, () => void setAside($, key, line(aside.id, { day })))
     timer($, 'band', aside.at + ASIDE_MS, () => void setAside($, key, undefined))
   }
 }
 
 async function setAside($: EngineInterface, key: number, aside: string | undefined) {
   const said = await read($, talk)
-  if (said === null || said.key !== key || said.isEntering === true) return
-  await update($, talk, () => ({ key, shown: said.shown, pose: said.pose, ...(aside === undefined ? {} : { aside }) }))
+  if (said === null || said.key !== key || said.isEntering === true || said.aside === aside) return
+  const { aside: _was, ...rest } = said
+  await update($, talk, () => (aside === undefined ? rest : { ...rest, aside }))
 }
 
 /**
@@ -770,18 +774,17 @@ async function setAside($: EngineInterface, key: number, aside: string | undefin
  * around, turning his head side to side, maybe he goes and does some push-ups"): a beat every few seconds.
  * The band's timers end it when the band goes.
  */
-function idleWhileShowing($: EngineInterface, key: number, n = 0, isWin = false) {
-  idleLoop(
-    $,
-    'band',
-    {
-      size: () => coach.portrait?.size,
-      isWin,
-      alive: () => coach.talkSeq === key,
-      blit: (cells, size) => void blitPortrait($, cells, size),
+function idleWhileShowing($: EngineInterface, key: number, isWin: boolean) {
+  idleLoop($, 'band', {
+    size: () => coach.portrait?.size,
+    isWin,
+    alive: () => coach.talkSeq === key,
+    // What he is doing is kept for the next redraw, so it draws him there and not back at rest.
+    blit: (cells, size) => {
+      coach.moveFrame = size === 'full' ? cells : null
+      void blitPortrait($, cells)
     },
-    n,
-  )
+  })
 }
 
 /**
@@ -791,46 +794,49 @@ function idleWhileShowing($: EngineInterface, key: number, n = 0, isWin = false)
 type IdleOptions = { size: () => PortraitSize | undefined; isWin: boolean; alive: () => boolean; blit: (cells: string, size: PortraitSize) => void }
 
 /**
- * One idle beat after its wait, then the next, for as long as it is alive: the frames it resolves to, each
+ * Idle beats, each after its wait, for as long as the loop is alive: the frames a beat resolves to, each
  * blitted in turn. A beat with no portrait drawn (a redraw too narrow for him) is skipped, not the end: he
  * carries on once there is room again. A frame is only blitted to the size it was made for.
  */
-function idleLoop($: EngineInterface, owner: 'band' | 'pane', opts: IdleOptions, n = 0) {
-  timer($, owner, idleBeat(n, 'full', opts.isWin).wait, () =>
-    void (async () => {
-      if (!opts.alive()) return
-      const size = opts.size()
-      const next = () => {
-        if (opts.alive()) idleLoop($, owner, opts, n + 1)
-      }
-      if (size === undefined || (opts.isWin && size !== 'full')) {
-        next()
-        return
-      }
-      // Between lines he does the moves you have collected, the wins aside.
-      const moves = opts.isWin || size !== 'full' ? [] : collected(await load<string[]>($, 'moves', [])).filter(move => move.family !== 'flex').map(move => move.id)
-      const beat = idleBeat(n, size, opts.isWin, moves)
-      let at = 0
-      for (const frame of [...beat.steps.flatMap(step => idleFrames(step, size)), { cells: FRAMES[frameFor(size, beat.rest)], ms: 0 }]) {
+function idleLoop($: EngineInterface, owner: 'band' | 'pane', opts: IdleOptions) {
+  // The moves he may do: those collected, the flexes aside (the wins keep those); read once per loop.
+  let moves: string[] | undefined
+  const beat = (n: number) =>
+    timer($, owner, idleWait(n, opts.isWin), () =>
+      void (async () => {
+        if (!opts.alive()) return
+        const size = opts.size()
+        if (size === undefined || (opts.isWin && size !== 'full')) {
+          beat(n + 1)
+          return
+        }
+        moves ??= opts.isWin ? [] : collected(await load<string[]>($, 'moves', [])).filter(move => move.family !== 'flex').map(move => move.id)
+        const { steps, rest } = idleBeat(n, size, opts.isWin, size === 'full' ? moves : [])
+        let at = 0
+        for (const frame of [...steps.flatMap(step => idleFrames(step, size)), { cells: FRAMES[frameFor(size, rest)], ms: 0 }]) {
+          timer($, owner, at, () => {
+            if (opts.alive() && opts.size() === size) opts.blit(frame.cells, size)
+          })
+          at += frame.ms
+        }
         timer($, owner, at, () => {
-          if (opts.alive() && opts.size() === size) opts.blit(frame.cells, size)
+          if (opts.alive()) beat(n + 1)
         })
-        at += frame.ms
-      }
-      timer($, owner, at, next)
-    })(),
-  )
+      })(),
+    )
+  beat(0)
 }
 
-const WALK_CELLS = new Map<string, string>()
+/** Each place on his walks, encoded once (the walks are the beats' own, so the same objects every time). */
+const WALK_CELLS = new Map<Walk, string>()
 
 /** An idle step as the cells to show and for how long: a pose, a place on a walk, or a move's poses. */
 function idleFrames(step: IdleStep, size: PortraitSize): { cells: string; ms: number }[] {
   if ('pose' in step) return [{ cells: FRAMES[frameFor(size, step.pose)], ms: step.ms }]
   if ('walk' in step) {
-    const id = JSON.stringify(step.walk)
-    if (!WALK_CELLS.has(id)) WALK_CELLS.set(id, encodeCells(walkGrid(SPRITE, step.walk)))
-    return [{ cells: WALK_CELLS.get(id) ?? FRAMES.idle, ms: step.ms }]
+    const cells = WALK_CELLS.get(step.walk) ?? encodeCells(walkGrid(SPRITE, step.walk))
+    WALK_CELLS.set(step.walk, cells)
+    return [{ cells, ms: step.ms }]
   }
   const move = moveById(step.move)
   const cells = MOVE_CELLS[step.move]
@@ -838,10 +844,10 @@ function idleFrames(step: IdleStep, size: PortraitSize): { cells: string; ms: nu
   return Array.from({ length: move.reps }, () => move.beats.map(([pose, ms]) => ({ cells: cells[pose] ?? FRAMES.idle, ms }))).flat()
 }
 
-/** Blits cells made for `size` to the band's portrait, while it is drawn at that size; a refused blit is ignored. */
-async function blitPortrait($: EngineInterface, cells: string, size: PortraitSize) {
+/** Blits cells to the band's portrait, at the size it is drawn; a refused blit is ignored. */
+async function blitPortrait($: EngineInterface, cells: string) {
   const portrait = coach.portrait
-  if (portrait === null || portrait.size !== size) return
+  if (portrait === null) return
   const { columns, rows } = portraitCells(SPRITE, portrait.size)
   await $.ui.blit({ requestId: portrait.requestId, key: 'swolomon', cells, columns, rows }).catch(() => undefined)
 }
@@ -2532,6 +2538,7 @@ function idlePane($: EngineInterface) {
     isWin: false,
     alive: () => coach.isStatusOpen,
     blit: cells => {
+      coach.paneFrame = cells
       if (coach.panePortrait !== null) void blitFull($, coach.panePortrait, cells)
     },
   })
@@ -2704,29 +2711,32 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
     textColumns,
     sprite: SPRITE,
   })
+  // A frame he was in the middle of is for the size it was made for; at another size he starts from rest.
+  if (coach.portrait?.size !== (fit === 'none' ? undefined : fit)) coach.moveFrame = null
   coach.portrait = fit === 'none' ? null : { requestId: site.requestId, size: fit }
   // Where there are no terminal cells, the portrait is an SVG of the same pixels (still: no blits there).
   const svgSize: PortraitSize | null =
     site.surface !== 'terminal' && 'Svg' in elements && SPRITE.approved && spec.portrait !== undefined ? spec.portrait : null
 
   const header = headerParts.length === 0 ? null : rowText(Text, headerParts, 'header')
+  const isTalking = said !== null && said.key === spec.talkKey
+  // With no portrait beside it, his first line says who is talking.
+  const nameTag: BandPart[] = fit === 'none' && svgSize === null ? [{ text: `${COACH_NAME}:`, bold: true, tone: 'accent' }, { text: ' ' }] : []
   // His aside, while the band waits: under the title, or after his line; never moving a thing.
-  const nameColumns = fit === 'none' && svgSize === null ? `${COACH_NAME}: `.length : 0
-  const besideColumns =
-    fit !== 'none' ? portraitCells(SPRITE, fit).columns + PORTRAIT_GAP : svgSize !== null ? PORTRAIT_GAP + (svgSize === 'full' ? SPRITE.width : SPRITE.miniSize) : 0
-  const aside = said !== null && said.key === spec.talkKey ? said.aside : undefined
+  const drawnAt = fit !== 'none' ? fit : svgSize
+  const besideColumns = drawnAt === null ? 0 : portraitCells(SPRITE, drawnAt).columns + PORTRAIT_GAP
+  const aside = isTalking ? said.aside : undefined
+  const asidePart: BandPart = { text: asideText(aside ?? ''), tone: 'aside' }
   const spot =
     aside === undefined
       ? 'none'
-      : asideSpot(spec, aside, { columns: site.bodyColumns - besideColumns, lineColumns: nameColumns + plainOf(spec.coach?.[0] ?? '').length })
+      : asideSpot(spec, aside, { columns: site.bodyColumns - besideColumns, lineColumns: widthOf([...nameTag, { text: plainOf(spec.coach?.[0] ?? '') }]) })
   // While typing, each line shows what is out so far; rows keep their place so the band never jumps.
-  const isTalking = said !== null && said.key === spec.talkKey
   const coachRows = (spec.coach ?? []).map((text, i) => {
-    const shown = isTalking ? text.slice(0, said.shown[i] ?? text.length) : text
-    const tag: BandPart[] = fit === 'none' && svgSize === null && i === 0 ? [{ text: `${COACH_NAME}:`, bold: true, tone: 'accent' }, { text: ' ' }] : []
-    const after: BandPart[] = i === 0 && spot === 'after-line' && aside !== undefined ? [{ text: ' '.repeat(ASIDE_GAP) }, { text: asideText(aside), tone: 'aside' }] : []
-    const spoken: BandPart[] = shown === '' ? [{ text: ' ' }] : emphasisRuns(shown).map(run => ({ text: run.text, ...(run.isEmphasis ? { italic: true } : {}) }))
-    return rowText(Text, [...tag, ...spoken, ...after], `coach-${i}`)
+    const runs = emphasisRuns(text, isTalking ? (said.shown[i] ?? Infinity) : Infinity)
+    const spoken: BandPart[] = runs.length === 0 ? [{ text: ' ' }] : runs.map(run => ({ text: run.text, ...(run.isEmphasis ? { italic: true } : {}) }))
+    const after: BandPart[] = i === 0 && spot === 'after-line' ? [{ text: ' '.repeat(ASIDE_GAP) }, asidePart] : []
+    return rowText(Text, [...(i === 0 ? nameTag : []), ...spoken, ...after], `coach-${i}`)
   })
   const bodyRows = spec.body.map((row, i) => {
     const isLast = i === spec.body.length - 1
@@ -2742,11 +2752,7 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
   const rows = [
     spec.headerFirst === true ? header : null,
     // A title on top gets a blank row under it, before Swolomon speaks (owner, 2026-10-03).
-    spec.headerFirst === true && header !== null
-      ? spot === 'under-title' && aside !== undefined
-        ? rowText(Text, [{ text: asideText(aside), tone: 'aside' }], 'after-header')
-        : <Text key="after-header"> </Text>
-      : null,
+    spec.headerFirst === true && header !== null ? rowText(Text, [spot === 'under-title' ? asidePart : { text: ' ' }], 'after-header') : null,
     ...coachRows,
     spec.headerFirst !== true ? header : null,
     ...bodyRows,
@@ -3131,11 +3137,11 @@ export const register: Register = (on, options) => {
     // Most important first: Swolomon's line and the head, then the buttons, then the rest. A pane above the
     // prompt sizes itself to its content up to a cap, so what it cuts is only ever the least important rows.
     const elements = $.ui.resolve(e)
-    const widest = Math.max(view.coach.length, ...view.head.map(row => (typeof row === 'string' ? row.length : row.filter(p => p.truncate !== true).reduce((n, p) => n + p.text.length, 0))))
+    const widest = Math.max(plainOf(view.coach).length, ...view.head.map(row => (typeof row === 'string' ? row.length : row.filter(p => p.truncate !== true).reduce((n, p) => n + p.text.length, 0))))
     const hasPortrait = surface === 'terminal' && SPRITE.approved && 'Raster' in elements && e.props.bodyColumns >= SPRITE.width + PORTRAIT_GAP + widest
     coach.panePortrait = hasPortrait ? e.requestId : null
     const hasSvg = surface !== 'terminal' && SPRITE.approved && 'Svg' in elements
-    const said = rowText(Text, hasPortrait || hasSvg ? [{ text: view.coach, italic: true }] : [{ text: `${COACH_NAME}:`, bold: true, tone: 'accent' }, { text: ` ${view.coach}` }], 'coach', { truncate: true })
+    const said = rowText(Text, hasPortrait || hasSvg ? [{ text: plainOf(view.coach), italic: true }] : [{ text: `${COACH_NAME}:`, bold: true, tone: 'accent' }, { text: ` ${plainOf(view.coach)}` }], 'coach', { truncate: true })
     const top = (
       <Box key="top" flexDirection="column">
         {view.head.slice(0, 1).map((row, i) => rowOf(row, `head-${i}`))}
