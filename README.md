@@ -50,6 +50,9 @@ Update: `claude plugin marketplace update idlereps` (or `/plugin marketplace upd
    it's away: "Your agent's back in about 5 min."
 3. Say yes and you get one set: `Squats: 12 reps (1/2)`. Do it, press `1`, and get back to work.
 4. The next set comes after a gap (15 minutes by default), never more often, and never while you're typing.
+   In Just remind me the ideas fit the wait: a quick one when your turns usually run short, a set for a
+   few minutes, a walk when a long build or a helper agent is under way ("Ideas for about 8 min: a lap of
+   the block · …").
 5. Your plan progresses: hit the top of the rep range and it moves you on to more reps, more weight, or a
    harder variant.
 
@@ -67,6 +70,12 @@ Any exercise is better than none, so IdleReps never makes it all or nothing:
 - **It backs off.** Three Laters in a row and IdleReps waits twice as long for the rest of the day. Say
   Not today on the same weekday three weeks running and Swolomon offers to move that day.
 - **Rest days.** A long turn on a day off offers one desk stretch instead of a set.
+- **A target that follows you.** In Just remind me the footer counts today's moves against a target taken
+  from your usual active day (`💪 2/3 today`), a little lower in a rough week. Never a debt.
+- **Stand up.** Two hours of your agent working with nothing moved, and Swolomon asks you to stand up
+  with him, once a day. One tap, and it counts as moving.
+- **The punch card.** A stamp for each day you move, in a row or not. Ten stamps and he drinks a free
+  protein shake for you, slowly, while you watch.
 
 ## Getting stronger, where you can see it
 
@@ -175,12 +184,29 @@ knocks out a few reps of the moves you've collected. On a win, his sparkles twin
 a `/` in its own colour: under the title where the band has one, else after his line. "So... we doing
 this or what?" Then "Hello?", then boredom. After five he leaves it. Never during a set.
 
+**He's training too.** Your second set enters him in Regionals, and every set you do is a set of his prep.
+When the bar fills (30 sets) he competes before your next session and comes back with gold, or now and
+then a silver he takes very well. Then Nationals, Worlds, and on. His medals are in the pane.
+
+**He knows you.** Back after a couple of days, he missed you; after a week, your spot is still warm; the
+day after, how yesterday went for you and your agent both. Now and then, on a turn with nothing due, he
+asks you something: morning person or night owl, dogs or cats, what you lift to. Weeks later he brings it
+up. He counts the days you showed up, is groggy before eight and puzzled to see you after eleven (in the
+pane at night he's asleep), and notices when you open a project he hasn't seen you in: a new gym.
+
+**Spot him.** Every few days he's the one stuck on his last rep. `1: You got this!` and he gets it up.
+
+**High five.** After a logged set, press `h`.
+
+**Shiny.** About one band in a hundred, he shows up in gold. Screenshots welcome.
+
 **Beside every set**, a tiny Swolomon does the exercise with you, a few reps, then holds still.
 
 **What your agent is up to.** Swolomon has never heard of coding, so he reads everything your agent does
 as gym talk. A push is push-ups, a curl is curls, a build is building muscle, and tests are a fitness
 test. While a command runs, the spinner says what he thinks it is ("Doing push-ups…"). His lines that
-turn use it, and when the turn ends he tells you what he made of it.
+turn use it, and when the turn ends he tells you what he made of it. See the same thing a few times and he
+asks around, and gets a little closer. Never right.
 
 **Ranks.** Every set you do counts toward a rank, from New Face through Regular, Rack Regular, Iron
 Disciple, Demigod and Olympian to Greek God at 2,500 sets. Skipped sets don't count, and nothing about
@@ -307,7 +333,8 @@ Everything stays on your machine: your plan is in `~/.claude/idlereps/plan.json`
 history are in Claude Code's plugin storage. IdleReps sends something only when you choose to:
 `/workout plan <text>` sends your description to the model to turn it into a plan; `/workout feedback` and
 the one-time check-in send what you wrote or answered to idlereps.app. Anonymous usage counts are off
-unless you turn them on, and not live yet. Every field sent is listed on
+unless you turn them on, and not live yet. Swolomon's notes on you (your answers to his questions, the
+names of the project folders you work in, so he notices a new one) stay on your machine with the rest. Every field sent is listed on
 [idlereps.app/privacy](https://idlereps.app/privacy.html).
 
 Progress is per machine. To move it, `/workout export` on the old machine, copy
@@ -339,6 +366,7 @@ claude plugin uninstall idlereps@idlereps
 ## Swolomon has more to say
 
 Try `/workout flex` (again and again: a different move each time), `/workout protein` and `/workout wisdom`.
+There are others nobody wrote down.
 
 ## License
 
