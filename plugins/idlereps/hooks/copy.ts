@@ -525,9 +525,9 @@ export const REASON_LINE: Record<LongTaskReason, LineId> = {
 
 /** §1.10a: the introduction, verbatim; the address term only in the last line. */
 const INTRO = [
-  "Hi! I'm {coach}, your IdleReps trainer. Welcome to my gym.",
-  'You hand your agent work? Cute. I hand YOU work.',
-  "While it's off on its mission: one set. Press 1 when it's done.",
+  "Hi! I'm {coach}, your IdleReps trainer. Welcome to my... your CLI.",
+  'Cardio, Lifts and Iron. Finest gym around. Bit cramped.',
+  "You hand your agent work? Cute. While it's out, I hand YOU work.",
   'Quick start, or just a nudge to move, {mate}?',
 ] as const
 
