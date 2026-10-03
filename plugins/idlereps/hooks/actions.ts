@@ -4,7 +4,7 @@
  * every button has a command by construction. Pure data.
  */
 
-export type ActionKind = 'still' | 'unlock' | 'remindPane' | 'remind' | 'program' | 'byoplan' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex' | 'status' | 'safety' | 'byo'
+export type ActionKind = 'question' | 'still' | 'unlock' | 'remindPane' | 'remind' | 'program' | 'byoplan' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex' | 'status' | 'safety' | 'byo'
 
 export type Action = {
   id: string
@@ -37,6 +37,13 @@ export const ACTIONS: readonly Action[] = [
   { kind: 'remind', id: 'other', hotkey: '4', label: 'Other' },
   { kind: 'remind', id: 'later', hotkey: 'l', label: 'Later' },
   { kind: 'remind', id: 'skipday', hotkey: '0', label: 'Not today' },
+
+  // A question of his: up to four answers (labelled by the question), or Pass.
+  { kind: 'question', id: 'a', hotkey: '1', label: 'Answer' },
+  { kind: 'question', id: 'b', hotkey: '2', label: 'Answer' },
+  { kind: 'question', id: 'c', hotkey: '3', label: 'Answer' },
+  { kind: 'question', id: 'd', hotkey: '4', label: 'Answer' },
+  { kind: 'question', id: 'pass', hotkey: 'p', label: 'Pass' },
 
   // Sitting a long while: stand up with him.
   { kind: 'still', id: 'stood', hotkey: '1', label: 'Stood up', isPrimary: true },

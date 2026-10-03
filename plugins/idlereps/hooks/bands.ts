@@ -5,6 +5,7 @@
 
 import type { BandKind, BandLine, BandPart, BandSpec, Cue, Draft, ExerciseMemory, LongTaskReason, Plan, RatingBasis, Weekday } from '../types'
 import { actionIdsOf } from './actions'
+import { ANSWER_IDS } from './questions'
 import { introLines, line, REASON_LINE, replayLines, SAFETY_SENTENCES, setHeader } from './copy'
 import type { LineContext, LineId } from './copy'
 import { describeAmount, setSeconds, setsOf, shortWorkoutName, targetOf, timeWords } from './plan'
@@ -12,7 +13,7 @@ import { PUSH_NAMES } from './programs'
 import { weekdayName } from './schedule'
 
 /** Which band keeps the slot when two want it (§4.3 item 4). A logged line gives way to anything. */
-export const BAND_PRIORITY: Record<BandKind, number> = { still: 2, unlock: 6, program: 1, byoplan: 1, remind: 2, pulse: 0, rankup: 7, rating: 6, bonus: 5, programEnd: 5, restore: 8, erase: 8, warmup: 3, logged: 4, edit: 3, set: 3, ask: 2, ready: 2, stretch: 2, where: 1, reschedule: 2, timer: 3, switch: 3, time: 3, safety: 1, intro: 1, replay: 1, flex: 1 }
+export const BAND_PRIORITY: Record<BandKind, number> = { question: 1, still: 2, unlock: 6, program: 1, byoplan: 1, remind: 2, pulse: 0, rankup: 7, rating: 6, bonus: 5, programEnd: 5, restore: 8, erase: 8, warmup: 3, logged: 4, edit: 3, set: 3, ask: 2, ready: 2, stretch: 2, where: 1, reschedule: 2, timer: 3, switch: 3, time: 3, safety: 1, intro: 1, replay: 1, flex: 1 }
 
 export const LOGGED_MS = 120_000
 
@@ -107,6 +108,18 @@ export function remindBand(coachLine: string, day: number, ideas: readonly strin
     portrait: 'mini',
     body: [[{ text: ideasLine, tone: 'muted' }], ...(opts.withSafety === true ? [safetyRow(day)] : [])],
     actions: actionIdsOf('remind'),
+  }
+}
+
+/** A question of Swolomon's: one tap for an answer, or Pass. */
+export function questionBand(coachLine: string, question: { id: string; options: readonly string[] }): BandSpec {
+  return {
+    kind: 'question',
+    coach: [coachLine],
+    portrait: 'mini',
+    body: [],
+    actions: [...ANSWER_IDS.slice(0, question.options.length), 'pass'],
+    question: { id: question.id, labels: [...question.options] },
   }
 }
 

@@ -7,6 +7,7 @@ import type { On, PromptEditInput, PromptEditResult, RenderSurface } from 'claud
 import type { Plan, Progress } from '../types'
 import { isStoreKey } from '../types/store-keys'
 import { UNLOCK_ORDER } from '../hooks/collection'
+import { QUESTIONS } from '../hooks/questions'
 import { dayNumberOf } from '../hooks/plan'
 import { drawMove, moveById, MOVES } from '../hooks/moves'
 import { encodeMove } from '../hooks/portrait'
@@ -101,15 +102,19 @@ type Seed = Record<string, unknown> | 'own-store'
 /** `fresh`: someone Swolomon hasn't walked in yet; otherwise the store says onboarding and the safety note are behind them. */
 type WorldOptions = { legacy?: string; now?: number; surfaces?: RenderSurface[]; fresh?: true }
 
+/** Every question of Swolomon's asked, passed on. */
+export const ASKED = Object.fromEntries(QUESTIONS.map(q => [q.id, 'pass']))
+
 export const ONBOARDED = { onboarded: { at: 1, n: 1 }, safety: { at: 1, n: 1 } }
 
 /**
- * The seed as the store starts: onboarding and the safety note already done, and every move of Swolomon's
- * already collected (so no unlock band takes a set's place), unless the test is about them.
+ * The seed as the store starts: onboarding and the safety note already done, every move of Swolomon's
+ * already collected (so no unlock band takes a set's place), and every question of his already asked (so
+ * none takes a quiet turn), unless the test is about them.
  */
 function withOnboarding(seed: Record<string, unknown>, fresh: boolean): Record<string, unknown> {
   if (fresh) return seed
-  return { moves: [...UNLOCK_ORDER], ...seed, seen: { ...ONBOARDED, ...(seed.seen as Record<string, unknown> | undefined) } }
+  return { moves: [...UNLOCK_ORDER], about: ASKED, ...seed, seen: { ...ONBOARDED, ...(seed.seen as Record<string, unknown> | undefined) } }
 }
 type Clock = ReturnType<typeof mock.clock>
 

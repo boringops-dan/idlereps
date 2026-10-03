@@ -25,6 +25,7 @@ import {
   restoreBand,
   warmupBand,
   bonusBand,
+  questionBand,
   stillBand,
   stretchBand,
   whereBand,
@@ -48,6 +49,8 @@ import { dailyTarget, ideasFor, isMoved, MOVED, movedOn, movesOn } from './remin
 import { sittingMs, STILL_MS } from './still'
 import { expectedWaitMs, keptTurns, waitSize } from './waits'
 import { greetingOf } from './greeting'
+import { ANSWER_IDS, nextQuestion, recallFor } from './questions'
+import type { About } from './questions'
 import { ASIDE_GAP, ASIDE_MS, ASIDES, asideSpot, asideText, hasAsides } from './asides'
 import { collected, dueUnlock, setsToNext, STARTER_MOVES, UNLOCK_ORDER } from './collection'
 import { due, mark, mondayOf } from './ledger'
@@ -762,9 +765,18 @@ async function showStage($: EngineInterface, t: number) {
 
 /** His asides while the band waits on a choice (hooks/asides.ts); the band's timers end them when it goes. */
 async function asidesWhileShowing($: EngineInterface, key: number) {
-  const day = (await today($)) + key
-  for (const aside of ASIDES) {
-    timer($, 'band', aside.at, () => void setAside($, key, line(aside.id, { day })))
+  const date = await today($)
+  const day = date + key
+  // Once a day the first aside is something he remembers about them (hooks/questions.ts).
+  const recall = (await isDue($, 'recall', 'day')) ? recallFor(await load<About>($, 'about', {}), date) : undefined
+  for (const [i, aside] of ASIDES.entries()) {
+    const isRecall = i === 0 && recall !== undefined
+    timer($, 'band', aside.at, () =>
+      void (async () => {
+        if (isRecall) await markSeen($, 'recall')
+        await setAside($, key, line(isRecall ? recall : aside.id, { day }))
+      })(),
+    )
     timer($, 'band', aside.at + ASIDE_MS, () => void setAside($, key, undefined))
   }
 }
@@ -1107,6 +1119,41 @@ async function couldStillThisTurn($: EngineInterface): Promise<boolean> {
   if ((await load<number | undefined>($, 'declinedOn', undefined)) === day || !(await isDue($, 'still', 'day'))) return false
   const lastMoved = Math.max(startOfDayMs(day), ...(await load<HistoryEntry[]>($, 'history', [])).filter(isMovement).map(e => e.t))
   return sittingMs((await load<WorkIntervals>($, 'workIntervals', {}))[String(day)] ?? [], lastMoved) >= STILL_MS
+}
+
+/**
+ * Whether this turn may ask one of his questions: training, met at least a day ago, not paused, quiet hours
+ * over, once a day, one left to ask, and nothing else due now (inside the gap, or no set today).
+ */
+async function couldAskThisTurn($: EngineInterface): Promise<boolean> {
+  if (coach.turnCanStill || coach.turnCanNudge) return false
+  if ((await trainingPlan($)) === null && !(await isRemindMode($))) return false
+  if (await load($, 'paused', false)) return false
+  const at = await now($)
+  if (inQuietHours(coach.options.quietHours, hourOf(at))) return false
+  const met = (await load<Seen>($, 'seen', {})).onboarded?.at
+  if (met === undefined || dayNumberOf(met) >= (await today($))) return false
+  if (!(await isDue($, 'question', 'day')) || nextQuestion(await load<About>($, 'about', {})) === undefined) return false
+  const isSetDue = (coach.turnCanCue || coach.turnCanRemind || coach.turnCanStretch) && (await load<number | undefined>($, 'nextCueAt', undefined) ?? 0) <= at
+  return !isSetDue
+}
+
+async function offerQuestion($: EngineInterface) {
+  if (!coach.isTurnRunning || (await read($, band)) !== null) return
+  const question = nextQuestion(await load<About>($, 'about', {}))
+  if (question === undefined) return
+  await markSeen($, 'question')
+  await offerBand($, questionBand(line(question.ask, { day: await today($) }), question), 'timer')
+}
+
+/** An answer (or Pass): kept, and never asked again; an answer is thanked. */
+async function answerQuestion($: EngineInterface, id: string) {
+  const shown = await read($, band)
+  if (shown?.question === undefined) return
+  const index = ANSWER_IDS.indexOf(id as (typeof ANSWER_IDS)[number])
+  await save($, 'about', { ...(await load<About>($, 'about', {})), [shown.question.id]: index === -1 ? 'pass' : index })
+  await clearBand($)
+  if (index !== -1) $.ui.toast(line('answer-noted', { day: await today($) }))
 }
 
 async function offerStill($: EngineInterface) {
@@ -2311,6 +2358,10 @@ async function runAction($: EngineInterface, kind: ActionKind, id: string, surfa
     await quickStart($, id === 'home' || id === 'gym' ? id : 'desk')
     return
   }
+  if (kind === 'question') {
+    await answerQuestion($, id)
+    return
+  }
   if (kind === 'still') {
     if (id === 'stood') await logStood($)
     else await clearBand($)
@@ -2743,6 +2794,7 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
   const labelOf = (id: string) => {
     if (spec.kind === 'edit' && (id === 'fewer' || id === 'more')) return stepperLabel(id, isTimed)
     if (spec.kind === 'edit' && (id === 'lighter' || id === 'heavier')) return loadLabel(id, isBand)
+    if (spec.kind === 'question' && spec.question !== undefined && id !== 'pass') return spec.question.labels[ANSWER_IDS.indexOf(id as (typeof ANSWER_IDS)[number])] ?? id
     if (spec.kind === 'reschedule' && spec.move !== undefined) return id === 'move' ? `Move to ${weekdayShortName(spec.move.to)}` : `Keep ${weekdayShortName(spec.move.from)}`
     return actionOf(spec.kind, id).label
   }
@@ -3061,6 +3113,8 @@ export const register: Register = (on, options) => {
     coach.turnCanNudge = await couldNudgeThisTurn($)
     coach.turnCanRemind = await couldRemindThisTurn($)
     coach.turnCanStill = await couldStillThisTurn($)
+    // One of his questions, when nothing else is due: its own timer, never the cue's (which waits for the gap).
+    if (await couldAskThisTurn($)) timer($, 'turn', turnWaitMs(isBig), () => void offerQuestion($))
     coach.turnMisread = null
     const isTraining = (await trainingPlan($)) !== null || (await isRemindMode($))
     coach.turnCanMisread = isTraining && !(await load($, 'paused', false)) && !inQuietHours(coach.options.quietHours, hourOf(await now($)))

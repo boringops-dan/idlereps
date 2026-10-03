@@ -174,7 +174,7 @@ export type RatingBasis = {
 }
 export type SetResult = { result: 'done' | 'skip'; count?: number }
 
-export type BandKind = 'still' | 'unlock' | 'remind' | 'program' | 'byoplan' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'safety' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex'
+export type BandKind = 'question' | 'still' | 'unlock' | 'remind' | 'program' | 'byoplan' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'safety' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex'
 
 /** How a piece of text is coloured: the theme's own colours, so light and dark themes both read. */
 export type Tone = 'accent' | 'good' | 'muted' | 'aside'
@@ -220,6 +220,8 @@ export type BandSpec = {
   stretch?: { exercise: string; seconds: number }
   /** The reschedule offer: the training weekday that keeps being declined, and where it would move. */
   move?: { from: Weekday; to: Weekday }
+  /** A question of Swolomon's (hooks/questions.ts): which, and its answers as the buttons' labels. */
+  question?: { id: string; labels: string[] }
   /** The typewriter run this band's lines belong to (`talk`); set when it is placed. */
   talkKey?: number
   /** The factual header line. */

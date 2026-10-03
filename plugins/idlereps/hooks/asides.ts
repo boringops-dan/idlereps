@@ -21,7 +21,7 @@ export const ASIDES: readonly { at: number; id: LineId }[] = [
 export const ASIDE_MS = 3_000
 
 /** The bands that wait on a choice; not a set they may be doing, nor a win. */
-const WAITING: ReadonlySet<BandKind> = new Set<BandKind>(['still', 'intro', 'replay', 'ask', 'remind', 'ready', 'where', 'program', 'byoplan', 'reschedule', 'rating'])
+const WAITING: ReadonlySet<BandKind> = new Set<BandKind>(['question', 'still', 'intro', 'replay', 'ask', 'remind', 'ready', 'where', 'program', 'byoplan', 'reschedule', 'rating'])
 
 export const hasAsides = (spec: BandSpec): boolean => WAITING.has(spec.kind) && spec.isWin !== true && spec.coach !== undefined && spec.actions.length > 0
 
