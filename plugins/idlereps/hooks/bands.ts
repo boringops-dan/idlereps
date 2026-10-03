@@ -12,7 +12,7 @@ import { PUSH_NAMES } from './programs'
 import { weekdayName } from './schedule'
 
 /** Which band keeps the slot when two want it (§4.3 item 4). A logged line gives way to anything. */
-export const BAND_PRIORITY: Record<BandKind, number> = { rankup: 7, rating: 6, bonus: 5, programEnd: 5, restore: 8, erase: 8, warmup: 3, logged: 4, edit: 3, set: 3, ask: 2, ready: 2, stretch: 2, where: 1, reschedule: 2, timer: 3, switch: 3, time: 3, safety: 1, intro: 1, replay: 1, flex: 1 }
+export const BAND_PRIORITY: Record<BandKind, number> = { pulse: 0, rankup: 7, rating: 6, bonus: 5, programEnd: 5, restore: 8, erase: 8, warmup: 3, logged: 4, edit: 3, set: 3, ask: 2, ready: 2, stretch: 2, where: 1, reschedule: 2, timer: 3, switch: 3, time: 3, safety: 1, intro: 1, replay: 1, flex: 1 }
 
 export const LOGGED_MS = 120_000
 
@@ -118,6 +118,7 @@ export function programEndBand(day: number, facts: { workouts: number; sets: num
     coach: [line('program-end', { day })],
     portrait: 'full',
     isWin: true,
+    act: 'laurel-toss',
     tall: true,
     header: `Program complete: ${facts.workouts} workouts, ${facts.sets} sets${stronger}.`,
     headerFirst: true,
@@ -134,6 +135,11 @@ export function restoreBand(day: number, date: string): BandSpec {
 /** D20: erase asks first. */
 export function eraseBand(day: number): BandSpec {
   return { kind: 'erase', body: [[{ text: line('erase-ask', { day }), bold: true }], [{ text: line('plan-file-stays', { day }), tone: 'muted' }]], actions: actionIdsOf('erase') }
+}
+
+/** The one-time check-in (§1.6): the lowest priority, so it waits behind everything else. */
+export function pulseBand(day: number): BandSpec {
+  return { kind: 'pulse', body: [[{ text: line('pulse-ask', { day }), bold: true }]], actions: actionIdsOf('pulse') }
 }
 
 /** Quick start's one question: a desk plan (standing, no floor) or a home one (floor work too). */
@@ -197,15 +203,25 @@ export function replayBand(day: number): BandSpec {
     coach: replayLines(day),
     portrait: 'full',
     entrance: true,
+    act: 'double-biceps',
     body: [],
     actions: actionIdsOf('replay'),
     tall: true,
   }
 }
 
-/** `/workout flex` (§1.13.5): the full portrait flexes. */
-export function flexBand(day: number): BandSpec {
-  return { kind: 'flex', coach: [line('flex', { day })], portrait: 'full', isWin: true, body: [], actions: actionIdsOf('flex'), tall: true }
+/** `/workout flex` (§1.13.5): the full portrait flexes, then shows off one of his moves, named under his line. */
+export function flexBand(day: number, move: { id: string; title: string }): BandSpec {
+  return {
+    kind: 'flex',
+    coach: [line('flex', { day })],
+    portrait: 'full',
+    isWin: true,
+    act: move.id,
+    body: [[{ text: `▸ ${move.title}`, tone: 'muted' }]],
+    actions: actionIdsOf('flex'),
+    tall: true,
+  }
 }
 
 /** A new rank (§1.13.1): its line with the portrait flexing, in place of the logged line. */
@@ -216,6 +232,7 @@ export function rankupBand(rank: string, coachLine: string, totalSets: number, u
     coach: [coachLine],
     portrait: 'full',
     isWin: true,
+    act: 'trophy',
     body: [],
     actions: actionIdsOf('rankup'),
     undoId,
@@ -431,7 +448,7 @@ export function ratingBand(
   return {
     kind: 'rating',
     coach: [coachText],
-    ...(isWeekDone ? { isWin: true as const, portrait: 'full' as const, tall: true as const } : {}),
+    ...(isWeekDone ? { isWin: true as const, portrait: 'full' as const, tall: true as const, act: 'victory-jump' } : {}),
     // What the workout earned, said as a fact: the exercises done on target every set move up.
     body: [
       ...(week === null ? [] : [weekLine(week)]),

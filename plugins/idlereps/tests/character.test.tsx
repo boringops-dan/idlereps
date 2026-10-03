@@ -25,7 +25,7 @@ import type { RecordStore } from '../hooks/record'
 import { rankText } from '../hooks/status'
 import { SPRITE } from '../hooks/swolomon-sprite'
 import type { FrameName, MiniFrameName } from '../hooks/swolomon-sprite'
-import { BAND, drawnRows, NOON, OPTIONS, PLAN_PATH, SESSION, STATUS, tallyOf, TINY, TODAY, workout, world } from './world'
+import { BAND, drawnRows, NOON, OPTIONS, PLAN_PATH, SESSION, STATUS, tallyOf, TINY, TODAY, workout, ownStore, world } from './world'
 
 /** Swolomon as a character (plan §1.11, §1.13), and the first-run and status polish around him. */
 
@@ -224,6 +224,28 @@ test('animated: once the line has been out a while, nothing moves any more', ANI
   const settled = blits.length
   await clock.advance(60_000)
   expect(blits.length).toBe(settled)
+  await ui.unmount()
+})
+
+test('animated: over the intro the band redraws only when more text shows, never once per tick', ANIMATED, async ($, on) => {
+  const writes: { shown: number[]; isEntering?: true }[] = []
+  on('state.set', ($, e, next) => {
+    const write = e as unknown as { key: string; value: { shown: number[]; isEntering?: true } | null }
+    if (write.key === 'talk' && write.value !== null) writes.push(write.value)
+    return next(e)
+  })
+  const { clock } = world(on, null)
+  blitLog(on)
+  await $.session.start(SESSION)
+  const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
+  await clock.advance(20_000)
+  const talking = writes.filter(w => w.isEntering !== true)
+  // The last write settles the pose with the whole line out; every other one reveals more of it.
+  const reveals = talking.slice(0, -1).map(w => w.shown.join(','))
+  expect(new Set(reveals).size).toBe(reveals.length)
+  expect(talking.at(-1)?.shown).toEqual(introLines(TODAY).map(l => [...l].length))
+  // Far fewer redraws than the 50 ms ticks over 20 s.
+  expect(talking.length).toBeLessThan(20_000 / 50)
   await ui.unmount()
 })
 
@@ -451,21 +473,6 @@ const storeOf = (patch: Partial<RecordStore> = {}): RecordStore => ({
 })
 
 /** A store the test can look into. */
-function ownStore(on: Parameters<typeof world>[0], seed: Record<string, unknown> = {}) {
-  const store = new Map<string, unknown>(Object.entries(seed))
-  on('store.get', ($, e) => ({ value: store.get(e.key) }))
-  on('store.set', ($, e) => {
-    store.set(e.key, e.value)
-    return { value: undefined }
-  })
-  on('store.delete', ($, e) => {
-    store.delete(e.key)
-    return { value: undefined }
-  })
-  on('store.keys', () => ({ value: [...store.keys()] }))
-  return store
-}
-
 const ctxOf = (plan: Plan, today: number) => ({ plan, today, now: today * DAY_MS, gapMs: 0, setting: 'home' as const })
 
 test('the first set ever is a feat, toasted once ever', OPTIONS, async ($, on) => {
@@ -615,6 +622,27 @@ test('/workout protein and /workout wisdom answer in Swolomon’s voice', OPTION
   await $.session.start(SESSION)
   expect((await $.command.run(workout('protein'))).text).toBe(`${COACH_NAME}: ${line('protein', { day: TODAY })}`)
   expect((await $.command.run(workout('wisdom'))).text).toBe(`${COACH_NAME}: ${line('wisdom', { day: TODAY })}`)
+})
+
+test('every band’s buttons answer their command: /workout nice puts the flex away, /workout letsgo the replay', OPTIONS, async ($, on) => {
+  world(on, TINY)
+  await $.session.start(SESSION)
+  const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
+  await $.command.run(workout('flex'))
+  expect((await $.command.run(workout('nice'))).text).toBeUndefined()
+  expect(await ui.find({ key: 'nice' })).toBeUndefined()
+  await $.command.run(workout('swolomon'))
+  expect(await ui.find({ key: 'letsgo' })).toBeDefined()
+  await $.command.run(workout('letsgo'))
+  expect(await ui.find({ key: 'letsgo' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('a button’s command with nothing showing says so; an unknown word gets the usage', OPTIONS, async ($, on) => {
+  world(on, TINY)
+  await $.session.start(SESSION)
+  for (const id of ['nice', 'letsgo', 'gotit', 'tellmore']) expect((await $.command.run(workout(id))).text).toBe(line('reply-nothing-showing', { day: TODAY, id }))
+  expect((await $.command.run(workout('jump'))).text).toBe(line('reply-usage', { day: TODAY }))
 })
 
 test('/workout flex: the portrait flexes; Nice or the next prompt puts it away', OPTIONS, async ($, on) => {

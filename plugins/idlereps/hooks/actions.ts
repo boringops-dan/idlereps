@@ -4,7 +4,7 @@
  * every button has a command by construction. Pure data.
  */
 
-export type ActionKind = 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex' | 'status' | 'safety' | 'byo'
+export type ActionKind = 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex' | 'status' | 'safety' | 'byo'
 
 export type Action = {
   id: string
@@ -87,6 +87,12 @@ export const ACTIONS: readonly Action[] = [
   { kind: 'restore', id: 'cancel', hotkey: '2', label: 'Cancel' },
   { kind: 'erase', id: 'erase', hotkey: '1', label: 'Erase', isPrimary: true },
   { kind: 'erase', id: 'cancel', hotkey: '2', label: 'Cancel' },
+
+  // The one-time check-in (§1.6): 1 to 3 send the answer; 4 says how to say more.
+  { kind: 'pulse', id: 'love', hotkey: '1', label: 'Love it' },
+  { kind: 'pulse', id: 'fine', hotkey: '2', label: "It's fine" },
+  { kind: 'pulse', id: 'notforme', hotkey: '3', label: 'Not for me' },
+  { kind: 'pulse', id: 'tellmore', hotkey: '4', label: 'Tell us more' },
 
   { kind: 'flex', id: 'nice', hotkey: '1', label: 'Nice', isPrimary: true },
 

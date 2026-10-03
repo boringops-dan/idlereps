@@ -8,7 +8,7 @@ import { dayNumberOf, START, startOfDayMs, stepsOf } from '../hooks/plan'
 import { generateProgram, STARTER_ANSWERS } from '../hooks/programs'
 import { isNewBest } from '../hooks/record'
 import { addInterval, formatDuration, shareLine, workedMs } from '../hooks/worktime'
-import { BAND, drawnRows, NOON, OPTIONS, PLAN_PATH, SESSION, STATUS, TINY, TODAY, workout, world } from './world'
+import { BAND, drawnRows, NOON, OPTIONS, PLAN_PATH, SESSION, STATUS, TINY, TODAY, workout, ownStore, world } from './world'
 
 /** The rest of Phase B: the warm-up, the end of a block, your data, sharing the week. */
 
@@ -16,20 +16,6 @@ const DAY_MS = 86_400_000
 const HOME = '/home/me/.claude/idlereps'
 const WARM = { options: { ...OPTIONS.options, warmUp: true } }
 
-function ownStore(on: Parameters<typeof world>[0], seed: Record<string, unknown> = {}) {
-  const store = new Map<string, unknown>(Object.entries(seed))
-  on('store.get', ($, e) => ({ value: store.get(e.key) }))
-  on('store.set', ($, e) => {
-    store.set(e.key, e.value)
-    return { value: undefined }
-  })
-  on('store.delete', ($, e) => {
-    store.delete(e.key)
-    return { value: undefined }
-  })
-  on('store.keys', () => ({ value: [...store.keys()] }))
-  return store
-}
 const doneSet = (d: number, exercise = 'Push-ups'): HistoryEntry => ({ kind: 'set', t: NOON, d, w: 0, exercise, set: 1, target: '10 reps', result: 'done', count: 10 })
 
 // ---------------------------------------------------------------------------------------------------------

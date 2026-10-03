@@ -164,7 +164,7 @@ export type RatingBasis = {
 }
 export type SetResult = { result: 'done' | 'skip'; count?: number }
 
-export type BandKind = 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'safety' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex'
+export type BandKind = 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'safety' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex'
 
 /** How a piece of text is coloured: the theme's own colours, so light and dark themes both read. */
 export type Tone = 'accent' | 'good' | 'muted'
@@ -193,6 +193,8 @@ export type BandSpec = {
   isWin?: true
   /** Swolomon walks on before speaking (§1.11 Entrance): the introduction and its replay. */
   entrance?: true
+  /** Once his line is out, the move he acts out in the full portrait (§1.11 Moves; an id in moves.ts). */
+  act?: string
   /**
    * The hold timer (§1.12 item 1) on a timed set: when it ends, the hold's seconds, which side of how
    * many, and the whole seconds left as last drawn.
@@ -263,6 +265,7 @@ export type SetupScreen =
   | 'weeks'
   | 'cueEvery'
   | 'idleReminder'
+  | 'telemetry'
   | 'summary'
 
 export type SetupState = {
@@ -272,6 +275,8 @@ export type SetupState = {
   answers: Partial<Answers>
   cueEvery: string
   idleReminder: string
+  /** Q10's answer (D9); absent when telemetry is not live, and then Q10 is never asked. */
+  telemetry?: boolean
   /** Opened by Quick start: the safety step writes the starter plan. */
   isQuickStart: boolean
 }

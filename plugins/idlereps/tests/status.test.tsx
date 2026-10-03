@@ -76,6 +76,7 @@ test('the status pane on a training day: Swolomon, the workout as a table, the b
     '',
     'Beginner general fitness · 3x/week · 4 weeks',
     'Built for: no gear, no floor, standing and desk moves. Want floor work or gear? Change plan.',
+    'Feedback: /workout feedback · Ideas and plans: github.com/boringops-dan/idlereps/discussions',
   ])
   // Room for the portrait beside the head: Swolomon is there, not flexing mid-workout.
   expect(((await pane.find({ key: 'swolomon' })) as { props: { rows: number } } | undefined)?.props.rows).toBe(8)

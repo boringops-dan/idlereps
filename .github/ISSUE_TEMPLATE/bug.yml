@@ -1,0 +1,39 @@
+name: Bug
+description: Something in IdleReps doesn't work as it should.
+labels: [bug]
+body:
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where were you running it?
+      options:
+        - Terminal
+        - Desktop app
+        - VS Code
+        - Mobile
+    validations:
+      required: true
+  - type: input
+    id: terminal
+    attributes:
+      label: Terminal app
+      description: For example Apple Terminal, iTerm2, Ghostty, Windows Terminal. Skip if not in a terminal.
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+      description: The version `/workout status` prints (for example `IdleReps 1.0.0`).
+    validations:
+      required: true
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true

@@ -90,6 +90,12 @@
         "blips",
         "voice"
       ]
+    },
+    "telemetry": {
+      "type": "boolean",
+      "title": "Share anonymous usage",
+      "description": "Counts like sets done and workouts rated, with a random id, to help improve IdleReps. Never your exercises, plan, files or prompts.",
+      "default": false
     }
   }
 }

@@ -5,26 +5,11 @@ import type { HistoryEntry, Plan, Progress } from '../types'
 import { line, singular } from '../hooks/copy'
 import { daysShowedUp } from '../hooks/history'
 import { cueFor, START, stepsOf } from '../hooks/plan'
-import { BAND, drawnRows, NOON, OPTIONS, SESSION, STATUS, TINY, TODAY, workout, world } from './world'
+import { BAND, drawnRows, NOON, OPTIONS, SESSION, STATUS, TINY, TODAY, workout, ownStore, world } from './world'
 
 /** Showing up beats doing nothing: the half version, the comeback, the day after a tough one, a bonus on good days. */
 
 const DAY_MS = 86_400_000
-
-function ownStore(on: Parameters<typeof world>[0], seed: Record<string, unknown> = {}) {
-  const store = new Map<string, unknown>(Object.entries(seed))
-  on('store.get', ($, e) => ({ value: store.get(e.key) }))
-  on('store.set', ($, e) => {
-    store.set(e.key, e.value)
-    return { value: undefined }
-  })
-  on('store.delete', ($, e) => {
-    store.delete(e.key)
-    return { value: undefined }
-  })
-  on('store.keys', () => ({ value: [...store.keys()] }))
-  return store
-}
 
 /** Push-ups 3 sets and Squats 2: the half version is 2 + 1. */
 const THREE: Plan = {

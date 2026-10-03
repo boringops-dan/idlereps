@@ -13,9 +13,12 @@ export type Pose = 'idle' | 'talkA' | 'talkB' | 'blink' | 'flex'
 
 /** A frame as rows of colours (null: transparent); throws naming the frame and row it cannot read. */
 export function decodeFrame(sprite: Sprite, name: FrameName | MiniFrameName): Grid {
-  const rows = sprite.frames[name]
-  const size = name.startsWith('mini') ? sprite.miniSize : sprite.width
-  const height = name.startsWith('mini') ? sprite.miniSize : sprite.height
+  const isMini = name.startsWith('mini')
+  return decodeRows(sprite, sprite.frames[name], name, isMini ? sprite.miniSize : sprite.width, isMini ? sprite.miniSize : sprite.height)
+}
+
+/** Any rows of palette characters as colours, e.g. a move's pose; `name` says whose in an error. */
+export function decodeRows(sprite: Sprite, rows: readonly string[], name: string, size: number, height: number): Grid {
   if (rows.length !== height) throw new Error(`frame ${name}: ${rows.length} rows, expected ${height}`)
   return rows.map((row, y) => {
     if (row.length !== size) throw new Error(`frame ${name}, row ${y}: ${row.length} pixels, expected ${size}`)
@@ -84,6 +87,11 @@ export function encodeCells(grid: Grid): string {
     bytes[i * 4 + 3] = (word >>> 24) & 0xff
   })
   return toBase64(bytes)
+}
+
+/** A move's poses (moves.ts) as full-portrait cells, encoded once per load. */
+export function encodeMove(sprite: Sprite, id: string, poses: readonly (readonly string[])[]): string[] {
+  return poses.map((rows, i) => encodeCells(decodeRows(sprite, rows, `${id} pose ${i}`, sprite.width, sprite.height)))
 }
 
 /** Every frame of the sprite, encoded once. */

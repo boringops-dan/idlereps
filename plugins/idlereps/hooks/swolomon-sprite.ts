@@ -83,6 +83,12 @@ export const SPRITE: Sprite = {
     m: 0x80222c, // open mouth
     t: 0x28a89e, // tank top
     T: 0x18706a, // tank shade
+    // His moves' (moves.ts): shorts, iron, the band and a sweat drop.
+    n: 0x2c3a6e, // shorts
+    i: 0x3a3e48, // iron plates
+    I: 0x9aa0b0, // bars and handles
+    r: 0xd8443c, // resistance band, hearts, the flush of effort
+    b: 0x6cc4f0, // sweat
   },
   frames: {
     idle: IDLE,

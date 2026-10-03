@@ -10,6 +10,12 @@ export const COACH_NAME = 'Swolomon'
 
 /** The one site origin (§4.3 item 7): the share line, the feedback and telemetry URLs derive from it. */
 export const SITE_ORIGIN = 'https://idlereps.app'
+/** Where `/workout feedback` and the check-in send (§1.6); the endpoint is the site's own. */
+export const FEEDBACK_URL = `${SITE_ORIGIN}/api/feedback`
+/** Where opted-in usage events go (D9): the site, which forwards them; never a third-party host. */
+export const TELEMETRY_URL = `${SITE_ORIGIN}/api/events`
+/** The community (§1.6): ideas, questions and shared plans. */
+export const COMMUNITY_URL = 'https://github.com/boringops-dan/idlereps/discussions'
 
 /** How Swolomon addresses the person: gender-neutral, and never a rank name (§1.10, §1.13.1). */
 export const ADDRESS_TERMS = [
@@ -365,6 +371,14 @@ export const LINES = [
   { id: 'reply-not-finished', voice: 'plain', variants: ['The next block starts once this one is done: {n} workouts to go.'] },
   { id: 'nudge-detail', voice: 'plain', variants: ['1 to start: no gear, about a minute a set, one set at a time.'] },
   { id: 'nudge-last', voice: 'plain', variants: ["Last time I'll ask. /workout setup whenever you're ready."] },
+  { id: 'reply-feedback-sent', voice: 'plain', variants: ['Sent, thank you. Ideas and discussion: {url}'] },
+  { id: 'reply-feedback-sent-cut', voice: 'plain', variants: ['Sent the first {max} characters, thank you. Ideas and discussion: {url}'] },
+  { id: 'reply-feedback-copied', voice: 'plain', variants: ["Couldn't send it. It's copied: paste it at {url}"] },
+  { id: 'reply-feedback-failed', voice: 'plain', variants: ["Couldn't send it. Post it at {url}"] },
+  { id: 'reply-feedback-usage', voice: 'plain', variants: ['Usage: /workout feedback <your thoughts>. Ideas and discussion: {url}'] },
+  { id: 'pulse-ask', voice: 'plain', variants: ["How's IdleReps going?"] },
+  { id: 'pulse-thanks', voice: 'plain', variants: ['Thanks, noted.'] },
+  { id: 'pulse-more', voice: 'plain', variants: ['Type /workout feedback and your thoughts, or join the discussion at {url}'] },
   { id: 'installed', voice: 'plain', variants: ['IdleReps is installed. Swolomon is just above the prompt: press 1 to start.'] },
   { id: 'stretched', voice: 'plain', variants: ['Stretched: {exercise}. Rest days count too.'] },
   { id: 'stretch-note', voice: 'plain', variants: ['Easy does it: no bouncing, breathe out into it.'] },
@@ -409,7 +423,7 @@ export const LINES = [
     id: 'reply-usage',
     voice: 'plain',
     variants: [
-      'Usage: /workout [status | now | start | done [reps] [weight] | edit | skip | later | undo | no | today | pause | resume | setup | plan <text> | reset]',
+      'Usage: /workout [status | now | start | done [reps] [weight] | edit | skip | later | undo | no | today | pause | resume | setup | plan <text> | reset | feedback <text>]',
     ],
   },
   { id: 'reply-plan-usage', voice: 'plain', variants: ['Describe your plan after the command, e.g. /workout plan 5x5 squats and push-ups Mon Wed Fri'] },

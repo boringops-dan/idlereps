@@ -115,6 +115,7 @@ What each band's numbers do:
 | How did it feel? | `1` Easy · `2` Good · `3` Tough · `0` Undo |
 | Rank up | `1` Let's go · `0` Undo |
 | Swolomon's introduction, or a flex | `1` Let's go, or `1` Nice |
+| How's IdleReps going? (once) | `1` Love it · `2` It's fine · `3` Not for me · `4` Tell us more |
 
 - **Done** logs the set as shown, in one key.
 - **Edit** is for a set that went differently: step the reps (or seconds) and the weight, then Save.
@@ -145,6 +146,12 @@ first set of the day, a new best, a finished workout) and keeps it to one line, 
 while you work. Turn the animation off in `/config` (Animate Swolomon). `/workout swolomon` replays the
 introduction.
 
+**Swolomon's moves.** Swolomon has more than 30 moves, all in the same pixel style. Open `/workout` and
+he demonstrates your next exercise: squats, push-ups, planks, curls, pull-ups, bridges, lunges and the
+rest, so you know what's coming. On a rest day he naps. He lifts a trophy for a new rank, does a victory
+jump when you finish a week, and tosses his laurel when you finish a program. `/workout flex` shows a
+different move each time.
+
 **Ranks.** Every set you do counts toward a rank, from New Face through Regular, Rack Regular, Iron
 Disciple, Demigod and Olympian to Greek God at 2,500 sets. Skipped sets don't count, and nothing about
 your body ever does. `/workout` shows your rank and how far the next one is.
@@ -172,6 +179,7 @@ All in `/config`, under IdleReps:
 | Warm up first | on, off | on | A one-minute warm-up before the first set of a workout, once a day. |
 | Animate Swolomon | on, off | on | Swolomon walks on, and the line types out while the portrait talks. Off shows it whole. |
 | Swolomon's sound | off, blips, voice | off | Soft blips while Swolomon talks, or the lines read aloud in your system voice. |
+| Share anonymous usage | on, off | off | Anonymous counts (sets done, workouts rated) to help improve IdleReps. Not live yet: it sends nothing today. See [Privacy](#privacy). |
 
 ## Status
 
@@ -262,8 +270,11 @@ IdleReps suggests exercises; it is not medical advice. Stop any exercise that ca
 ## Privacy
 
 Everything stays on your machine: your plan is in `~/.claude/idlereps/plan.json`, and your progress and
-history are in Claude Code's plugin storage. IdleReps sends nothing anywhere, with one exception:
-`/workout plan <text>` sends your description to the model to turn it into a plan.
+history are in Claude Code's plugin storage. IdleReps sends something only when you choose to:
+`/workout plan <text>` sends your description to the model to turn it into a plan; `/workout feedback` and
+the one-time check-in send what you wrote or answered to idlereps.app. Anonymous usage counts are off
+unless you turn them on, and not live yet. Every field sent is listed on
+[idlereps.app/privacy](https://idlereps.app/privacy.html).
 
 Progress is per machine. To move it, `/workout export` on the old machine, copy
 `~/.claude/idlereps/backup.json` across, and `/workout restore` on the new one. `/workout erase` removes
@@ -274,6 +285,13 @@ everything IdleReps stored (it asks first; your plan file stays).
 `/workout share` (or **Share week** in the Workout pane) copies one line, for example `This week my agent
 worked 6 h 12 m while I did 84 sets. Rank: Rack Regular. idlereps.app`. It names no exercise, plan or
 project; you see it before you post it, and IdleReps never posts anything itself.
+
+## Feedback
+
+`/workout feedback <your thoughts>` sends them straight to us, as written. After your third workout, a
+one-time check-in asks how it's going (`1` Love it · `2` It's fine · `3` Not for me · `4` Tell us more).
+Ideas, questions and plans to share: [Discussions](https://github.com/boringops-dan/idlereps/discussions).
+Bugs: [Issues](https://github.com/boringops-dan/idlereps/issues).
 
 ## Uninstall
 
@@ -286,7 +304,7 @@ claude plugin uninstall idlereps@idlereps
 
 ## Swolomon has more to say
 
-Try `/workout flex`, `/workout protein` and `/workout wisdom`.
+Try `/workout flex` (again and again: a different move each time), `/workout protein` and `/workout wisdom`.
 
 ## License
 

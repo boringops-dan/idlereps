@@ -162,6 +162,22 @@ export function world(on: On, plan: Plan | null, seed: Seed = {}, opts: WorldOpt
   return { clock, w }
 }
 
+/** A store the test holds itself (with `world`'s 'own-store' seed): read it, or change it between steps. */
+export function ownStore(on: On, seed: Record<string, unknown> = {}) {
+  const store = new Map<string, unknown>(Object.entries(seed))
+  on('store.get', ($, e) => ({ value: store.get(e.key) }))
+  on('store.set', ($, e) => {
+    store.set(e.key, e.value)
+    return { value: undefined }
+  })
+  on('store.delete', ($, e) => {
+    store.delete(e.key)
+    return { value: undefined }
+  })
+  on('store.keys', () => ({ value: [...store.keys()] }))
+  return store
+}
+
 /** A seeded store: progress, and anything else. */
 export const seeded = (progress: Progress, rest: Record<string, unknown> = {}) => ({ progress, ...rest })
 

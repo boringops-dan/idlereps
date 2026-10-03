@@ -4,7 +4,7 @@ import type { ElementTable, EngineInterface, PluginOptions, Register, RenderSurf
 import type { BandPart, BandSpec, Cue, Draft, HistoryEntry, LongTaskReason, Plan, Progress, Rating, Seen, SetupState, Targets, Tone, Weekday } from '../types'
 import { STORE_KEYS } from '../types/store-keys'
 import type { StoreKey } from '../types/store-keys'
-import { actionOf, loadLabel, stepperLabel } from './actions'
+import { ACTIONS, actionOf, loadLabel, stepperLabel } from './actions'
 import type { ActionKind } from './actions'
 import {
   askBand,
@@ -31,12 +31,13 @@ import {
   loggedBand,
   nextFromPending,
   offerToSlot,
+  pulseBand,
   rankupBand,
   ratingBand,
   replayBand,
   setBand,
 } from './bands'
-import { agentDoing, COACH_NAME, line, progressDots, REASON_LINE, SAFETY_TEXT, usesAgent, whatsNewLine } from './copy'
+import { agentDoing, COACH_NAME, COMMUNITY_URL, FEEDBACK_URL, line, progressDots, REASON_LINE, SAFETY_TEXT, TELEMETRY_URL, usesAgent, whatsNewLine } from './copy'
 import type { LineContext, LineId } from './copy'
 import { appendHistory, movedSeconds, rankFor, RANKS, setsThisWeek } from './history'
 import { due, mark, mondayOf } from './ledger'
@@ -68,10 +69,13 @@ import {
   targetOf,
   weekProgress,
 } from './plan'
+import { drawMove, moveById, moveForExercise, MOVES, poseAt, REEL } from './moves'
+import type { Move } from './moves'
 import {
   BLINK_EVERY_MS,
   BLINK_FOR_MS,
   BLINK_MS,
+  encodeMove,
   encodeSprite,
   ENTRANCE_MS,
   entranceAt,
@@ -123,6 +127,10 @@ import {
 } from './setup'
 import { BIG_ASK_WAIT_MS, factsOf, isBigAsk, outcomeOf, SLOW_STEP_MS, STRONG_SIGN_DELAY_MS, toolSign, turnOutcome, waitWords } from './signals'
 import type { Outcome, Sign } from './signals'
+import { cutFeedback, FEEDBACK_MAX, feedbackPayload } from './feedback'
+import type { PulseAnswer } from './feedback'
+import { ratioOf, setupProperties, TELEMETRY_ENABLED, telemetryPayload } from './telemetry'
+import type { TelemetryEvent } from './telemetry'
 import { gainsOf, PLUGIN_VERSION, statusLineOf, statusTextOf, statusViewOf } from './status'
 import { SPRITE } from './swolomon-sprite'
 import type { StatusFacts } from './status'
@@ -150,6 +158,7 @@ type Options = {
   timerBeep: boolean
   warmUp: boolean
   coachSound: 'off' | 'blips' | 'voice'
+  telemetry: boolean
 }
 
 const readOptions = (options: PluginOptions): Options => ({
@@ -162,6 +171,7 @@ const readOptions = (options: PluginOptions): Options => ({
   timerBeep: typeof options.timerBeep === 'boolean' ? options.timerBeep : true,
   warmUp: typeof options.warmUp === 'boolean' ? options.warmUp : true,
   coachSound: options.coachSound === 'blips' || options.coachSound === 'voice' ? options.coachSound : 'off',
+  telemetry: options.telemetry === true,
 })
 
 /** The portrait's frames as Raster cells, encoded once per load. */
@@ -172,11 +182,13 @@ const SVGS = Object.fromEntries((Object.keys(SPRITE.frames) as (keyof typeof SPR
   string
 >
 const PORTRAIT_ROWS = SPRITE.height / 2
+/** Every move's poses as full-portrait cells, encoded once per load. */
+const MOVE_CELLS: Record<string, string[]> = Object.fromEntries(MOVES.map(move => [move.id, encodeMove(SPRITE, move.id, drawMove(move))]))
 
 /** The theme's own colours for each tone, so light and dark themes both read (muted is the dim style). */
 const TONE_COLOUR: Record<Exclude<Tone, 'muted'>, string> = { accent: 'warning', good: 'success' }
 
-type Owner = 'band' | 'turn' | 'session'
+type Owner = 'band' | 'turn' | 'session' | 'pane'
 
 /** Per-load state; a hot reload starts it over (timers go with the old environment). */
 const coach: {
@@ -229,6 +241,16 @@ const coach: {
   talkSeq: number
   talkStartedAt: number
   talkTimeline: Timeline | null
+  /** The move the band's portrait does once the line is out, and its pose as cells while it plays (§1.11 Moves). */
+  talkMove: string | undefined
+  moveFrame: string | null
+  /** The status pane's portrait, where it is drawn, and its pose as cells while a move plays there. */
+  panePortrait: string | null
+  paneFrame: string | null
+  /** Where `/workout flex` is in Swolomon's reel this session. */
+  reel: number | null
+  /** The install id, read (or made) once a load (see installIdOf). */
+  installId: Promise<string> | null
   /** Where the band's portrait is drawn, recorded as it is drawn, so frames can be blitted to it. */
   portrait: { requestId: string; size: PortraitSize } | null
   pose: Pose
@@ -242,7 +264,7 @@ const coach: {
   home: '',
   planCache: null,
   brokenKey: null,
-  timers: { band: [], turn: [], session: [] },
+  timers: { band: [], turn: [], session: [], pane: [] },
   cueTimer: null,
   idleTimer: null,
   midnightTimer: null,
@@ -271,6 +293,12 @@ const coach: {
   talkSeq: 0,
   talkStartedAt: 0,
   talkTimeline: null,
+  talkMove: undefined,
+  moveFrame: null,
+  panePortrait: null,
+  paneFrame: null,
+  reel: null,
+  installId: null,
   portrait: null,
   pose: 'idle',
   entranceStartedAt: 0,
@@ -514,6 +542,8 @@ async function startTalk($: EngineInterface, spec: BandSpec): Promise<BandSpec> 
     return spec
   }
   coach.talkSeq += 1
+  coach.talkMove = spec.act
+  coach.moveFrame = null
   const key = coach.talkSeq
   const isWin = spec.isWin === true
   const timeline = timelineOf(spec.coach)
@@ -535,6 +565,8 @@ async function startTalk($: EngineInterface, spec: BandSpec): Promise<BandSpec> 
 
 async function stopTalk($: EngineInterface) {
   coach.talkTimeline = null
+  coach.talkMove = undefined
+  coach.moveFrame = null
   coach.portrait = null
   coach.stage = null
   if ((await read($, talk)) !== null) await update($, talk, () => null)
@@ -564,7 +596,9 @@ async function tick($: EngineInterface, key: number, isWin: boolean, stop: () =>
     stop()
     coach.pose = frame.pose
     await update($, talk, () => ({ key, shown: frame.shown, pose: frame.pose }))
-    if (!isWin) blinkWhileShowing($, key)
+    const move = coach.talkMove === undefined ? undefined : moveById(coach.talkMove)
+    if (move !== undefined && coach.portrait?.size === 'full') await playMove($, move, key, isWin)
+    else if (!isWin) blinkWhileShowing($, key)
     return
   }
   // Each time the mouth opens, a blip (none while it rests between sentences).
@@ -576,6 +610,43 @@ async function tick($: EngineInterface, key: number, isWin: boolean, stop: () =>
     coach.pose = frame.pose
     await showPose($, frame.pose)
   }
+}
+
+/**
+ * A move in the band's full portrait, once the line is out (§1.11 Moves): each pose blitted as it comes,
+ * then back to the bust, resting (blinking a while) or, for a win, holding the flex.
+ */
+async function playMove($: EngineInterface, move: Move, key: number, isWin: boolean) {
+  const cells = MOVE_CELLS[move.id] ?? []
+  const startedAt = await now($)
+  let showing = -1
+  ticker($, 'band', TICK_MS, stop =>
+    void (async () => {
+      const portrait = coach.portrait
+      if (coach.talkSeq !== key || portrait === null || portrait.size !== 'full') {
+        stop()
+        return
+      }
+      const pose = poseAt(move, (await now($)) - startedAt)
+      if (pose === null) {
+        stop()
+        coach.moveFrame = null
+        await showPose($, isWin ? 'flex' : 'idle')
+        if (!isWin) blinkWhileShowing($, key)
+        return
+      }
+      if (pose === showing) return
+      showing = pose
+      coach.moveFrame = cells[pose] ?? null
+      await blitFull($, portrait.requestId, coach.moveFrame)
+    })(),
+  )
+}
+
+/** Blits full-portrait cells to a drawn Raster; a refused blit (it moved on) is ignored. */
+async function blitFull($: EngineInterface, requestId: string, cells: string | null) {
+  if (cells === null) return
+  await $.ui.blit({ requestId, key: 'swolomon', cells, columns: SPRITE.width, rows: PORTRAIT_ROWS }).catch(() => undefined)
 }
 
 /** Repaints the portrait in a pose, where one is drawn; a refused blit (the band moved on) is ignored. */
@@ -695,6 +766,7 @@ async function showDueCue($: EngineInterface) {
   const cue = cueFor(plan, ctx.progress, await load<Targets>($, 'targets', {}))
   if (cue === null) return
   const isAgreed = (await load<number | undefined>($, 'startedOn', undefined)) === ctx.today
+  void track($, { event: 'cue_shown', properties: {} })
   if (isAgreed) {
     await offerBand($, await setBandFor($, cue, undefined), 'timer')
     return
@@ -828,6 +900,7 @@ async function declineToday($: EngineInterface) {
   const day = await today($)
   await save($, 'declinedOn', day)
   const showing = await read($, band)
+  if (showing?.kind === 'ask') void track($, { event: 'ask_answered', properties: { answer: 'no' } })
   if (showing?.kind === 'ask' || showing?.kind === 'set' || showing?.kind === 'edit') await clearBand($)
   const plan = await loadPlan($)
   const next = plan === null ? null : nextTrainingDay(plan, await load($, 'progress', START), day)
@@ -877,6 +950,7 @@ async function countLater($: EngineInterface) {
 async function snooze($: EngineInterface) {
   stopCue()
   const showing = await read($, band)
+  void track($, showing?.kind === 'ask' ? { event: 'ask_answered', properties: { answer: 'later' } } : { event: 'cue_later', properties: {} })
   if (['ask', 'set', 'edit', 'timer', 'switch', 'time'].includes(showing?.kind ?? '')) await clearBand($)
   await countLater($)
   const at = await now($)
@@ -923,11 +997,19 @@ async function recordSet($: EngineInterface, outcome: { result: 'done' | 'skip';
   await save($, 'undo', result.inverse)
   if (outcome.result === 'done') await save($, 'laterStreak', undefined)
   if (coach.isTurnRunning && outcome.result === 'done') coach.turnSets += 1
+  if (isTracking()) {
+    const ratio = outcome.result === 'done' ? ratioOf(outcome.count, cue.count ?? undefined) : undefined
+    // The calendar week since the plan began: every plan has one, written by hand or not.
+    const planWeek = Math.floor((day - (await planStartedOn($))) / 7) + 1
+    void track($, { event: 'set_finished', properties: { result: outcome.result, week: planWeek, ...(ratio === undefined ? {} : { ratio }) } })
+  }
   // §1.10c after a record: a rank-up band (with a feat toast), else a new best, else the skip reassurance.
   const rankShown = await showRankUp($, result.effects.rankUp, result.inverse.id)
   for (const feat of result.effects.feats ?? []) await toastFeat($, feat)
   const done = result.effects.workoutDone
   if (done !== undefined) {
+    void track($, { event: 'workout_completed', properties: { workout: done.workout + 1 } })
+    if (done.isPlanDone) void track($, { event: 'plan_completed', properties: { workouts: plan.workouts.length } })
     const week = weekProgress(plan, (result.patch.set.progress as Progress).workout, done.workout)
     await placeBand($, ratingBand(done.name, day, done.basis, result.inverse.id, done.levelUps, week))
     if (!done.isPlanDone) {
@@ -940,6 +1022,7 @@ async function recordSet($: EngineInterface, outcome: { result: 'done' | 'skip';
           : line('workout-complete', { day, n: done.workout + 1, nextDay: longDayName(next).slice(0, 3), nextWorkout }),
       )
     }
+    await offerPulse($)
   } else {
     if (!rankShown) {
       const isBest = result.effects.isNewBest === true
@@ -969,6 +1052,7 @@ async function showRankUp($: EngineInterface, rank: string | undefined, undoId: 
   const id = `rank:${rank}`
   if (!(await isDue($, id, 'ever'))) return false
   await markSeen($, id)
+  void track($, { event: 'rank_up', properties: { rank } })
   const lineId = RANKS.find(r => r.name === rank)?.line
   if (lineId === undefined || lineId === null) return false
   const day = await today($)
@@ -981,6 +1065,7 @@ async function toastFeat($: EngineInterface, feat: Feat) {
   const id = `feat:${feat}`
   if (!(await isDue($, id, 'ever'))) return
   await markSeen($, id)
+  void track($, { event: 'feat', properties: { id: feat } })
   await toast($, line(`feat-${feat}`, { day: await today($) }), 'keypress')
 }
 
@@ -1143,6 +1228,7 @@ async function rate($: EngineInterface, rating: Rating): Promise<boolean> {
   )
   await writePatch($, result.patch)
   await save($, 'undo', result.inverse)
+  void track($, { event: 'workout_rated', properties: { rating } })
   await clearBand($)
   // What the workout earned, now that the rating has settled it: the new targets, said once.
   const workout = plan.workouts[shown.basis.workout]
@@ -1337,6 +1423,7 @@ async function eraseAll($: EngineInterface) {
   stopCue()
   await clearBand($)
   for (const info of STORE_KEYS) await save($, info.key, undefined)
+  coach.installId = null
   $.ui.toast(line('reply-erased', { day }))
   await refreshStatus($)
 }
@@ -1355,13 +1442,91 @@ async function shareWeek($: EngineInterface, surface: string | undefined): Promi
   if (sets === 0) return line('reply-share-empty', { day })
   let intervals = await load<WorkIntervals>($, 'workIntervals', {})
   if (coach.isTurnRunning) intervals = addInterval(intervals, coach.turnStartedAt, await now($), dayNumberOf, startOfDayMs)
-  const text = shareLine(workedMs(intervals, mondayOf(day), day), sets, rankFor(await load($, 'totalDoneSets', 0)).name)
+  const worked = workedMs(intervals, mondayOf(day), day)
+  const text = shareLine(worked, sets, rankFor(await load($, 'totalDoneSets', 0)).name)
+  void track($, { event: 'week_shared', properties: { sets, hours: Math.floor(worked / 3_600_000) } })
   try {
     const copied = await $.ui.copy({ text, ...(surface === undefined ? {} : { surface: surface as Parameters<EngineInterface['ui']['copy']>[0]['surface'] }) })
     return copied.isCopied ? line('reply-shared', { day, text }) : text
   } catch {
     return text
   }
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Feedback and telemetry (§1.6, D9): only ever to the site's own endpoints.
+
+/** The anonymous id feedback and telemetry carry: a random UUID, made the first time it is needed, read once. */
+function installIdOf($: EngineInterface): Promise<string> {
+  coach.installId ??= (async () => {
+    const stored = await load<string | undefined>($, 'installId', undefined)
+    if (stored !== undefined) return stored
+    const id = crypto.randomUUID()
+    await save($, 'installId', id)
+    return id
+  })()
+  return coach.installId
+}
+
+/** POSTs JSON to one of the site's endpoints; whether it took it. Never throws. */
+async function post($: EngineInterface, url: string, payload: unknown): Promise<boolean> {
+  try {
+    return (await $.http.fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })).ok
+  } catch {
+    return false
+  }
+}
+
+/** Whether usage events go out: live (D9) and opted in. Callers check it before working out an event. */
+const isTracking = () => TELEMETRY_ENABLED && coach.options.telemetry
+
+/** One usage event, when tracking; a failed send is ignored. */
+async function track($: EngineInterface, e: TelemetryEvent) {
+  if (isTracking()) await post($, TELEMETRY_URL, telemetryPayload(e, await installIdOf($), PLUGIN_VERSION))
+}
+
+/** A plan from setup or Quick start: what was chosen, nothing typed. */
+function trackSetup($: EngineInterface, plan: Plan, opts: { isQuickStart: boolean; cueEvery: string; idleReminder: string }) {
+  if (isTracking() && plan.answers !== undefined) void track($, { event: 'setup_completed', properties: setupProperties(plan.answers, opts) })
+}
+
+async function feedbackContext($: EngineInterface, surface: string | undefined) {
+  const [installId, surfaces] = await Promise.all([installIdOf($), surface === undefined ? $.session.surfaces() : [surface]])
+  return { installId, pluginVersion: PLUGIN_VERSION, surface: surfaces[0] ?? 'terminal' }
+}
+
+/** `/workout feedback <text>` (§1.6): sent as written; when it can't be, copied so it can be posted instead. */
+async function sendFeedback($: EngineInterface, text: string): Promise<string> {
+  const day = await today($)
+  const said = text.trim()
+  if (said === '') return line('reply-feedback-usage', { day, url: COMMUNITY_URL })
+  const cut = cutFeedback(said)
+  if (await post($, FEEDBACK_URL, feedbackPayload({ kind: 'feedback', text: cut.text }, await feedbackContext($, undefined)))) {
+    return line(cut.isCut ? 'reply-feedback-sent-cut' : 'reply-feedback-sent', { day, url: COMMUNITY_URL, max: FEEDBACK_MAX.toLocaleString('en-US') })
+  }
+  const copied = await $.ui.copy({ text: said }).catch(() => ({ isCopied: false }))
+  return line(copied.isCopied ? 'reply-feedback-copied' : 'reply-feedback-failed', { day, url: COMMUNITY_URL })
+}
+
+/** After the third completed workout, the check-in waits behind everything else, once ever (§1.6). */
+async function offerPulse($: EngineInterface) {
+  if (!(await isDue($, 'pulse', 'ever'))) return
+  const completed = (await load<HistoryEntry[]>($, 'history', [])).filter(entry => entry.kind === 'workout-complete').length
+  if (completed < 3) return
+  await markSeen($, 'pulse')
+  await placeBand($, pulseBand(await today($)))
+}
+
+/** 1 to 3 send the answer (the button's id) and thank; 4 says how to say more. */
+async function answerPulse($: EngineInterface, id: string, surface: string) {
+  await clearBand($)
+  const day = await today($)
+  if (id === 'tellmore') {
+    $.ui.toast(line('pulse-more', { day, url: COMMUNITY_URL }))
+    return
+  }
+  $.ui.toast(line('pulse-thanks', { day }))
+  void feedbackContext($, surface).then(ctx => post($, FEEDBACK_URL, feedbackPayload({ kind: 'pulse', answer: id as PulseAnswer }, ctx)))
 }
 
 async function noPlanReply($: EngineInterface): Promise<string> {
@@ -1393,6 +1558,7 @@ async function quickStart($: EngineInterface, setting?: 'office' | 'home') {
   }
   const plan = generateProgram({ ...STARTER_ANSWERS, setting })
   await writePlan($, plan)
+  trackSetup($, plan, { isQuickStart: true, cueEvery: coach.options.cueEvery, idleReminder: coach.options.idleReminder })
   const showing = await read($, band)
   if (showing?.kind === 'intro' || showing?.kind === 'safety' || showing?.kind === 'where') await clearBand($)
   $.ui.toast(line(setting === 'office' ? 'quick-start' : 'quick-start-home', { day: await today($) }))
@@ -1428,6 +1594,7 @@ async function openSetup($: EngineInterface, opts: { isQuickStart: boolean }) {
     ...(plan?.answers === undefined ? {} : { answers: plan.answers }),
     cueEvery: coach.options.cueEvery,
     idleReminder: coach.options.idleReminder,
+    ...(TELEMETRY_ENABLED ? { telemetry: coach.options.telemetry } : {}),
   })
   await update($, setup, () => state)
   await $.ui.open({ id: SETUP_PANE, title: 'Set up IdleReps', focus: true, closeOnEscape: true })
@@ -1468,11 +1635,13 @@ async function startPlan($: EngineInterface) {
   if (state === null || !(await isSafetyAcknowledged($))) return
   const plan = planOf(state)
   await writePlan($, plan)
-  for (const [field, value] of [
-    ['cueEvery', state.cueEvery],
-    ['idleReminder', state.idleReminder],
-  ] as const) {
-    if (coach.options[field] === value) continue
+  const before = coach.options
+  const settings = { cueEvery: state.cueEvery, idleReminder: state.idleReminder, ...(state.telemetry === undefined ? {} : { telemetry: state.telemetry }) }
+  // Q10's answer counts from here: the setup's own completion is the first event it covers.
+  if (state.telemetry !== undefined) coach.options = { ...before, telemetry: state.telemetry }
+  trackSetup($, plan, { isQuickStart: false, cueEvery: state.cueEvery, idleReminder: state.idleReminder })
+  for (const [field, value] of Object.entries(settings)) {
+    if (before[field as keyof Options] === value) continue
     const written = await $.config.set({ key: `idlereps.${field}`, value }).catch(() => ({ deny: 'failed' }))
     if ('deny' in written) {
       $.ui.toast(line('config-failed', { day: await today($) }))
@@ -1650,6 +1819,10 @@ async function runAction($: EngineInterface, kind: ActionKind, id: string, surfa
     }
     return
   }
+  if (kind === 'pulse') {
+    await answerPulse($, id, surface)
+    return
+  }
   if (kind === 'warmup') {
     // Either answer: the first set at once, with the word it would have had.
     const shown = await read($, band)
@@ -1713,6 +1886,8 @@ async function runAction($: EngineInterface, kind: ActionKind, id: string, surfa
     else if (id === 'setup') await openSetup($, { isQuickStart: false })
     else if (id === 'close') {
       coach.isStatusOpen = false
+      cancelTimers('pane')
+      coach.paneFrame = null
       await $.ui.close({ id: STATUS_PANE })
     }
     return
@@ -1737,6 +1912,7 @@ async function runAction($: EngineInterface, kind: ActionKind, id: string, surfa
     return
   }
   const shown = await read($, band)
+  if (shown?.kind === 'ask' && (id === 'start' || id === 'half')) void track($, { event: 'ask_answered', properties: { answer: id } })
   switch (id) {
     case 'start':
       await startWorkout($, shown?.reason)
@@ -1807,6 +1983,7 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
     // a blank and the buttons; a blank; the rest.
     const rows = Math.max(PORTRAIT_ROWS, view.head.length + 3) + 1 + view.more.length
     const opened = await $.ui.open({ id: STATUS_PANE, title: 'IdleReps', rows })
+    if (opened.isPlaced) playPaneMove($, paneMoveOf(facts, view.isRestDay, view.isWin))
     return opened.isPlaced ? null : statusTextOf(facts)
   }
   if (arg === 'status') {
@@ -1818,6 +1995,7 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
     return line('reply-setup-opened', { day })
   }
   if (arg === 'plan') return planFromText($, rest.join(' '))
+  if (arg === 'feedback') return sendFeedback($, args.trim().slice('feedback'.length))
   if (arg === 'pause') {
     if (await load($, 'paused', false)) return line('reply-already-paused', { day })
     await save($, 'paused', true)
@@ -1841,13 +2019,16 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
     return null
   }
   // Asked-for bands (the replay, the flex) show now or not at all: never queued behind a set to pop up later.
+  if (isEasterEgg(arg)) void track($, { event: 'easter_egg', properties: { command: arg } })
   if (arg === 'swolomon') {
     const isShown = await placeIfFree($, (await loadPlan($)) === null ? introBand(day) : replayBand(day))
     return isShown ? null : line('reply-swolomon-busy', { day })
   }
   // Easter eggs (§1.13.5): the only replies in Swolomon's voice.
   if (arg === 'flex') {
-    if (await placeIfFree($, flexBand(day))) return null
+    coach.reel = coach.reel === null ? day % REEL.length : (coach.reel + 1) % REEL.length
+    const move = REEL[coach.reel] ?? REEL[0]
+    if (move !== undefined && (await placeIfFree($, flexBand(day, move)))) return null
     return `${COACH_NAME}: ${line('flex', { day })}`
   }
   if (arg === 'protein' || arg === 'wisdom') return `${COACH_NAME}: ${line(arg, { day })}`
@@ -1886,22 +2067,68 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
     case 'done':
       return doneCommand($, arg, rest)
   }
-  for (const kind of ['warmup', 'programEnd', 'restore', 'erase', 'intro', 'where', 'stretch', 'bonus', 'safety', 'ready', 'reschedule', 'timer', 'switch', 'time', 'ask', 'set', 'edit', 'logged', 'rating'] as const) {
-    if (shown?.kind === kind && shown.actions.includes(arg)) {
-      await runAction($, kind, arg, 'terminal')
-      return null
-    }
+  // Every button has its command (§4.3 item 4): the showing band's own ids.
+  if (shown !== null && shown.actions.includes(arg)) {
+    await runAction($, shown.kind, arg, 'terminal')
+    return null
   }
   const pane = await read($, setup)
   if (pane !== null && ['understand', 'copy', 'back', 'close'].includes(arg)) {
     await runAction($, pane.screen === 'safety' ? 'safety' : 'byo', arg, 'terminal')
     return null
   }
-  if (['quickstart', 'notnow', 'dontask', 'desk', 'home', 'stretched', 'bonus', 'enough', 'warmed', 'skipwarmup', 'nextblock', 'changeplan', 'endlater', 'restore', 'erase', 'cancel', 'save', 'edit', 'fewer', 'more', 'lighter', 'heavier', 'understand', 'copy', 'back', 'close'].includes(arg)) {
+  if (ACTIONS.some(action => action.id === arg)) {
     return line('reply-nothing-showing', { day, id: arg })
   }
   return line('reply-usage', { day })
 }
+
+const EASTER_EGGS = ['swolomon', 'flex', 'protein', 'wisdom'] as const
+const isEasterEgg = (arg: string): arg is (typeof EASTER_EGGS)[number] => (EASTER_EGGS as readonly string[]).includes(arg)
+
+/**
+ * What Swolomon does in the status pane: the next set's exercise, demonstrated; on a rest day, a nap; with
+ * today done or the program finished, a win.
+ */
+function paneMoveOf(facts: StatusFacts, isRestDay: boolean, isWin: boolean): Move | undefined {
+  if (isWin) return moveById(facts.progress.workout >= facts.plan.workouts.length ? 'trophy' : 'double-biceps')
+  if (isRestDay) return moveById('nap')
+  const cue = cueFor(facts.plan, facts.progress, facts.targets)
+  return moveById((cue === null ? null : moveForExercise(cue.exercise.name)) ?? 'double-biceps')
+}
+
+/** The pane's move, a moment after it opens; nothing moves once it has played (or the pane closed). */
+function playPaneMove($: EngineInterface, move: Move | undefined) {
+  cancelTimers('pane')
+  coach.paneFrame = null
+  if (move === undefined || !coach.options.coachAnimation) return
+  const cells = MOVE_CELLS[move.id] ?? []
+  timer($, 'pane', PANE_MOVE_DELAY_MS, () => {
+    let showing = -1
+    let startedAt: number | null = null
+    ticker($, 'pane', TICK_MS, stop =>
+      void (async () => {
+        const at = await now($)
+        startedAt ??= at
+        const requestId = coach.panePortrait
+        const pose = coach.isStatusOpen && requestId !== null ? poseAt(move, at - startedAt) : null
+        if (pose === null || requestId === null) {
+          stop()
+          coach.paneFrame = null
+          if (requestId !== null) await blitFull($, requestId, FRAMES[(await read($, statusView))?.isWin === true ? 'flex' : 'idle'])
+          return
+        }
+        if (pose === showing) return
+        showing = pose
+        coach.paneFrame = cells[pose] ?? null
+        await blitFull($, requestId, coach.paneFrame)
+      })(),
+    )
+  })
+}
+
+/** The pause before the pane's move: the pane is read first. */
+const PANE_MOVE_DELAY_MS = 800
 
 async function nextDayName($: EngineInterface, plan: Plan | null): Promise<string> {
   if (plan === null) return 'soon'
@@ -1950,6 +2177,7 @@ async function planFromText($: EngineInterface, text: string): Promise<string> {
     return line('reply-plan-failed', { day, reason: (error as Error).message })
   }
   await writePlan($, plan)
+  void track($, { event: 'plan_imported', properties: { workouts: plan.workouts.length } })
   return line('reply-plan-written', {
     day,
     name: plan.name,
@@ -2148,7 +2376,7 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
   // Beside the full portrait the text sits in the middle; beside the mini head it starts level with his line.
   return (
     <Box flexDirection="row" alignItems={fit === 'full' ? 'center' : 'flex-start'}>
-      <Raster key="swolomon" columns={columns} rows={height} cells={FRAMES[frameFor(fit, pose)]} />
+      <Raster key="swolomon" columns={columns} rows={height} cells={(fit === 'full' ? coach.moveFrame : null) ?? FRAMES[frameFor(fit, pose)]} />
       <Box key="portrait-gap" width={PORTRAIT_GAP} />
       <Box key="text" flexDirection="column">
         {rows}
@@ -2194,7 +2422,7 @@ export const register: Register = (on, options) => {
     await $.command.register({
       name: 'workout',
       description: 'IdleReps: your workout, one set at a time while your agent works',
-      argumentHint: '[status | now | done [reps] [weight] | skip | later | undo | setup | plan <text> | pause]',
+      argumentHint: '[status | now | done [reps] [weight] | skip | later | undo | setup | plan <text> | pause | feedback <text>]',
     })
     const migrated = await migrate($)
     const day = await today($)
@@ -2393,6 +2621,7 @@ export const register: Register = (on, options) => {
     const elements = $.ui.resolve(e)
     const widest = Math.max(view.coach.length, ...view.head.map(row => (typeof row === 'string' ? row.length : row.filter(p => p.truncate !== true).reduce((n, p) => n + p.text.length, 0))))
     const hasPortrait = surface === 'terminal' && SPRITE.approved && 'Raster' in elements && e.props.bodyColumns >= SPRITE.width + PORTRAIT_GAP + widest
+    coach.panePortrait = hasPortrait ? e.requestId : null
     const hasSvg = surface !== 'terminal' && SPRITE.approved && 'Svg' in elements
     const said = rowText(Text, hasPortrait || hasSvg ? [{ text: view.coach, italic: true }] : [{ text: `${COACH_NAME}:`, bold: true, tone: 'accent' }, { text: ` ${view.coach}` }], 'coach', { truncate: true })
     const top = (
@@ -2433,7 +2662,7 @@ export const register: Register = (on, options) => {
     return (
       <Box flexDirection="column">
         <Box key="portrait-row" flexDirection="row">
-          <Raster key="swolomon" columns={SPRITE.width} rows={PORTRAIT_ROWS} cells={FRAMES[view.isWin ? 'flex' : 'idle']} />
+          <Raster key="swolomon" columns={SPRITE.width} rows={PORTRAIT_ROWS} cells={coach.paneFrame ?? FRAMES[view.isWin ? 'flex' : 'idle']} />
           <Box key="portrait-gap" width={PORTRAIT_GAP} />
           {top}
         </Box>

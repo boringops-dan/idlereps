@@ -44,6 +44,10 @@ export const EXAMPLE_PLAN = JSON.stringify(
   2,
 )
 
+export const TELEMETRY_COPY =
+  'Counts like sets done and workouts rated, with a random id. Never your exercises, plan, files or prompts. ' +
+  'Change it any time in the plugin settings.'
+
 export type Choice = { label: string; apply: (state: SetupState) => SetupState }
 
 const answer = (patch: Partial<Answers>) => (state: SetupState): SetupState => ({
@@ -122,13 +126,13 @@ const IDLE = [
   ['off', 'No'],
 ] as const
 
+/** Every question in order; `goal` is not asked for Push / Pull / Legs, nor Q10 while telemetry is not live (D9). */
+const SCREEN_ORDER: readonly SetupScreen[] = ['start', 'goal', 'equipment', 'setting', 'level', 'days', 'schedule', 'size', 'weeks', 'cueEvery', 'idleReminder', 'telemetry', 'summary']
+
 /** The screen after `screen` on the way to the summary. */
 function after(screen: SetupScreen, state: SetupState): SetupScreen {
-  const order: SetupScreen[] =
-    state.answers.template === 'ppl'
-      ? ['start', 'equipment', 'setting', 'level', 'days', 'schedule', 'size', 'weeks', 'cueEvery', 'idleReminder', 'summary']
-      : ['start', 'goal', 'equipment', 'setting', 'level', 'days', 'schedule', 'size', 'weeks', 'cueEvery', 'idleReminder', 'summary']
   if (screen === 'safety') return 'start'
+  const order = SCREEN_ORDER.filter(s => !(s === 'goal' && state.answers.template === 'ppl') && !(s === 'telemetry' && state.telemetry === undefined))
   return order[order.indexOf(screen) + 1] ?? 'summary'
 }
 
@@ -294,6 +298,18 @@ export function screenOf(state: SetupState, planPath: string): Screen {
         choices: IDLE.map(([value, label]) => ({ label, apply: s => forward({ ...s, idleReminder: value }) })),
         primary: indexOr(IDLE, IDLE.findIndex(([value]) => value === state.idleReminder)),
       }
+    case 'telemetry': {
+      const shares = [
+        [true, 'Yes'],
+        [false, 'No'],
+      ] as const
+      return {
+        title: 'Share anonymous usage to help improve it?',
+        copy: [TELEMETRY_COPY],
+        choices: shares.map(([telemetry, label]) => ({ label, apply: s => forward({ ...s, telemetry }) })),
+        primary: indexOr(shares, shares.findIndex(([telemetry]) => telemetry === state.telemetry)),
+      }
+    }
     case 'summary':
       return { title: 'Your plan', copy: summaryOf(state) }
   }
@@ -318,13 +334,22 @@ export function summaryOf(state: SetupState): string[] {
 }
 
 /** A new setup, at the safety step until it is acknowledged; Change plan starts from the plan's answers. */
-export function newSetup(opts: { isSafetyAcknowledged: boolean; isQuickStart: boolean; answers?: Answers; cueEvery: string; idleReminder: string }): SetupState {
+export function newSetup(opts: {
+  isSafetyAcknowledged: boolean
+  isQuickStart: boolean
+  answers?: Answers
+  cueEvery: string
+  idleReminder: string
+  /** The current telemetry option, passed only while telemetry is live: Q10 is asked then. */
+  telemetry?: boolean
+}): SetupState {
   return {
     screen: opts.isSafetyAcknowledged ? 'start' : 'safety',
     trail: [],
     answers: opts.answers === undefined ? {} : { ...opts.answers },
     cueEvery: opts.cueEvery,
     idleReminder: opts.idleReminder,
+    ...(opts.telemetry === undefined ? {} : { telemetry: opts.telemetry }),
     isQuickStart: opts.isQuickStart,
   }
 }

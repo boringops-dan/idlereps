@@ -6,7 +6,7 @@
 import type { BandLine, BandPart, Exercise, HistoryEntry, LastByExercise, Plan, Progress, StatusView, Targets, Workout } from '../types'
 import { weekLine } from './bands'
 import { equipmentLabel } from './setup'
-import { line } from './copy'
+import { COMMUNITY_URL, line } from './copy'
 import { daysShowedUp, movedSeconds, nextRank, rankFor, setsThisWeek, sparkline, streak, trendOf, weekMarks } from './history'
 import { mondayOf } from './ledger'
 import { describeAmount, effectiveExercise, minutesWords, shortWorkoutName, setsOf, stepsFor, targetFor, targetOf, weekProgress } from './plan'
@@ -298,6 +298,8 @@ export function statusViewOf(facts: StatusFacts): StatusView {
       tone: 'muted',
     },
   ])
+  // §1.6: where to say what works and what doesn't.
+  more.push([{ text: `Feedback: /workout feedback · Ideas and plans: ${COMMUNITY_URL.replace('https://', '')}`, tone: 'muted', truncate: true }])
   return { ...paneLine(facts, day, steps.length), head, more, isRestDay: day === 'rest', canShare: setsThisWeek(history, today) > 0 }
 }
 

@@ -34,7 +34,7 @@ const LONGEST_AGENT = AGENT_JOBS.flatMap(j => j.beats).sort((a, b) => b.length -
 const LONGEST_WORKOUT = 'Core and cardio'
 const EXERCISES = [...new Set(Object.values(LIBRARY).flatMap(rows => rows.flatMap(row => row.levels.map(e => e.name))))]
 /** Lines drawn in a band row, held to 80 columns. */
-const BAND_LINES: readonly LineId[] = ['restore-ask', 'erase-ask', 'plan-file-stays', 'warmup', 'program-end-detail', 'stretch-note', 'where-detail', 'intro-header', 'ask-detail', 'how-it-works', 'how-it-works-later', 'first-logged', 'lead-working', 'lead-idle', 'hint', 'edit-question', 'edit-typed', 'edit-typed-weight']
+const BAND_LINES: readonly LineId[] = ['pulse-ask', 'restore-ask', 'erase-ask', 'plan-file-stays', 'warmup', 'program-end-detail', 'stretch-note', 'where-detail', 'intro-header', 'ask-detail', 'how-it-works', 'how-it-works-later', 'first-logged', 'lead-working', 'lead-idle', 'hint', 'edit-question', 'edit-typed', 'edit-typed-weight']
 
 const FILLS = {
   coach: COACH_NAME,
@@ -64,6 +64,8 @@ const FILLS = {
   time: '1 min',
   list: 'Dumbbell overhead triceps extension 15 reps @ 14 kg',
   date: 'Sep 30, 2026',
+  url: 'https://github.com/boringops-dan/idlereps/discussions',
+  max: '2,000',
   backup: '/home/me/.claude/idlereps/backup.json',
   text: 'This week my agent worked 99 h 59 m while I did 9999 sets. Rank: Iron Disciple. idlereps.app',
 }

@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ideas and questions
+    url: https://github.com/boringops-dan/idlereps/discussions
+    about: Feature ideas, help, and plans to share go to Discussions.
