@@ -125,6 +125,7 @@ test('lines fit: Swolomon’s and band rows within 80 columns, his band lines wi
   // Toasts, and the tall bands' lines (§1.10b: up to 8 rows), are never drawn beside a name tag in a short band.
   const TOASTS: readonly LineId[] = [
     'day-toast',
+    'shiny-first',
     'prep-start',
     'prep-halfway',
     'prep-ready',

@@ -203,6 +203,8 @@ export const LINES = [
   },
   { id: 'greet-yesterday-moved', voice: 'swolomon', variants: ['{n} moves yesterday, {mate}. Same again? Or one more?', 'You moved {n} times yesterday, {mate}. I wrote it on my arm.'] },
   { id: 'greet-yesterday-agent', voice: 'swolomon', variants: ['Your agent worked {worked} yesterday, {mate}. Today you get a turn too.', '{worked} of work for your agent yesterday, {mate}. Your turn today.'] },
+  // The shiny Swolomon (hooks/shiny.ts): the first one ever.
+  { id: 'shiny-first', voice: 'swolomon', variants: ["Don't look at me, {mate}. I'm... sparkling. One in a hundred."] },
   // His competitions (hooks/prep.ts): your sets are his prep; he competes between your sessions.
   { id: 'prep-start', voice: 'swolomon', variants: ["Big news, {mate}: I'm entering {competition}. Your sets train me too."] },
   { id: 'prep-halfway', voice: 'swolomon', variants: ['Halfway to {competition}, {mate}. Your sets are my sets.', 'Half my prep for {competition} done, {mate}. I can feel it.'] },

@@ -37,6 +37,8 @@ export type StatusFacts = {
   moves: readonly string[]
   /** His competition prep (prep.ts); none before the first set. */
   prep?: Prep | undefined
+  /** Shiny Swolomons seen (shiny.ts). */
+  shinies?: number
 }
 
 type Day = 'training' | 'rest' | 'done' | 'declined' | 'finished'
@@ -284,6 +286,7 @@ export function statusViewOf(facts: StatusFacts): StatusView {
   more.push(rankBar(facts.totalDoneSets))
   more.push(movesRow(facts.totalDoneSets, facts.moves))
   if (facts.prep !== undefined) more.push(prepRow(facts.prep, facts.totalDoneSets))
+  if ((facts.shinies ?? 0) > 0) more.push(shinyRow(facts.shinies ?? 0))
   const bests = plan.workouts
     .flatMap(w => w.exercises)
     .map(planned => effectiveExercise(planned, targetFor(planned, facts.targets)))
@@ -330,6 +333,9 @@ export function movesRow(totalSets: number, unlocked: readonly string[]): BandPa
     { text: toGo === null ? '  all of them' : `  next in ${plural(toGo, 'set')} · /workout moves`, tone: 'muted' },
   ]
 }
+
+/** The shiny ones seen: a collectible of luck. */
+export const shinyRow = (n: number): BandPart[] => [{ text: `✨ Shiny ${COACH_NAME} seen ${n === 1 ? 'once' : `${n} times`}`, tone: 'muted' }]
 
 /** His competition prep: `Swolomon's prep for Regionals ▰▰▰▱▱▱▱▱▱▱ 9/30 · 🥇 1`, or that he is off to compete. */
 export function prepRow(prep: Prep, totalSets: number): BandPart[] {
@@ -402,6 +408,7 @@ export type RemindFacts = {
   totalDoneSets: number
   moves: readonly string[]
   prep?: Prep | undefined
+  shinies?: number
 }
 
 /** The pane in Just remind me: Swolomon's line, today and the week, the rank, the last set. */
@@ -426,6 +433,7 @@ export function remindViewOf(facts: RemindFacts): StatusView {
   more.push(rankBar(facts.totalDoneSets))
   more.push(movesRow(facts.totalDoneSets, facts.moves))
   if (facts.prep !== undefined) more.push(prepRow(facts.prep, facts.totalDoneSets))
+  if ((facts.shinies ?? 0) > 0) more.push(shinyRow(facts.shinies ?? 0))
   const last = lastMovedText(history, today, shortDayName)
   if (last !== null) more.push([{ text: `Last set: ${last}`, tone: 'muted' }])
   more.push('')

@@ -89,6 +89,30 @@ export function encodeCells(grid: Grid): string {
   return toBase64(bytes)
 }
 
+function fromBase64(text: string): Uint8Array {
+  const clean = text.replace(/=+$/, '')
+  const bytes = new Uint8Array(Math.floor((clean.length * 3) / 4))
+  let at = 0
+  for (let i = 0; i < clean.length; i += 4) {
+    const n = [0, 1, 2, 3].reduce((acc, k) => (acc << 6) | Math.max(0, BASE64.indexOf(clean[i + k] ?? 'A')), 0)
+    for (const shift of [16, 8, 0]) if (at < bytes.length) bytes[at++] = (n >> shift) & 0xff
+  }
+  return bytes
+}
+
+/** Encoded cells with their colours swapped by `map` (a colour it does not name stays): the shiny Swolomon. */
+export function recolour(cells: string, map: ReadonlyMap<number, number>): string {
+  const bytes = fromBase64(cells)
+  const view = new DataView(bytes.buffer)
+  for (let at = 0; at + 12 <= bytes.length; at += 12) {
+    for (const offset of [4, 8]) {
+      const swapped = map.get(view.getUint32(at + offset, true))
+      if (swapped !== undefined) view.setUint32(at + offset, swapped, true)
+    }
+  }
+  return toBase64(bytes)
+}
+
 /** A move's poses (moves.ts) as full-portrait cells, encoded once per load. */
 export function encodeMove(sprite: Sprite, id: string, poses: readonly (readonly string[])[]): string[] {
   return poses.map((rows, i) => encodeCells(decodeRows(sprite, rows, `${id} pose ${i}`, sprite.width, sprite.height)))

@@ -220,6 +220,8 @@ export type BandSpec = {
   stretch?: { exercise: string; seconds: number }
   /** The reschedule offer: the training weekday that keeps being declined, and where it would move. */
   move?: { from: Weekday; to: Weekday }
+  /** The shiny Swolomon (hooks/shiny.ts): his portrait recoloured, about one band in a hundred. */
+  isShiny?: true
   /** A question of Swolomon's (hooks/questions.ts): which, and its answers as the buttons' labels. */
   question?: { id: string; labels: string[] }
   /** The typewriter run this band's lines belong to (`talk`); set when it is placed. */

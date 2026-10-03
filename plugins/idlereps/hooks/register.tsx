@@ -50,6 +50,7 @@ import { dailyTarget, ideasFor, isMoved, MOVED, movedOn, movesOn } from './remin
 import { sittingMs, STILL_MS } from './still'
 import { expectedWaitMs, keptTurns, waitSize } from './waits'
 import { greetingOf } from './greeting'
+import { isShinyAt, SHINY_COLOURS } from './shiny'
 import { afterSet, compete, competitionOf } from './prep'
 import type { Prep } from './prep'
 import { ANSWER_IDS, nextQuestion, recallFor } from './questions'
@@ -104,6 +105,7 @@ import {
   frameFor,
   PORTRAIT_GAP,
   portraitCells,
+  recolour,
   STAGE_COLUMNS,
   SVG_PIXELS,
   svgOf,
@@ -271,6 +273,8 @@ const coach: {
   turnCanRemind: boolean
   /** This turn may ask them to stand up: sitting a long while (hooks/still.ts). */
   turnCanStill: boolean
+  /** The band showing is a shiny one (hooks/shiny.ts): every blit to its portrait recoloured. */
+  isShiny: boolean
   /** A timer band waiting for the prompt to empty (the gate's clause (c)). */
   deferred: BandSpec | null
   /** The first-run band was put off for this session (Not now). */
@@ -335,6 +339,7 @@ const coach: {
   turnCanNudge: false,
   turnCanRemind: false,
   turnCanStill: false,
+  isShiny: false,
   deferred: null,
   isIntroDismissed: false,
   isStatusOpen: false,
@@ -526,7 +531,9 @@ async function toast($: EngineInterface, text: string, cause: Message['cause']) 
 }
 
 /** Puts a band in the slot, or behind the one there when that one matters more. */
-async function placeBand($: EngineInterface, spec: BandSpec) {
+async function placeBand($: EngineInterface, given: BandSpec) {
+  // About one band with a portrait in a hundred, the shiny Swolomon (hooks/shiny.ts).
+  const spec: BandSpec = given.portrait !== undefined && given.isShiny === undefined && isShinyAt(await now($)) ? { ...given, isShiny: true } : given
   const slot = offerToSlot(await read($, band), await read($, pending), spec)
   if (!slot.isPlaced) {
     await update($, pending, () => slot.pending)
@@ -586,6 +593,8 @@ async function clearBand($: EngineInterface) {
 
 /** Starts a band's lines typing, when it has lines and animation is on; the band carries the run's key. */
 async function startTalk($: EngineInterface, spec: BandSpec): Promise<BandSpec> {
+  coach.isShiny = spec.isShiny === true
+  if (coach.isShiny) await sawShiny($)
   coach.talkTimeline = null
   coach.pose = 'idle'
   coach.talkText = plainOf(spec.coach?.join(' ') ?? '')
@@ -625,6 +634,7 @@ async function startTalk($: EngineInterface, spec: BandSpec): Promise<BandSpec> 
 }
 
 async function stopTalk($: EngineInterface) {
+  coach.isShiny = false
   coach.talkTimeline = null
   coach.talkMove = undefined
   coach.moveFrame = null
@@ -703,7 +713,7 @@ async function playMove($: EngineInterface, move: Move, key: number, isWin: bool
       if (pose === showing) return
       showing = pose
       coach.moveFrame = cells[pose] ?? null
-      await blitFull($, portrait.requestId, coach.moveFrame)
+      if (coach.moveFrame !== null) await blitPortrait($, coach.moveFrame)
     })(),
   )
 }
@@ -866,10 +876,27 @@ function idleFrames(step: IdleStep, size: PortraitSize): { cells: string; ms: nu
   return Array.from({ length: move.reps }, () => move.beats.map(([pose, ms]) => ({ cells: cells[pose] ?? FRAMES.idle, ms }))).flat()
 }
 
+const SHINY_CELLS = new Map<string, string>()
+
+/** Cells recoloured for the shiny Swolomon, each frame once. */
+function shinyOf(cells: string): string {
+  const shiny = SHINY_CELLS.get(cells) ?? recolour(cells, SHINY_COLOURS)
+  SHINY_CELLS.set(cells, shiny)
+  return shiny
+}
+
+/** A shiny Swolomon showed: counted; the first one ever, he says so. */
+async function sawShiny($: EngineInterface) {
+  const n = (await load($, 'shinies', 0)) + 1
+  await save($, 'shinies', n)
+  if (n === 1) $.ui.toast(line('shiny-first', { day: await today($) }))
+}
+
 /** Blits cells to the band's portrait, at the size it is drawn; a refused blit is ignored. */
 async function blitPortrait($: EngineInterface, cells: string) {
   const portrait = coach.portrait
   if (portrait === null) return
+  if (coach.isShiny) cells = shinyOf(cells)
   const { columns, rows } = portraitCells(SPRITE, portrait.size)
   await $.ui.blit({ requestId: portrait.requestId, key: 'swolomon', cells, columns, rows }).catch(() => undefined)
 }
@@ -2104,6 +2131,7 @@ async function statusFacts($: EngineInterface, plan: Plan): Promise<StatusFacts>
     memory: await load($, 'lastByExercise', {}),
     moves: await load<string[]>($, 'moves', []),
     prep: await load<Prep | undefined>($, 'prep', undefined),
+    shinies: await load($, 'shinies', 0),
   }
 }
 
@@ -2143,6 +2171,7 @@ async function remindFacts($: EngineInterface): Promise<RemindFacts> {
     totalDoneSets: await load($, 'totalDoneSets', 0),
     moves: await load<string[]>($, 'moves', []),
     prep: await load<Prep | undefined>($, 'prep', undefined),
+    shinies: await load($, 'shinies', 0),
   }
 }
 
@@ -3009,7 +3038,7 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
   // Beside the full portrait the text sits in the middle; beside the mini head it starts level with his line.
   return (
     <Box flexDirection="row" alignItems={fit === 'full' ? 'center' : 'flex-start'}>
-      <Raster key="swolomon" columns={columns} rows={height} cells={(fit === 'full' ? coach.moveFrame : null) ?? FRAMES[frameFor(fit, pose)]} />
+      <Raster key="swolomon" columns={columns} rows={height} cells={(cells => (spec.isShiny === true ? shinyOf(cells) : cells))((fit === 'full' ? coach.moveFrame : null) ?? FRAMES[frameFor(fit, pose)])} />
       <Box key="portrait-gap" width={PORTRAIT_GAP} />
       <Box key="text" flexDirection="column">
         {rows}
