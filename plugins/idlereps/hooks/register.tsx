@@ -44,6 +44,7 @@ import { agentDoing, COACH_NAME, emphasisRuns, fill, plainOf, pickAddress, COMMU
 import type { LineContext, LineId } from './copy'
 import { appendHistory, movedSeconds, rankFor, RANKS, setsThisWeek } from './history'
 import { ideasFor, isMoved, MOVED, movedOn } from './remind'
+import { expectedWaitMs, keptTurns, waitSize } from './waits'
 import { ASIDE_GAP, ASIDE_MS, ASIDES, asideSpot, asideText, hasAsides } from './asides'
 import { collected, dueUnlock, setsToNext, STARTER_MOVES, UNLOCK_ORDER } from './collection'
 import { due, mark, mondayOf } from './ledger'
@@ -1084,7 +1085,18 @@ async function remindBandFor($: EngineInterface, opts: { isFirst?: boolean } = {
   const day = await today($)
   const history = await load<HistoryEntry[]>($, 'history', [])
   const withSafety = !(await isSafetyAcknowledged($))
-  return remindBand(await coachLine($, opts.isFirst === true ? 'remind-first' : 'remind-ask', { day }), day, ideasFor(history.length + day), { withSafety })
+  // Sized to the wait: the agent's word, a sign of a long task, or how long turns usually run here.
+  const waitMs = coach.isTurnRunning
+    ? expectedWaitMs({
+        ...(coach.waitMs === undefined ? {} : { signWaitMs: coach.waitMs }),
+        ...(coach.reason === undefined ? {} : { reason: coach.reason }),
+        recent: await load<number[]>($, 'turnLengths', []),
+        elapsedMs: (await now($)) - coach.turnStartedAt,
+      })
+    : null
+  const size = waitSize(waitMs)
+  const id: LineId = opts.isFirst === true ? 'remind-first' : size === 'quick' ? 'remind-quick' : size === 'long' ? 'remind-long' : 'remind-ask'
+  return remindBand(await coachLine($, id, { day }), day, ideasFor(history.length + day, size), { withSafety, ...(waitMs === null ? {} : { wait: waitWords(waitMs) }) })
 }
 
 /** A set of their own, logged in one tap: a set like any other for the week, the rank and the gap. */
@@ -3024,7 +3036,10 @@ export const register: Register = (on, options) => {
     setCallMisread($, null)
     coach.turnSets = 0
     coach.turnOutcome = undefined
-    if (e.agentId === undefined) await recordWorkTime($)
+    if (e.agentId === undefined) {
+      await recordWorkTime($)
+      await save($, 'turnLengths', keptTurns(await load<number[]>($, 'turnLengths', []), e.durationMs))
+    }
     // A band already up stays until answered; a cue not yet due, or waiting on the prompt, is dropped.
     stopCue()
     cancelTimers('turn')

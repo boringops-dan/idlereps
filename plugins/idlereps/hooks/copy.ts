@@ -189,6 +189,9 @@ export const LINES = [
     voice: 'swolomon',
     variants: ["Your agent's busy, {mate}. Drop and give me a set. Anything.", '{AgentDoing}. Your turn, {mate}: one set.', 'The iron is calling, {mate}. One set, any set.'],
   },
+  // Sized to the wait (hooks/waits.ts).
+  { id: 'remind-quick', voice: 'swolomon', variants: ['Quick one while it thinks, {mate}. Anything counts.', "Short wait, {mate}. Short set. Let's go.", 'Blink and it is back, {mate}. Ten of something?'] },
+  { id: 'remind-long', voice: 'swolomon', variants: ['Long one coming, {mate}. Go for a walk. Or anything.', '{AgentDoing}. Stretch your legs, {mate}.', 'Your agent will be gone a bit, {mate}. So should you.'] },
   { id: 'moved-logged', voice: 'swolomon', variants: ['{what} logged, {mate}. {n} today.', '{what}, {mate}. Written in the scrolls. {n} today.', '{what}, {mate}. My laurel just got shinier. {n} today.', "Logged, {mate}. {what}. That's {n} today. Glorious."] },
   { id: 'remind-pane-fresh', voice: 'swolomon', variants: ["No sets yet today, {mate}. Your agent's next long task is yours.", "Fresh day, {mate}. First set is the hardest. I'll be here.", 'Nothing yet, {mate}. Your agent works hard. Do you?'] },
   { id: 'remind-pane-done', voice: 'swolomon', variants: ['{n} sets today, {mate}. The iron remembers.', '{n} sets today, {mate}. My chest swells with pride.', '{n} today, {mate}. The scrolls have been updated.'] },
@@ -343,6 +346,7 @@ export const LINES = [
 
   // Plain: bands.
   { id: 'remind-ideas', voice: 'plain', variants: ['Ideas: {ideas}'] },
+  { id: 'remind-ideas-wait', voice: 'plain', variants: ['Ideas for {wait}: {ideas}'] },
   { id: 'remind-skipped', voice: 'plain', variants: ['Not today. Back tomorrow.'] },
   { id: 'remind-status', voice: 'plain', variants: ['Just remind me. Today: {n} sets. This week: {week} sets.'] },
   { id: 'reply-remind-on', voice: 'plain', variants: ['Just remind me is on: any set you like, while your agent works.'] },

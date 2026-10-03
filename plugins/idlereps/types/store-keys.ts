@@ -35,6 +35,7 @@ export const STORE_KEYS = [
   { key: 'moves', shape: "Swolomon's moves unlocked, by id, in the order they came", cap: 40, inBackup: true },
   { key: 'mode', shape: "Mode: 'remind' for Just remind me, absent with a plan", inBackup: true },
   { key: 'easyDay', shape: 'local day number the gap is doubled on (a busy day)', inBackup: false },
+  { key: 'turnLengths', shape: 'ms of the last turns 30 s or longer, oldest first: the usual wait (hooks/waits.ts)', cap: 30, inBackup: false },
 ] as const satisfies readonly StoreKeyInfo[]
 
 export type StoreKey = (typeof STORE_KEYS)[number]['key']

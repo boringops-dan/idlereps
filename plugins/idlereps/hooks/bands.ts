@@ -99,12 +99,13 @@ export function byoplanBand(coachLine: string, day: number, path: string): BandS
 const safetyRow = (day: number): BandPart[] => [{ text: line('safety-short', { day }), tone: 'muted' }]
 
 /** Just remind me, while the agent works: a set, anything, logged by what it worked. */
-export function remindBand(coachLine: string, day: number, ideas: readonly string[], opts: { withSafety?: boolean } = {}): BandSpec {
+export function remindBand(coachLine: string, day: number, ideas: readonly string[], opts: { withSafety?: boolean; wait?: string } = {}): BandSpec {
+  const ideasLine = opts.wait === undefined ? line('remind-ideas', { day, ideas: ideas.join(' · ') }) : line('remind-ideas-wait', { day, wait: opts.wait, ideas: ideas.join(' · ') })
   return {
     kind: 'remind',
     coach: [coachLine],
     portrait: 'mini',
-    body: [[{ text: line('remind-ideas', { day, ideas: ideas.join(' · ') }), tone: 'muted' }], ...(opts.withSafety === true ? [safetyRow(day)] : [])],
+    body: [[{ text: ideasLine, tone: 'muted' }], ...(opts.withSafety === true ? [safetyRow(day)] : [])],
     actions: actionIdsOf('remind'),
   }
 }

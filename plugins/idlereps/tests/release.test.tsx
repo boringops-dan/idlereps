@@ -83,6 +83,7 @@ test('the store, filled to every cap, stays under half its limit; Undo under 4 K
     easyDay: TODAY,
     mode: 'remind',
     moves: Array.from({ length: 40 }, (_, i) => `a-long-move-name-${i}`),
+    turnLengths: Array.from({ length: 30 }, () => 3_599_999),
     installId: '6f1c2a9e-0b7d-4c1e-9a55-3f8e2d7b4c10',
     // 14 days at 50 turns a day (§1.12 item 7).
     workIntervals: Object.fromEntries(Array.from({ length: 14 }, (_, d) => [String(TODAY - d), Array.from({ length: 50 }, (_, i) => [NOON + i * 600_000, NOON + i * 600_000 + 300_000])])),

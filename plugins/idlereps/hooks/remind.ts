@@ -7,33 +7,24 @@
 import type { HistoryEntry, Moved } from '../types'
 import type { WeekMark } from './history'
 import { mondayOf } from './ledger'
+import type { WaitSize } from './waits'
 
 export const MOVED: Record<Moved, string> = { upper: 'Upper', lower: 'Lower', cardio: 'Cardio', other: 'A set' }
 
 export const isMoved = (id: string): id is Moved => id in MOVED
 
-/** Ideas, not orders: anything counts. With gear or without, at a desk or not. */
-export const IDEAS: readonly string[] = [
-  '15 squats',
-  '10 push-ups',
-  'a set of curls',
-  'a minute of jumping jacks',
-  'a 30 s wall sit',
-  '20 calf raises',
-  'a 30 s plank',
-  '10 lunges a leg',
-  'a set of rows',
-  'a lap of the block',
-  '10 desk push-ups',
-  'a set of presses',
-  'a minute of high knees',
-  '15 glute bridges',
-]
+/** Ideas, not orders: anything counts. With gear or without, at a desk or not; sized to the wait. */
+export const IDEAS: Readonly<Record<WaitSize, readonly string[]>> = {
+  quick: ['15 squats', '10 push-ups', '20 calf raises', 'a 30 s plank', '10 desk push-ups', 'a 30 s wall sit', 'a minute of high knees'],
+  set: ['a set of curls', 'a minute of jumping jacks', '10 lunges a leg', 'a set of rows', 'a set of presses', '15 glute bridges'],
+  long: ['a lap of the block', 'a 5 min walk', 'stairs, up and down', 'two sets of anything', 'a proper stretch'],
+}
 
-/** Three ideas for the n-th reminder: a different three each time, the same three for the same n. */
-export function ideasFor(n: number): string[] {
-  const at = ((n * 3) % IDEAS.length + IDEAS.length) % IDEAS.length
-  return [0, 1, 2].map(i => IDEAS[(at + i) % IDEAS.length] ?? '')
+/** Three ideas of a size for the n-th reminder: a different three each time, the same three for the same n. */
+export function ideasFor(n: number, size: WaitSize = 'set'): string[] {
+  const pool = IDEAS[size]
+  const at = ((n * 3) % pool.length + pool.length) % pool.length
+  return [0, 1, 2].map(i => pool[(at + i) % pool.length] ?? '')
 }
 
 const movedIn = (history: readonly HistoryEntry[], from: number, to: number) => history.filter(e => e.kind === 'moved' && e.d >= from && e.d <= to)

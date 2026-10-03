@@ -187,8 +187,10 @@ test('Quick start with weights: the starter plan built for dumbbells, a bar and 
 test('ideas: three at a time, a different three each time, every idea in turn', () => {
   expect(ideasFor(0)).toHaveLength(3)
   expect(ideasFor(1)).not.toEqual(ideasFor(0))
-  const seen = new Set(Array.from({ length: IDEAS.length }, (_, n) => ideasFor(n)).flat())
-  expect(seen.size).toBe(IDEAS.length)
+  for (const size of ['quick', 'set', 'long'] as const) {
+    const seen = new Set(Array.from({ length: IDEAS[size].length }, (_, n) => ideasFor(n, size)).flat())
+    expect(seen.size).toBe(IDEAS[size].length)
+  }
   const marks = remindWeekMarks([{ kind: 'moved', t: NOON, d: TODAY, what: 'upper' }], TODAY)
   expect(marks.filter(m => m === '●')).toHaveLength(1)
 })
