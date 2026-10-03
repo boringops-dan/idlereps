@@ -9,7 +9,7 @@ export type Grid = (number | null)[][]
 export type PortraitSize = 'full' | 'mini'
 export type Fit = PortraitSize | 'none'
 /** The frame the timeline asks for; a mini head shows its own version of it. */
-export type Pose = 'idle' | 'talkA' | 'talkB' | 'blink' | 'flex' | 'glanceL' | 'glanceR' | 'lookYou' | 'wink' | 'smirk'
+export type Pose = 'idle' | 'talkA' | 'talkB' | 'blink' | 'flex' | 'flexB' | 'glanceL' | 'glanceR' | 'lookYou' | 'wink' | 'smirk'
 
 /** A frame as rows of colours (null: transparent); throws naming the frame and row it cannot read. */
 export function decodeFrame(sprite: Sprite, name: FrameName | MiniFrameName): Grid {
@@ -108,7 +108,7 @@ export function encodeSprite(sprite: Sprite): Record<FrameName | MiniFrameName, 
 /** The frame a size draws for a pose: the mini head has no flex. */
 export function frameFor(size: PortraitSize, pose: Pose): FrameName | MiniFrameName {
   if (size === 'full') return pose
-  const MINI = { idle: 'miniIdle', talkA: 'miniTalkA', talkB: 'miniTalkB', blink: 'miniBlink', flex: 'miniIdle', glanceL: 'miniGlanceL', glanceR: 'miniGlanceR', lookYou: 'miniIdle', wink: 'miniBlink', smirk: 'miniIdle' } as const
+  const MINI = { idle: 'miniIdle', talkA: 'miniTalkA', talkB: 'miniTalkB', blink: 'miniBlink', flex: 'miniIdle', flexB: 'miniIdle', glanceL: 'miniGlanceL', glanceR: 'miniGlanceR', lookYou: 'miniIdle', wink: 'miniBlink', smirk: 'miniIdle' } as const
   return MINI[pose]
 }
 
@@ -201,8 +201,15 @@ export function frameAt(timeline: Timeline, t: number, isWin: boolean): Frame {
 // Idling (owner, 2026-10-03: "keep Swolomon blinking and moving around a little as he idles ... looking
 // around through the 4th wall"): once his line is out, a beat every few seconds while the band shows.
 
-/** One idle beat: a wait, then poses in turn, then back to idle. */
-export type IdleBeat = { wait: number; steps: readonly { pose: Pose; ms: number }[] }
+/** One idle beat: a wait, then poses in turn, then back to rest (idle, or the flex on a win). */
+export type IdleBeat = { wait: number; steps: readonly { pose: Pose; ms: number }[]; rest: Pose }
+
+/** On a win he holds the flex, and its sparkles twinkle. */
+const TWINKLE = [
+  { pose: 'flexB' as const, ms: 300 },
+  { pose: 'flex' as const, ms: 300 },
+  { pose: 'flexB' as const, ms: 300 },
+]
 
 const BEATS: readonly { weight: number; steps: readonly { pose: Pose; ms: number }[]; isFullOnly?: true }[] = [
   { weight: 5, steps: [{ pose: 'blink', ms: BLINK_MS }] },
@@ -221,13 +228,14 @@ const BEATS: readonly { weight: number; steps: readonly { pose: Pose; ms: number
 export const IDLE_WAIT_MS = { min: 2500, max: 5500 } as const
 
 /** The n-th idle beat: the same for the same n (tests and replays), varied from one to the next. */
-export function idleBeat(n: number, size: PortraitSize): IdleBeat {
+export function idleBeat(n: number, size: PortraitSize, isWin = false): IdleBeat {
+  if (isWin) return { wait: Math.round(IDLE_WAIT_MS.min + ((n * 997) % 2000)), steps: TWINKLE, rest: 'flex' }
   const pool = BEATS.filter(beat => size === 'full' || beat.isFullOnly !== true)
   const total = pool.reduce((sum, beat) => sum + beat.weight, 0)
   const hash = (x: number) => ((Math.imul(x + 1, 2654435761) >>> 0) % 10007) / 10007
   let pick = hash(n * 2) * total
   const beat = pool.find(b => (pick -= b.weight) < 0) ?? pool[0]!
-  return { wait: Math.round(IDLE_WAIT_MS.min + hash(n * 2 + 1) * (IDLE_WAIT_MS.max - IDLE_WAIT_MS.min)), steps: beat.steps }
+  return { wait: Math.round(IDLE_WAIT_MS.min + hash(n * 2 + 1) * (IDLE_WAIT_MS.max - IDLE_WAIT_MS.min)), steps: beat.steps, rest: 'idle' }
 }
 
 // ---------------------------------------------------------------------------------------------------------

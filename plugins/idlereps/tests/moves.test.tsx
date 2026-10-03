@@ -125,7 +125,7 @@ test('the flex band names the move under the line', () => {
 // ---------------------------------------------------------------------------------------------------------
 // The moves, played.
 
-test('/workout flex: once the line is out he does the reel’s move, then holds the flex; nothing after', ANIMATED, async ($, on) => {
+test('/workout flex: once the line is out he does the reel’s move, then holds the flex, its sparkles twinkling', ANIMATED, async ($, on) => {
   const { clock } = world(on, TINY)
   const blits = blitLog(on)
   await $.session.start(SESSION)
@@ -139,10 +139,14 @@ test('/workout flex: once the line is out he does the reel’s move, then holds 
   const played = blits.map(b => b.cells)
   // Every pose it plays was shown, in the band's portrait, and it ended back on the flex.
   for (const [pose] of move.beats) expect(played).toContain(cells[pose])
-  expect(played.at(-1)).toBe(FRAMES.flex)
+  expect(played).toContain(FRAMES.flex)
+  // After that, only the flex and its twinkle, a few times a minute.
   const settled = blits.length
   await clock.advance(30_000)
-  expect(blits.length).toBe(settled)
+  const after = blits.slice(settled).map(b => b.cells)
+  expect(after.length).toBeGreaterThan(0)
+  expect(after.every(c => c === FRAMES.flex || c === FRAMES.flexB)).toBe(true)
+  expect(after).toContain(FRAMES.flexB)
   await ui.unmount()
 })
 

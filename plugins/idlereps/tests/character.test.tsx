@@ -83,6 +83,7 @@ test('the portrait has no stray pixels: every frame is the idle frame but for it
   expect(differs('lookYou')).toEqual([4, 5, 9])
   expect(differs('wink')).toEqual([6, 9])
   expect(differs('smirk')).toEqual([4, 5, 9])
+  expect(differs('flexB')).toEqual([1, 2, 6, 9])
   // A glance keeps both eyes, just moved.
   for (const name of ['glanceL', 'glanceR'] as const) expect([...(SPRITE.frames[name][6] ?? '')].filter(c => c === 'k')).toHaveLength(2)
 })
@@ -96,6 +97,9 @@ test('idle beats: varied, the same for the same n, within their waits; the mini 
   }
   const poses = new Set(beats.flatMap(beat => beat.steps.map(step => step.pose)))
   expect([...poses].sort()).toEqual(['blink', 'glanceL', 'glanceR', 'idle', 'lookYou', 'smirk', 'wink'])
+  // A win: the sparkles twinkle, and he rests on the flex.
+  const win = idleBeat(3, 'full', true)
+  expect([new Set(win.steps.map(step => step.pose)), win.rest]).toEqual([new Set(['flex', 'flexB']), 'flex'])
   const mini = new Set(Array.from({ length: 200 }, (_, n) => idleBeat(n, 'mini')).flatMap(beat => beat.steps.map(step => step.pose)))
   expect([...mini].sort()).toEqual(['blink', 'glanceL', 'glanceR', 'idle'])
   expect(frameFor('mini', 'glanceL')).toBe('miniGlanceL')

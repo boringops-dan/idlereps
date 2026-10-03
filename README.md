@@ -23,22 +23,19 @@ Or inside Claude Code:
 Then start a new session. Swolomon walks on just above the prompt (a toast points the way), introduces
 himself, and asks how you want to train:
 
-- **Give me a plan**: then **Quick start** (a starter plan for Mon, Wed and Fri, at a desk, at home, or
-  with weights), **Build it with me** (your gear, days and goal), or **I have my own** (paste it after
-  `/workout plan`, in any format, or write the plan file by hand). Quick start is a few presses: one
-  safety note, where you train, how training here works (four lines, once), and your first set, offered
-  right there. The next set comes while your agent works on something long.
-- **Just remind me**: you train your own way (a gym, a home gym, a run) and pick your days. On those
-  days, while your agent works, Swolomon asks if you're going; when you're back, one tap logs what you hit
-  (upper, lower, full body, cardio, other). `/workout` shows your week; `/workout log` logs a session any
-  day; `/workout days mon thu sat` changes your days. Choosing a plan later replaces the reminders.
+- **Quick start** (`1`): where do you train (a desk, home with no gear, or with weights), and your first
+  set is offered right there. Two presses. The next set comes while your agent works on something long.
+- **Just remind me** (`2`): no plan. While your agent works, Swolomon says do a set, anything (with a few
+  ideas), and one tap logs what it worked: upper, lower, cardio or other. It counts like any set.
+- **Build my own** (`3`): **Build it with me** (your gear, days and goal) or **I have my own** (paste it
+  after `/workout plan`, in any format, or write the plan file by hand).
 
-Not now? Later sessions open quietly. While your agent works on something long, Swolomon asks once that
-day, small, with the same buttons: five times at most, the last saying so. **Don't ask again** ends it;
-`/workout setup` or `/workout swolomon` start it any time.
+The safety note rides on the first set offered, one row, until you start one. Not now? Later sessions open
+quietly; while your agent works on something long, Swolomon asks once that day, five times at most.
+`/workout dontask` ends it; `/workout setup`, `/workout remind` or `/workout swolomon` start it any time.
 
 Already have a plan (written by hand, or brought over from the prototype)? Swolomon still introduces
-himself, once, with **Keep my plan** in place of Give me a plan. Until then, `/workout` brings him up rather
+himself, once, with **Keep my plan** in place of Quick start. Until then, `/workout` brings him up rather
 than going straight into a workout.
 
 Update: `claude plugin marketplace update idlereps` (or `/plugin marketplace update idlereps`).
@@ -113,13 +110,11 @@ What each band's numbers do:
 
 | Band | Buttons |
 |---|---|
-| First run | `1` Give me a plan (or Keep my plan) · `2` Just remind me · `3` Not now · `4` Don't ask again |
-| Give me a plan | `1` Quick start · `2` Build it with me · `3` I have my own · `b` Back |
-| Which days? (Just remind me) | `1` Mon Wed Fri · `2` Tue Thu Sat · `3` Mon to Fri · `4` Every day · `b` Back |
-| How IdleReps works (once, first) | `1` Got it |
+| First run | `1` Quick start (or Keep my plan) · `2` Just remind me · `3` Build my own · `4` Not now |
+| Build my own | `1` Quick start · `2` Build it with me · `3` I have my own · `b` Back |
 | Where do you train? (Quick start) | `1` At a desk · `2` At home, no gear · `3` With weights |
-| Training today? (Just remind me) | `1` Going · `2` Already did · `3` Not today |
-| What did you hit? (Just remind me) | `1` Upper · `2` Lower · `3` Full body · `4` Cardio · `5` Other · `0` Didn't go |
+| Do a set (Just remind me) | `1` Upper · `2` Lower · `3` Cardio · `4` Other · `l` Later · `0` Not today |
+| New move unlocked | `1` Nice · `2` Again · `0` Undo |
 | Rest-day stretch | `1` Done · `2` Not now |
 | Ready for a workout? | `1` Start · `2` Later · `3` Not today · `4` Just half |
 | Bonus set (after an Easy workout) | `1` One more · `2` Done for today |
@@ -165,8 +160,14 @@ introduction.
 **Swolomon's moves.** Swolomon has more than 30 moves, all in the same pixel style. Open `/workout` and
 he demonstrates your next exercise: squats, push-ups, planks, curls, pull-ups, bridges, lunges and the
 rest, so you know what's coming. On a rest day he naps. He lifts a trophy for a new rank, does a victory
-jump when you finish a week, and tosses his laurel when you finish a program. `/workout flex` shows a
-different move each time.
+jump when you finish a week, and tosses his laurel when you finish a program.
+
+**Collect his moves.** You start with three. Every set you do brings the next one closer: the first at
+3 sets, then one more set each time. When one unlocks, he performs it for you (`2` plays it again).
+`/workout flex` shows off the ones you have; `/workout moves` lists them.
+
+**He idles.** While a band or the pane is up, he blinks, glances around, now and then stares straight out
+of the screen at you, deadpan, and winks. On a win, his sparkles twinkle.
 
 **Beside every set**, a tiny Swolomon does the exercise with you, a few reps, then holds still.
 
@@ -224,8 +225,10 @@ Other commands:
 | `/workout reset` | Back to workout 1. Your history is kept. |
 | `/workout setup` | Make a new plan. |
 | `/workout plan <text>` | Turn a plan described in plain words into your plan. |
-| `/workout days <days>` | Just remind me: train on these days (e.g. `mon wed fri`). |
-| `/workout log` | Just remind me: log a session. |
+| `/workout remind` | Just remind me: no plan, a set of your choosing while your agent works. |
+| `/workout log` | Just remind me: log a set now. |
+| `/workout moves` | Swolomon's moves you've unlocked, and when the next one comes. |
+| `/workout dontask` | Stop the first-run nudges. |
 | `/workout half` | The half version of today's workout: each exercise's sets halved. |
 | `/workout next-block` | Once the plan is done: the same plan again from workout 1, weights and reps kept. |
 | `/workout share` | Copy one line about your week to post anywhere (see Share your week). |

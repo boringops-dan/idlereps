@@ -171,17 +171,17 @@ export const LINES = [
     variants: ["Plan's racked, {mate}. First workout {when}. Want a taste?"],
   },
   // Swolomon in the Workout pane: one line for where the day stands.
-  { id: 'pane-fresh', voice: 'swolomon', variants: ['{n} sets on the menu today, {mate}. Hungry?', "Today's menu: {workout}. Dig in, {mate}."] },
+  { id: 'pane-fresh', voice: 'swolomon', variants: ['{n} sets on the menu today, {mate}. Hungry?', "Today's menu: {workout}. Dig in, {mate}.", '{n} sets today, {mate}. I already warmed up. For you.', 'Fresh day, {mate}. {n} sets, zero excuses.'] },
   {
     id: 'pane-half',
     voice: 'swolomon',
     variants: ['Half today, {mate}. {n} sets to go, and every one counts.', 'You showed up, {mate}. {n} sets and the day is yours.'],
   },
-  { id: 'pane-mid', voice: 'swolomon', variants: ['{n} sets to go, {mate}. The iron waits.', "Halfway's a myth, {mate}. {n} sets to go."] },
-  { id: 'pane-done', voice: 'swolomon', variants: ['Done for today, {mate}. {coach} salutes you.', 'Workout done, {mate}. Go drink some water.'] },
-  { id: 'pane-rest', voice: 'swolomon', variants: ['Rest day, {mate}. Muscles grow on the couch.', 'No sets today, {mate}. Recovery is a lift too.'] },
-  { id: 'pane-declined', voice: 'swolomon', variants: ['Rest is training too, {mate}. See you {nextDay}.'] },
-  { id: 'pane-paused', voice: 'swolomon', variants: ['Paused, {mate}. The iron will wait for you.'] },
+  { id: 'pane-mid', voice: 'swolomon', variants: ['{n} sets to go, {mate}. The iron waits.', "Halfway's a myth, {mate}. {n} sets to go.", '{n} sets left, {mate}. Your agent believes in you. Probably.', 'Keep stacking, {mate}. {n} sets to glory.'] },
+  { id: 'pane-done', voice: 'swolomon', variants: ['Done for today, {mate}. {coach} salutes you.', 'Workout done, {mate}. Go drink some water.', 'Done, {mate}. The gods are taking notes.', 'Finished, {mate}. I would carry you on my shoulders.'] },
+  { id: 'pane-rest', voice: 'swolomon', variants: ['Rest day, {mate}. Muscles grow on the couch.', 'No sets today, {mate}. Recovery is a lift too.', "Rest day, {mate}. I'm resting too. Aggressively.", 'Today we recover, {mate}. Tomorrow we feast.'] },
+  { id: 'pane-declined', voice: 'swolomon', variants: ['Rest is training too, {mate}. See you {nextDay}.', 'Not today, {mate}. The iron understands. See you {nextDay}.', 'Skipped, {mate}. Even legends take a breather.'] },
+  { id: 'pane-paused', voice: 'swolomon', variants: ['Paused, {mate}. The iron will wait for you.', 'Paused, {mate}. I will stand here. Flexing. Waiting.'] },
   // Just remind me: a set, anything, while the agent works.
   { id: 'remind-first', voice: 'swolomon', variants: ['Deal, {mate}. Your agent works, you do a set. Try one now?'] },
   {
@@ -189,9 +189,9 @@ export const LINES = [
     voice: 'swolomon',
     variants: ["Your agent's busy, {mate}. Drop and give me a set. Anything.", '{AgentDoing}. Your turn, {mate}: one set.', 'The iron is calling, {mate}. One set, any set.'],
   },
-  { id: 'moved-logged', voice: 'swolomon', variants: ['{what} logged, {mate}. {n} today.', '{what}, {mate}. Written in the scrolls. {n} today.'] },
-  { id: 'remind-pane-fresh', voice: 'swolomon', variants: ["No sets yet today, {mate}. Your agent's next long task is yours."] },
-  { id: 'remind-pane-done', voice: 'swolomon', variants: ['{n} sets today, {mate}. The iron remembers.'] },
+  { id: 'moved-logged', voice: 'swolomon', variants: ['{what} logged, {mate}. {n} today.', '{what}, {mate}. Written in the scrolls. {n} today.', '{what}, {mate}. My laurel just got shinier. {n} today.', "Logged, {mate}. {what}. That's {n} today. Glorious."] },
+  { id: 'remind-pane-fresh', voice: 'swolomon', variants: ["No sets yet today, {mate}. Your agent's next long task is yours.", "Fresh day, {mate}. First set is the hardest. I'll be here.", 'Nothing yet, {mate}. Your agent works hard. Do you?'] },
+  { id: 'remind-pane-done', voice: 'swolomon', variants: ['{n} sets today, {mate}. The iron remembers.', '{n} sets today, {mate}. My chest swells with pride.', '{n} today, {mate}. The scrolls have been updated.'] },
   // A move unlocked: he performs it for you, the first time.
   {
     id: 'unlock',
@@ -200,9 +200,9 @@ export const LINES = [
   },
   { id: 'program-ask', voice: 'swolomon', variants: ["A program! Now we're talking, {mate}. How do we build it?"] },
   { id: 'byoplan-ask', voice: 'swolomon', variants: ['Got your own program, {mate}? Show me.'] },
-  { id: 'pane-finished', voice: 'swolomon', variants: ['The whole program, {mate}. Legends are made like this.'] },
+  { id: 'pane-finished', voice: 'swolomon', variants: ['The whole program, {mate}. Legends are made like this.', 'Program complete, {mate}. They will write songs about this.'] },
   { id: 'hold-go', voice: 'swolomon', variants: ['Hold it, {mate}. Breathe.', 'Steady, {mate}. The clock is on our side.'] },
-  { id: 'hold-switch', voice: 'swolomon', variants: ['Side one, done. Switch, {mate}.'] },
+  { id: 'hold-switch', voice: 'swolomon', variants: ['Side one, done. Switch, {mate}.', 'Other side, {mate}. Symmetry is beauty.'] },
   { id: 'hold-time', voice: 'swolomon', variants: ['Time! Beautiful hold, {mate}.', 'Time! Rock solid, {mate}.'] },
   { id: 'busy-day', voice: 'swolomon', variants: ["Busy day, {mate}. I'll check back every {n} min instead."] },
   // The turn-end line, when the person trained through it: Swolomon on what the agent got done.
@@ -242,7 +242,7 @@ export const LINES = [
     voice: 'swolomon',
     variants: ['Welcome back, {mate}. No catching up. Even half counts today.', 'There you are, {mate}. Start small. Just half is fine.'],
   },
-  { id: 'after-tough', voice: 'swolomon', variants: ['Last one was tough, {mate}. Half today is still a win.'] },
+  { id: 'after-tough', voice: 'swolomon', variants: ['Last one was tough, {mate}. Half today is still a win.', 'Tough one last time, {mate}. Half today still counts.'] },
   {
     id: 'bonus-ask',
     voice: 'swolomon',
@@ -301,10 +301,10 @@ export const LINES = [
   { id: 'chest-day', voice: 'swolomon', variants: ['Monday. International Chest Day, {mate}. It is written.'] },
   { id: 'leg-day', voice: 'swolomon', variants: ['Leg day, {mate}. The best day. {coach} has spoken.'] },
   { id: 'recap', voice: 'swolomon', variants: ['Last week: {sets} sets, {minutes} moved, {mate}. Big Greg is jealous.'] },
-  { id: 'recap-zero', voice: 'swolomon', variants: ['New week, {mate}. The iron missed you.'] },
+  { id: 'recap-zero', voice: 'swolomon', variants: ['New week, {mate}. The iron missed you.', "New week, {mate}. Fresh scrolls. Let's fill them."] },
 
   // Swolomon: easter eggs (§1.13.5), the only command replies in his voice.
-  { id: 'flex', voice: 'swolomon', variants: ['Behold, {mate}.'] },
+  { id: 'flex', voice: 'swolomon', variants: ['Behold, {mate}.', 'Behold, {mate}. And again: behold.', 'Witness, {mate}. Free of charge.', 'Look upon these, {mate}, and rejoice.'] },
   {
     id: 'protein',
     voice: 'swolomon',
@@ -525,7 +525,7 @@ export const REASON_LINE: Record<LongTaskReason, LineId> = {
 
 /** §1.10a: the introduction, verbatim; the address term only in the last line. */
 const INTRO = [
-  "{coach}. I don't breathe air, I breathe reps. Lifting is life.",
+  "Hi, I'm {coach}, your IdleReps trainer. I breathe reps, not air.",
   'You hand your agent work? Cute. I hand YOU work.',
   'Your agent grinds, you lift. Press 1 when the set is done. Glory.',
   'A plan from me, or just a nudge to move, {mate}?',

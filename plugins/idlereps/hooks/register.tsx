@@ -641,7 +641,7 @@ async function tick($: EngineInterface, key: number, isWin: boolean, stop: () =>
     await update($, talk, () => ({ key, shown: frame.shown, pose: frame.pose }))
     const move = coach.talkMove === undefined ? undefined : moveById(coach.talkMove)
     if (move !== undefined && coach.portrait?.size === 'full') await playMove($, move, key, isWin)
-    else if (!isWin) idleWhileShowing($, key)
+    else idleWhileShowing($, key, 0, isWin)
     return
   }
   // Each time the mouth opens, a blip (none while it rests between sentences).
@@ -675,7 +675,7 @@ async function playMove($: EngineInterface, move: Move, key: number, isWin: bool
         stop()
         coach.moveFrame = null
         await showPose($, isWin ? 'flex' : 'idle')
-        if (!isWin) idleWhileShowing($, key)
+        idleWhileShowing($, key, 0, isWin)
         return
       }
       if (pose === showing) return
@@ -750,10 +750,10 @@ async function showStage($: EngineInterface, t: number) {
  * Once the line is out, Swolomon idles while the band shows: a beat every few seconds (a blink, a glance,
  * a look around, a deadpan stare out at you and a wink). The band's timers end it when the band goes.
  */
-function idleWhileShowing($: EngineInterface, key: number, n = 0) {
+function idleWhileShowing($: EngineInterface, key: number, n = 0, isWin = false) {
   const size = coach.portrait?.size
-  if (size === undefined) return
-  const beat = idleBeat(n, size)
+  if (size === undefined || (isWin && size !== 'full')) return
+  const beat = idleBeat(n, size, isWin)
   timer($, 'band', beat.wait, () => {
     if (coach.talkSeq !== key || coach.portrait === null) return
     let at = 0
@@ -765,8 +765,8 @@ function idleWhileShowing($: EngineInterface, key: number, n = 0) {
     }
     timer($, 'band', at, () => {
       if (coach.talkSeq !== key) return
-      void showPose($, 'idle')
-      idleWhileShowing($, key, n + 1)
+      void showPose($, beat.rest)
+      idleWhileShowing($, key, n + 1, isWin)
     })
   })
 }

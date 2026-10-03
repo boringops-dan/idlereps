@@ -9,7 +9,7 @@
 
 export type FrameName = 'idle' | 'talkA' | 'talkB' | 'blink' | 'flex' | IdleFrameName | EntranceFrameName
 /** His idling between lines (owner, 2026-10-03: "blinking and moving around a little ... looking around through the 4th wall"). */
-export type IdleFrameName = 'glanceL' | 'glanceR' | 'lookYou' | 'wink' | 'smirk'
+export type IdleFrameName = 'glanceL' | 'glanceR' | 'lookYou' | 'wink' | 'smirk' | 'flexB'
 /** The entrance's own frames (§1.11 Entrance): walking past in profile, then the double take. */
 export type EntranceFrameName = 'walkA' | 'walkB' | 'notice'
 export type MiniFrameName = 'miniIdle' | 'miniTalkA' | 'miniTalkB' | 'miniBlink' | 'miniGlanceL' | 'miniGlanceR'
@@ -111,6 +111,13 @@ export const SPRITE: Sprite = {
     lookYou: withRows(IDLE, { 4: '...shhsssshhs...', 5: '...ssssssssss...', 9: '...hhhhhhhhhh...' }),
     wink: withRows(IDLE, { 6: '...ssSsssskss...', 9: '...hwwwwwwwwh...' }),
     smirk: withRows(IDLE, { 4: '...ssssssshhs...', 5: '...shhsssssss...', 9: '...hhhhhwwwhh...' }),
+    // The flex's sparkles, twinkled: the same win, the sparkles a step over.
+    flexB: withRows(IDLE, {
+      1: '.g...hhhhhh...g.',
+      2: 'ggg.hhhhhhhh.ggg',
+      6: '...ssSsssskss...',
+      9: '...hwwwwwwwwh...',
+    }),
     walkA: WALK_A,
     walkB: withRows(WALK_A, { 13: '...sSstTtttts...', 14: '..sSsstTtttts...', 15: '..sSssttTtttts..' }),
     // Facing us, brows up, mouth a small o: noticing someone is there.

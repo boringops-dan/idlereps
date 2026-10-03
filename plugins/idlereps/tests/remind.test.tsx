@@ -56,7 +56,7 @@ test('while the agent works: a reminder; one tap logs it, and the gap holds the 
   await $.session.start(SESSION)
   expect((await longTurn($, clock, 't1')).keys).toEqual(REMIND_KEYS)
   await $.command.run(workout('cardio'))
-  expect(w.toasts.at(-1)).toMatch(/^Cardio/)
+  expect(w.toasts.at(-1)).toMatch(/Cardio/)
   await $.turn.complete(done('t1'))
   // Inside the gap: nothing.
   expect((await longTurn($, clock, 't2')).keys).toEqual([])
