@@ -49,7 +49,7 @@ import {
 } from './bands'
 import { agentDoing, COACH_NAME, emphasisRuns, fill, plainOf, pickAddress, COMMUNITY_URL, FEEDBACK_URL, line, progressDots, REASON_LINE, TELEMETRY_URL, usesAgent, whatsNewLine } from './copy'
 import type { LineContext, LineId } from './copy'
-import { appendHistory, isMovement, movedSeconds, rankFor, RANKS, setsThisWeek } from './history'
+import { appendHistory, daysShowedUp, isMovement, movedSeconds, rankFor, RANKS, setsThisWeek } from './history'
 import { dailyTarget, ideasFor, isMoved, MOVED, movedOn, movesOn } from './remind'
 import { sittingMs, STILL_MS } from './still'
 import { expectedWaitMs, keptTurns, waitSize } from './waits'
@@ -785,20 +785,45 @@ async function showStage($: EngineInterface, t: number) {
 
 /** His asides while the band waits on a choice (hooks/asides.ts); the band's timers end them when it goes. */
 async function asidesWhileShowing($: EngineInterface, key: number) {
-  const date = await today($)
-  const day = date + key
-  // Once a day the first aside is something he remembers about them (hooks/questions.ts).
-  const recall = (await isDue($, 'recall', 'day')) ? recallFor(await load<About>($, 'about', {}), date) : undefined
+  const day = (await today($)) + key
+  const first = await firstAside($)
   for (const [i, aside] of ASIDES.entries()) {
-    const isRecall = i === 0 && recall !== undefined
+    const isFirst = i === 0 && first !== null
     timer($, 'band', aside.at, () =>
       void (async () => {
-        if (isRecall) await markSeen($, 'recall')
-        await setAside($, key, line(isRecall ? recall : aside.id, { day }))
+        if (isFirst) await markSeen($, first.mark)
+        await setAside($, key, isFirst ? line(first.id, { day, ...first.ctx }) : line(aside.id, { day }))
       })(),
     )
     timer($, 'band', aside.at + ASIDE_MS, () => void setAside($, key, undefined))
   }
+}
+
+/** Late at night (23:00 to 05:00): he is half asleep; the pane has him napping. */
+async function isLateNight($: EngineInterface): Promise<boolean> {
+  const hour = hourOf(await now($))
+  return hour >= 23 || hour < 5
+}
+
+/**
+ * The first aside of a band, once a day each, in this order: something he remembers about them (their
+ * answers, hooks/questions.ts), his mood at this hour (groggy before eight, puzzled late at night), or their
+ * history (days showed up this month). Null: the usual impatience.
+ */
+async function firstAside($: EngineInterface): Promise<{ id: LineId; ctx: Record<string, number>; mark: string } | null> {
+  const date = await today($)
+  const recall = (await isDue($, 'recall', 'day')) ? recallFor(await load<About>($, 'about', {}), date) : undefined
+  if (recall !== undefined) return { id: recall, ctx: {}, mark: 'recall' }
+  if (await isDue($, 'mood', 'day')) {
+    const hour = hourOf(await now($))
+    if (hour >= 5 && hour < 8) return { id: 'aside-morning', ctx: {}, mark: 'mood' }
+    if (await isLateNight($)) return { id: 'aside-late', ctx: {}, mark: 'mood' }
+  }
+  if (await isDue($, 'remember', 'day')) {
+    const n = daysShowedUp(await load<HistoryEntry[]>($, 'history', []), date)
+    if (n >= 5) return { id: 'aside-showed-up', ctx: { n }, mark: 'remember' }
+  }
+  return null
 }
 
 async function setAside($: EngineInterface, key: number, aside: string | undefined) {
@@ -2255,7 +2280,7 @@ async function openRemindPane($: EngineInterface): Promise<string | null> {
   coach.isStatusOpen = true
   const rows = Math.max(PORTRAIT_ROWS, view.head.length + 3) + 1 + view.more.length
   const opened = await $.ui.open({ id: STATUS_PANE, title: 'IdleReps', rows })
-  if (opened.isPlaced) playPaneMove($, moveById(view.isWin ? 'double-biceps' : 'curl'))
+  if (opened.isPlaced) playPaneMove($, moveById((await isLateNight($)) ? 'nap' : view.isWin ? 'double-biceps' : 'curl'))
   return opened.isPlaced ? null : remindTextOf(facts)
 }
 
@@ -2650,7 +2675,7 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
     // a blank and the buttons; a blank; the rest.
     const rows = Math.max(PORTRAIT_ROWS, view.head.length + 3) + 1 + view.more.length
     const opened = await $.ui.open({ id: STATUS_PANE, title: 'IdleReps', rows })
-    if (opened.isPlaced) playPaneMove($, paneMoveOf(facts, view.isRestDay, view.isWin))
+    if (opened.isPlaced) playPaneMove($, (await isLateNight($)) ? moveById('nap') : paneMoveOf(facts, view.isRestDay, view.isWin))
     return opened.isPlaced ? null : statusTextOf(facts)
   }
   if (arg === 'status') {

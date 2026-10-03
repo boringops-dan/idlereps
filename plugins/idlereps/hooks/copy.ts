@@ -270,6 +270,10 @@ export const LINES = [
     voice: 'swolomon',
     variants: ['New move unlocked, {mate}. Watch closely.', 'You earned this one, {mate}. Behold.', 'Showing up pays, {mate}. Witness this.', 'A gift, {mate}. Do not tell the others.'],
   },
+  // His day, and their history: the first aside of a band, once a day (register.tsx firstAside).
+  { id: 'aside-morning', voice: 'swolomon', variants: ["Coffee's a pre-workout, right, {mate}?", 'Morning, {mate}. My eyes are open. Mostly.', 'Early start, {mate}. The iron is cold. Like me.'] },
+  { id: 'aside-late', voice: 'swolomon', variants: ['Why are we both still here, {mate}?', 'It is very late, {mate}. I was asleep. In the gym.', 'Night shift, {mate}? I brought a blanket.'] },
+  { id: 'aside-showed-up', voice: 'swolomon', variants: ["{n} days this month, {mate}. I've been counting.", 'You showed up {n} days this month, {mate}. I noticed.'] },
   // Asides while a band waits (hooks/asides.ts), more impatient each time.
   { id: 'aside-nudge', voice: 'swolomon', variants: ['So... we doing this or what, {mate}?', 'No rush, {mate}. Some rush.', "I'll just stand here then, {mate}."] },
   { id: 'aside-hello', voice: 'swolomon', variants: ['Hello? You in there, {mate}?', 'Psst. Over here, {mate}.', 'Is this thing on, {mate}?'] },
