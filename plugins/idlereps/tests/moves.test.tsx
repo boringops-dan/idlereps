@@ -182,7 +182,7 @@ test('a rank-up lifts the trophy', ANIMATED, async ($, on) => {
 
 const STATUS_MOUNT = { plugin: 'idlereps', surface: 'terminal', ...STATUS } as const
 
-test('the status pane: a moment after it opens, he demonstrates the next set’s exercise, then rests', ANIMATED, async ($, on) => {
+test('the status pane: a moment after it opens, he demonstrates the next set’s exercise, then idles', ANIMATED, async ($, on) => {
   const { clock } = world(on, TINY)
   const blits = blitLog(on)
   await $.session.start(SESSION)
@@ -197,9 +197,17 @@ test('the status pane: a moment after it opens, he demonstrates the next set’s
   expect(toPane).toContain(cells[0])
   expect(toPane).toContain(cells[1])
   expect(toPane.at(-1)).toBe(FRAMES.idle)
+  // Then he idles (blinks, glances, a look at you) while it is open, every frame one of his own.
   const settled = blits.length
   await clock.advance(30_000)
-  expect(blits.length).toBe(settled)
+  const idling = blits.slice(settled).filter(b => b.requestId === STATUS.requestId).map(b => b.cells)
+  expect(idling.length).toBeGreaterThan(0)
+  const own = new Set(Object.values(FRAMES))
+  expect(idling.every(c => own.has(c))).toBe(true)
+  await pane.press({ key: 'close' })
+  const closed = blits.length
+  await clock.advance(30_000)
+  expect(blits.length).toBe(closed)
   await pane.unmount()
 })
 

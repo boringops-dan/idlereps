@@ -7,10 +7,12 @@
  * and every band falls back to the text-only name tag. Pure data.
  */
 
-export type FrameName = 'idle' | 'talkA' | 'talkB' | 'blink' | 'flex' | EntranceFrameName
+export type FrameName = 'idle' | 'talkA' | 'talkB' | 'blink' | 'flex' | IdleFrameName | EntranceFrameName
+/** His idling between lines (owner, 2026-10-03: "blinking and moving around a little ... looking around through the 4th wall"). */
+export type IdleFrameName = 'glanceL' | 'glanceR' | 'lookYou' | 'wink' | 'smirk'
 /** The entrance's own frames (§1.11 Entrance): walking past in profile, then the double take. */
 export type EntranceFrameName = 'walkA' | 'walkB' | 'notice'
-export type MiniFrameName = 'miniIdle' | 'miniTalkA' | 'miniTalkB' | 'miniBlink'
+export type MiniFrameName = 'miniIdle' | 'miniTalkA' | 'miniTalkB' | 'miniBlink' | 'miniGlanceL' | 'miniGlanceR'
 
 export type Sprite = {
   approved: boolean
@@ -103,6 +105,12 @@ export const SPRITE: Sprite = {
       6: '...ssSsssskss...',
       9: '...hwwwwwwwwh...',
     }),
+    // Idling: eyes left, eyes right; staring out of the screen at you, deadpan; the wink after; one brow up.
+    glanceL: withRows(IDLE, { 6: '...skssssksss...' }),
+    glanceR: withRows(IDLE, { 6: '...ssskssssks...' }),
+    lookYou: withRows(IDLE, { 4: '...shhsssshhs...', 5: '...ssssssssss...', 9: '...hhhhhhhhhh...' }),
+    wink: withRows(IDLE, { 6: '...ssSsssskss...', 9: '...hwwwwwwwwh...' }),
+    smirk: withRows(IDLE, { 4: '...ssssssshhs...', 5: '...shhsssssss...', 9: '...hhhhhwwwhh...' }),
     walkA: WALK_A,
     walkB: withRows(WALK_A, { 13: '...sSstTtttts...', 14: '..sSsstTtttts...', 15: '..sSssttTtttts..' }),
     // Facing us, brows up, mouth a small o: noticing someone is there.
@@ -111,5 +119,7 @@ export const SPRITE: Sprite = {
     miniTalkA: withRows(MINI_IDLE, { 4: 'hwmmwh' }),
     miniTalkB: withRows(MINI_IDLE, { 4: 'hmmmmh', 5: '.hmmh.' }),
     miniBlink: withRows(MINI_IDLE, { 2: 'sSssSs' }),
+    miniGlanceL: withRows(MINI_IDLE, { 2: 'ksskss' }),
+    miniGlanceR: withRows(MINI_IDLE, { 2: 'sskssk' }),
   },
 }

@@ -6,13 +6,15 @@ import { COACH_NAME, introLines, line, replayLines, SAFETY_SENTENCES } from '../
 import { nextRank, rankFor, RANKS, weekMarks } from '../hooks/history'
 import { START, cueFor } from '../hooks/plan'
 import {
-  BLINK_FOR_MS,
   decodeFrame,
   encodeCells,
   ENTRANCE_MS,
   entranceAt,
   fitPortrait,
   frameAt,
+  frameFor,
+  IDLE_WAIT_MS,
+  idleBeat,
   STAGE_COLUMNS,
   STAGE_ROWS,
   stageGrid,
@@ -75,6 +77,28 @@ test('the portrait has no stray pixels: every frame is the idle frame but for it
   expect(differs('talkB')).toEqual([10])
   expect(differs('blink')).toEqual([6])
   expect(differs('flex')).toEqual([0, 1, 2, 6, 9])
+  // Idling: the eyes move, or the brows and mouth; nothing else.
+  expect(differs('glanceL')).toEqual([6])
+  expect(differs('glanceR')).toEqual([6])
+  expect(differs('lookYou')).toEqual([4, 5, 9])
+  expect(differs('wink')).toEqual([6, 9])
+  expect(differs('smirk')).toEqual([4, 5, 9])
+  // A glance keeps both eyes, just moved.
+  for (const name of ['glanceL', 'glanceR'] as const) expect([...(SPRITE.frames[name][6] ?? '')].filter(c => c === 'k')).toHaveLength(2)
+})
+
+test('idle beats: varied, the same for the same n, within their waits; the mini head only blinks and glances', () => {
+  const beats = Array.from({ length: 200 }, (_, n) => idleBeat(n, 'full'))
+  expect(idleBeat(7, 'full')).toEqual(idleBeat(7, 'full'))
+  for (const beat of beats) {
+    expect(beat.wait).toBeGreaterThanOrEqual(IDLE_WAIT_MS.min)
+    expect(beat.wait).toBeLessThanOrEqual(IDLE_WAIT_MS.max)
+  }
+  const poses = new Set(beats.flatMap(beat => beat.steps.map(step => step.pose)))
+  expect([...poses].sort()).toEqual(['blink', 'glanceL', 'glanceR', 'idle', 'lookYou', 'smirk', 'wink'])
+  const mini = new Set(Array.from({ length: 200 }, (_, n) => idleBeat(n, 'mini')).flatMap(beat => beat.steps.map(step => step.pose)))
+  expect([...mini].sort()).toEqual(['blink', 'glanceL', 'glanceR', 'idle'])
+  expect(frameFor('mini', 'glanceL')).toBe('miniGlanceL')
 })
 
 // ---------------------------------------------------------------------------------------------------------
@@ -214,16 +238,23 @@ test('animated: the whole line is out once its time has passed, and the mouth mo
   await ui.unmount()
 })
 
-test('animated: once the line has been out a while, nothing moves any more', ANIMATED, async ($, on) => {
+test('animated: once the line is out he idles while the band shows, a beat every few seconds; never after it goes', ANIMATED, async ($, on) => {
   const { clock } = world(on, TINY)
   const blits = blitLog(on)
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await clock.advance(5_000 + BLINK_FOR_MS + 1_000)
-  const settled = blits.length
+  await clock.advance(30_000)
+  const before = blits.length
   await clock.advance(60_000)
-  expect(blits.length).toBe(settled)
+  // At most one beat each 2.5 s, at least one each 5.5 s plus the beat itself.
+  const beats = blits.length - before
+  expect(beats).toBeGreaterThanOrEqual(10)
+  expect(beats).toBeLessThanOrEqual(60_000 / 2_500 * 4 + 4)
+  await $.command.run(workout('later'))
+  const gone = blits.length
+  await clock.advance(60_000)
+  expect(blits.length).toBe(gone)
   await ui.unmount()
 })
 

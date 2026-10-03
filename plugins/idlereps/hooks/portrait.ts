@@ -9,7 +9,7 @@ export type Grid = (number | null)[][]
 export type PortraitSize = 'full' | 'mini'
 export type Fit = PortraitSize | 'none'
 /** The frame the timeline asks for; a mini head shows its own version of it. */
-export type Pose = 'idle' | 'talkA' | 'talkB' | 'blink' | 'flex'
+export type Pose = 'idle' | 'talkA' | 'talkB' | 'blink' | 'flex' | 'glanceL' | 'glanceR' | 'lookYou' | 'wink' | 'smirk'
 
 /** A frame as rows of colours (null: transparent); throws naming the frame and row it cannot read. */
 export function decodeFrame(sprite: Sprite, name: FrameName | MiniFrameName): Grid {
@@ -108,7 +108,8 @@ export function encodeSprite(sprite: Sprite): Record<FrameName | MiniFrameName, 
 /** The frame a size draws for a pose: the mini head has no flex. */
 export function frameFor(size: PortraitSize, pose: Pose): FrameName | MiniFrameName {
   if (size === 'full') return pose
-  return ({ idle: 'miniIdle', talkA: 'miniTalkA', talkB: 'miniTalkB', blink: 'miniBlink', flex: 'miniIdle' } as const)[pose]
+  const MINI = { idle: 'miniIdle', talkA: 'miniTalkA', talkB: 'miniTalkB', blink: 'miniBlink', flex: 'miniIdle', glanceL: 'miniGlanceL', glanceR: 'miniGlanceR', lookYou: 'miniIdle', wink: 'miniBlink', smirk: 'miniIdle' } as const
+  return MINI[pose]
 }
 
 /** How big a portrait is in cells. */
@@ -151,9 +152,7 @@ export const HOLD_MS = 200
 export const PAUSE_MS = 100
 export const LINE_PAUSE_MS = 400
 export const MOUTH_MS = 100
-export const BLINK_EVERY_MS = 4000
 export const BLINK_MS = 150
-export const BLINK_FOR_MS = 20_000
 export const TICK_MS = 50
 
 const ENDS = new Set(['.', '?', '!'])
@@ -196,6 +195,39 @@ export function frameAt(timeline: Timeline, t: number, isWin: boolean): Frame {
   const isHolding = next - t > CHAR_MS
   const pose: Pose = isHolding ? 'idle' : Math.floor(t / MOUTH_MS) % 2 === 0 ? 'talkA' : 'talkB'
   return { shown, pose, isDone: false }
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Idling (owner, 2026-10-03: "keep Swolomon blinking and moving around a little as he idles ... looking
+// around through the 4th wall"): once his line is out, a beat every few seconds while the band shows.
+
+/** One idle beat: a wait, then poses in turn, then back to idle. */
+export type IdleBeat = { wait: number; steps: readonly { pose: Pose; ms: number }[] }
+
+const BEATS: readonly { weight: number; steps: readonly { pose: Pose; ms: number }[]; isFullOnly?: true }[] = [
+  { weight: 5, steps: [{ pose: 'blink', ms: BLINK_MS }] },
+  { weight: 2, steps: [{ pose: 'blink', ms: BLINK_MS }, { pose: 'idle', ms: 120 }, { pose: 'blink', ms: BLINK_MS }] },
+  { weight: 3, steps: [{ pose: 'glanceL', ms: 900 }] },
+  { weight: 3, steps: [{ pose: 'glanceR', ms: 900 }] },
+  // Looking around: who else is here?
+  { weight: 2, steps: [{ pose: 'glanceL', ms: 500 }, { pose: 'glanceR', ms: 500 }, { pose: 'glanceL', ms: 350 }] },
+  // The 4th wall: a deadpan stare out of the screen, at you; then the wink.
+  { weight: 2, steps: [{ pose: 'lookYou', ms: 1400 }, { pose: 'wink', ms: 350 }], isFullOnly: true },
+  { weight: 1, steps: [{ pose: 'lookYou', ms: 2200 }], isFullOnly: true },
+  { weight: 2, steps: [{ pose: 'smirk', ms: 1200 }], isFullOnly: true },
+]
+
+/** The shortest and longest wait before a beat. */
+export const IDLE_WAIT_MS = { min: 2500, max: 5500 } as const
+
+/** The n-th idle beat: the same for the same n (tests and replays), varied from one to the next. */
+export function idleBeat(n: number, size: PortraitSize): IdleBeat {
+  const pool = BEATS.filter(beat => size === 'full' || beat.isFullOnly !== true)
+  const total = pool.reduce((sum, beat) => sum + beat.weight, 0)
+  const hash = (x: number) => ((Math.imul(x + 1, 2654435761) >>> 0) % 10007) / 10007
+  let pick = hash(n * 2) * total
+  const beat = pool.find(b => (pick -= b.weight) < 0) ?? pool[0]!
+  return { wait: Math.round(IDLE_WAIT_MS.min + hash(n * 2 + 1) * (IDLE_WAIT_MS.max - IDLE_WAIT_MS.min)), steps: beat.steps }
 }
 
 // ---------------------------------------------------------------------------------------------------------

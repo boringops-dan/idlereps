@@ -78,9 +78,6 @@ import type { Misread } from './misreads'
 import { drawMove, moveById, moveForExercise, MOVES, poseAt, REEL } from './moves'
 import type { Move } from './moves'
 import {
-  BLINK_EVERY_MS,
-  BLINK_FOR_MS,
-  BLINK_MS,
   encodeMicro,
   encodeMove,
   encodeSprite,
@@ -88,6 +85,7 @@ import {
   entranceAt,
   fitPortrait,
   frameAt,
+  idleBeat,
   frameFor,
   PORTRAIT_GAP,
   portraitCells,
@@ -641,7 +639,7 @@ async function tick($: EngineInterface, key: number, isWin: boolean, stop: () =>
     await update($, talk, () => ({ key, shown: frame.shown, pose: frame.pose }))
     const move = coach.talkMove === undefined ? undefined : moveById(coach.talkMove)
     if (move !== undefined && coach.portrait?.size === 'full') await playMove($, move, key, isWin)
-    else if (!isWin) blinkWhileShowing($, key)
+    else if (!isWin) idleWhileShowing($, key)
     return
   }
   // Each time the mouth opens, a blip (none while it rests between sentences).
@@ -675,7 +673,7 @@ async function playMove($: EngineInterface, move: Move, key: number, isWin: bool
         stop()
         coach.moveFrame = null
         await showPose($, isWin ? 'flex' : 'idle')
-        if (!isWin) blinkWhileShowing($, key)
+        if (!isWin) idleWhileShowing($, key)
         return
       }
       if (pose === showing) return
@@ -746,15 +744,29 @@ async function showStage($: EngineInterface, t: number) {
   await $.ui.blit({ requestId: stage.requestId, key: 'stage', cells: stageCells(SPRITE, t), columns: STAGE_COLUMNS, rows: STAGE_ROWS }).catch(() => undefined)
 }
 
-/** A blink every 4 s for 20 s once the line is out, then still (§1.11 step 3); the band's timers end them. */
-function blinkWhileShowing($: EngineInterface, key: number) {
-  for (let at = BLINK_EVERY_MS; at <= BLINK_FOR_MS; at += BLINK_EVERY_MS) {
+/**
+ * Once the line is out, Swolomon idles while the band shows: a beat every few seconds (a blink, a glance,
+ * a look around, a deadpan stare out at you and a wink). The band's timers end it when the band goes.
+ */
+function idleWhileShowing($: EngineInterface, key: number, n = 0) {
+  const size = coach.portrait?.size
+  if (size === undefined) return
+  const beat = idleBeat(n, size)
+  timer($, 'band', beat.wait, () => {
+    if (coach.talkSeq !== key || coach.portrait === null) return
+    let at = 0
+    for (const step of beat.steps) {
+      timer($, 'band', at, () => {
+        if (coach.talkSeq === key) void showPose($, step.pose)
+      })
+      at += step.ms
+    }
     timer($, 'band', at, () => {
-      if (coach.talkSeq !== key || coach.portrait === null) return
-      void showPose($, 'blink')
-      timer($, 'band', BLINK_MS, () => void showPose($, 'idle'))
+      if (coach.talkSeq !== key) return
+      void showPose($, 'idle')
+      idleWhileShowing($, key, n + 1)
     })
-  }
+  })
 }
 
 async function expireBand($: EngineInterface, spec: BandSpec) {
@@ -2392,7 +2404,9 @@ function playPaneMove($: EngineInterface, move: Move | undefined) {
         if (pose === null || requestId === null) {
           stop()
           coach.paneFrame = null
-          if (requestId !== null) await blitFull($, requestId, FRAMES[(await read($, statusView))?.isWin === true ? 'flex' : 'idle'])
+          const isWin = (await read($, statusView))?.isWin === true
+          if (requestId !== null) await blitFull($, requestId, FRAMES[isWin ? 'flex' : 'idle'])
+          if (requestId !== null && !isWin) idlePane($)
           return
         }
         if (pose === showing) return
@@ -2401,6 +2415,24 @@ function playPaneMove($: EngineInterface, move: Move | undefined) {
         await blitFull($, requestId, coach.paneFrame)
       })(),
     )
+  })
+}
+
+/** The pane's Swolomon idles too, once his move is done, while the pane is open (the bands' beats). */
+function idlePane($: EngineInterface, n = 0) {
+  const beat = idleBeat(n, 'full')
+  timer($, 'pane', beat.wait, () => {
+    let at = 0
+    for (const step of [...beat.steps, { pose: 'idle' as const, ms: 0 }]) {
+      timer($, 'pane', at, () => {
+        const requestId = coach.panePortrait
+        if (coach.isStatusOpen && requestId !== null) void blitFull($, requestId, FRAMES[frameFor('full', step.pose)])
+      })
+      at += step.ms
+    }
+    timer($, 'pane', at, () => {
+      if (coach.isStatusOpen && coach.panePortrait !== null) idlePane($, n + 1)
+    })
   })
 }
 
