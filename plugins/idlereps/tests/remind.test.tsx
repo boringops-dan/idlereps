@@ -127,13 +127,13 @@ test('/workout in Just remind me: today, the week, the rank, and its own buttons
   expect((await $.command.run(workout('status'))).text).toBe(line('remind-status', { day: TODAY, n: 2, week: 2 }))
 })
 
-test('the footer counts today’s sets', OPTIONS, async ($, on) => {
+test('the footer counts today’s moves against the day’s target', OPTIONS, async ($, on) => {
   world(on, null, REMIND)
   await $.session.start(SESSION)
   expect(await tallyOf($)).toBeUndefined()
   await $.command.run(workout('log'))
   await $.command.run(workout('other'))
-  expect(await tallyOf($)).toBe('💪 1 today')
+  expect(await tallyOf($)).toBe('💪 1/3 today')
 })
 
 test('/workout log and /workout remind: off, it says how to turn it on; /workout remind turns it on', OPTIONS, async ($, on) => {

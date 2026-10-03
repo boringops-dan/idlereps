@@ -4,7 +4,7 @@
  * every button has a command by construction. Pure data.
  */
 
-export type ActionKind = 'unlock' | 'remindPane' | 'remind' | 'program' | 'byoplan' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex' | 'status' | 'safety' | 'byo'
+export type ActionKind = 'still' | 'unlock' | 'remindPane' | 'remind' | 'program' | 'byoplan' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex' | 'status' | 'safety' | 'byo'
 
 export type Action = {
   id: string
@@ -37,6 +37,10 @@ export const ACTIONS: readonly Action[] = [
   { kind: 'remind', id: 'other', hotkey: '4', label: 'Other' },
   { kind: 'remind', id: 'later', hotkey: 'l', label: 'Later' },
   { kind: 'remind', id: 'skipday', hotkey: '0', label: 'Not today' },
+
+  // Sitting a long while: stand up with him.
+  { kind: 'still', id: 'stood', hotkey: '1', label: 'Stood up', isPrimary: true },
+  { kind: 'still', id: 'later', hotkey: 'l', label: 'Later' },
 
   { kind: 'where', id: 'desk', hotkey: '1', label: 'At a desk', isPrimary: true },
   { kind: 'where', id: 'home', hotkey: '2', label: 'At home, no gear' },

@@ -12,8 +12,8 @@ import { mondayOf } from './ledger'
 /** D12: the newest entries kept. */
 export const HISTORY_CAP = 5000
 
-/** Anything that counts as moving: a set done, a set of their own, a stretch. */
-export const isMovement = (e: HistoryEntry): boolean => (e.kind === 'set' && e.result === 'done') || e.kind === 'moved' || e.kind === 'stretch'
+/** Anything that counts as moving: a set done, a set of their own, a stretch, standing up. */
+export const isMovement = (e: HistoryEntry): boolean => (e.kind === 'set' && e.result === 'done') || e.kind === 'moved' || e.kind === 'stretch' || e.kind === 'stood'
 
 export const appendHistory = (list: readonly HistoryEntry[], ...entries: HistoryEntry[]): HistoryEntry[] =>
   [...list, ...entries].slice(-HISTORY_CAP)
@@ -57,7 +57,7 @@ export function streak(plan: Plan, history: readonly HistoryEntry[], today: numb
 export function daysShowedUp(history: readonly HistoryEntry[], today: number, span = 30): number {
   const days = new Set<number>()
   for (const e of history) {
-    const isDone = (e.kind === 'set' && e.result === 'done') || e.kind === 'stretch' || e.kind === 'moved'
+    const isDone = isMovement(e)
     if (isDone && e.d > today - span && e.d <= today) days.add(e.d)
   }
   return days.size

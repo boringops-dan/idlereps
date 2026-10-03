@@ -10,7 +10,7 @@ import { COMMUNITY_URL, line } from './copy'
 import type { LineId } from './copy'
 import { daysShowedUp, movedSeconds, nextRank, rankFor, setsThisWeek, sparkline, streak, trendOf, weekMarks } from './history'
 import type { WeekMark } from './history'
-import { lastMovedText, movedOn, movedThisWeek, remindWeekMarks } from './remind'
+import { dailyTarget, lastMovedText, movedOn, movedThisWeek, movesOn, remindWeekMarks } from './remind'
 import { collected, setsToNext, STARTER_MOVES, UNLOCK_ORDER } from './collection'
 import { mondayOf } from './ledger'
 import { describeAmount, effectiveExercise, minutesWords, shortWorkoutName, setsOf, stepsFor, targetFor, targetOf, weekProgress } from './plan'
@@ -397,7 +397,13 @@ export function remindViewOf(facts: RemindFacts): StatusView {
   const coach = line(facts.paused ? 'pane-paused' : n > 0 ? 'remind-pane-done' : 'remind-pane-fresh', ctx)
   const head: BandLine[] = []
   if (facts.paused) head.push([{ text: 'Paused. ', bold: true, tone: 'accent' }, { text: '/workout resume to start again.', tone: 'muted' }])
-  head.push([{ text: 'Today ', tone: 'muted' }, { text: plural(n, 'set'), bold: true, ...(n > 0 ? { tone: 'good' as const } : {}) }])
+  const moves = movesOn(history, today)
+  const target = dailyTarget(history, today)
+  head.push([
+    { text: 'Today ', tone: 'muted' },
+    { text: plural(n, 'set'), bold: true, ...(n > 0 ? { tone: 'good' as const } : {}) },
+    { text: moves >= target ? ` · today's ${target} done` : ` · ${moves} of ${target} moves`, tone: 'muted' },
+  ])
   head.push([{ text: 'This week ', tone: 'muted' }, { text: plural(movedThisWeek(history, today), 'set') }])
   const more: BandLine[] = [weekRowOf(remindWeekMarks(history, today), today)]
   const showedUp = daysShowedUp(history, today)
@@ -412,10 +418,12 @@ export function remindViewOf(facts: RemindFacts): StatusView {
   return { coach, isWin: n > 0, head, more, isRestDay: false, canShare: false, isRemind: true }
 }
 
-/** The footer tally in Just remind me: `💪 3 today` once a set is in. */
+/** The footer tally in Just remind me once anything is in: `💪 2/3 today`, then `💪 4 today ✓` past the target. */
 export function remindLineOf(facts: RemindFacts): string | undefined {
-  const n = movedOn(facts.history, facts.today)
-  return n > 0 ? `💪 ${n} today` : undefined
+  const n = movesOn(facts.history, facts.today)
+  const target = dailyTarget(facts.history, facts.today)
+  if (n === 0) return undefined
+  return n >= target ? `💪 ${n} today ✓` : `💪 ${n}/${target} today`
 }
 
 /** `/workout status` in Just remind me. */

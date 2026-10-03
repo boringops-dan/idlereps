@@ -203,6 +203,15 @@ export const LINES = [
   },
   { id: 'greet-yesterday-moved', voice: 'swolomon', variants: ['{n} moves yesterday, {mate}. Same again? Or one more?', 'You moved {n} times yesterday, {mate}. I wrote it on my arm.'] },
   { id: 'greet-yesterday-agent', voice: 'swolomon', variants: ['Your agent worked {worked} yesterday, {mate}. Today you get a turn too.', '{worked} of work for your agent yesterday, {mate}. Your turn today.'] },
+  // Sitting a long while: stand up with him (hooks/still.ts).
+  {
+    id: 'still-ask',
+    voice: 'swolomon',
+    variants: ["You've been still a while, {mate}. Stand up with me?", 'Two hours sitting, {mate}. My legs fell asleep. Yours?', "Just stand up, {mate}. That's it. I'll wait."],
+  },
+  { id: 'stood-logged', voice: 'swolomon', variants: ['Look at you, upright, {mate}. Majestic.', 'Blood flowing, {mate}. I felt that from here.', "That's the stuff, {mate}. Legs: awake."] },
+  // Just remind me's daily target, met.
+  { id: 'target-hit', voice: 'swolomon', variants: ["That's today's {n}, {mate}. Anything more is gravy.", "Today's {n}: done, {mate}. The rest is a bonus.", '{n} for {n}, {mate}. Mark the scrolls.'] },
   // Sized to the wait (hooks/waits.ts).
   { id: 'remind-quick', voice: 'swolomon', variants: ['Quick one while it thinks, {mate}. Anything counts.', "Short wait, {mate}. Short set. Let's go.", 'Blink and it is back, {mate}. Ten of something?'] },
   { id: 'remind-long', voice: 'swolomon', variants: ['Long one coming, {mate}. Go for a walk. Or anything.', '{AgentDoing}. Stretch your legs, {mate}.', 'Your agent will be gone a bit, {mate}. So should you.'] },
@@ -359,6 +368,7 @@ export const LINES = [
   { id: 'feat-full-week', voice: 'swolomon', variants: ["A full week, {mate}. Every training day. That's how legends start."] },
 
   // Plain: bands.
+  { id: 'still-detail', voice: 'plain', variants: ['Stand, stretch, refill your water. One tap when you have.'] },
   { id: 'remind-ideas', voice: 'plain', variants: ['Ideas: {ideas}'] },
   { id: 'remind-ideas-wait', voice: 'plain', variants: ['Ideas for {wait}: {ideas}'] },
   { id: 'remind-skipped', voice: 'plain', variants: ['Not today. Back tomorrow.'] },

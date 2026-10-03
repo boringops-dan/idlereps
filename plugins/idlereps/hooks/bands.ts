@@ -12,7 +12,7 @@ import { PUSH_NAMES } from './programs'
 import { weekdayName } from './schedule'
 
 /** Which band keeps the slot when two want it (§4.3 item 4). A logged line gives way to anything. */
-export const BAND_PRIORITY: Record<BandKind, number> = { unlock: 6, program: 1, byoplan: 1, remind: 2, pulse: 0, rankup: 7, rating: 6, bonus: 5, programEnd: 5, restore: 8, erase: 8, warmup: 3, logged: 4, edit: 3, set: 3, ask: 2, ready: 2, stretch: 2, where: 1, reschedule: 2, timer: 3, switch: 3, time: 3, safety: 1, intro: 1, replay: 1, flex: 1 }
+export const BAND_PRIORITY: Record<BandKind, number> = { still: 2, unlock: 6, program: 1, byoplan: 1, remind: 2, pulse: 0, rankup: 7, rating: 6, bonus: 5, programEnd: 5, restore: 8, erase: 8, warmup: 3, logged: 4, edit: 3, set: 3, ask: 2, ready: 2, stretch: 2, where: 1, reschedule: 2, timer: 3, switch: 3, time: 3, safety: 1, intro: 1, replay: 1, flex: 1 }
 
 export const LOGGED_MS = 120_000
 
@@ -108,6 +108,11 @@ export function remindBand(coachLine: string, day: number, ideas: readonly strin
     body: [[{ text: ideasLine, tone: 'muted' }], ...(opts.withSafety === true ? [safetyRow(day)] : [])],
     actions: actionIdsOf('remind'),
   }
+}
+
+/** Sitting a long while (owner, 2026-10-03): stand up with him; one tap when they have. */
+export function stillBand(coachLine: string, day: number): BandSpec {
+  return { kind: 'still', coach: [coachLine], portrait: 'mini', body: [[{ text: line('still-detail', { day }), tone: 'muted' }]], actions: actionIdsOf('still') }
 }
 
 /** A new plan on a rest day: when the first workout is, and a set now for a taste. */

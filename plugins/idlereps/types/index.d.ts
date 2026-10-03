@@ -90,6 +90,8 @@ export type HistoryEntry =
   | { kind: 'stretch'; t: number; d: number; exercise: string; seconds: number }
   /** A set of their own choosing (Just remind me): what it worked, logged in one tap. Counts as a set. */
   | { kind: 'moved'; t: number; d: number; what: Moved }
+  /** Stood up when Swolomon asked, after a long stretch sitting: counts as moving, never as a set. */
+  | { kind: 'stood'; t: number; d: number }
 
 /** What a Just remind me set worked. */
 export type Moved = 'upper' | 'lower' | 'cardio' | 'other'
@@ -172,7 +174,7 @@ export type RatingBasis = {
 }
 export type SetResult = { result: 'done' | 'skip'; count?: number }
 
-export type BandKind = 'unlock' | 'remind' | 'program' | 'byoplan' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'safety' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex'
+export type BandKind = 'still' | 'unlock' | 'remind' | 'program' | 'byoplan' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'safety' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex'
 
 /** How a piece of text is coloured: the theme's own colours, so light and dark themes both read. */
 export type Tone = 'accent' | 'good' | 'muted' | 'aside'

@@ -29,6 +29,32 @@ export function ideasFor(n: number, size: WaitSize = 'set'): string[] {
 
 const movedIn = (history: readonly HistoryEntry[], from: number, to: number) => history.filter(e => e.kind === 'moved' && e.d >= from && e.d <= to)
 
+/** Anything moved on a day: sets of their own and standing up (Just remind me's daily target counts both). */
+export const movesOn = (history: readonly HistoryEntry[], day: number): number => history.filter(e => e.d === day && (e.kind === 'moved' || e.kind === 'stood')).length
+
+/** With fewer active days than this in the last two weeks, the target is the starting one. */
+const TARGET_HISTORY_DAYS = 3
+export const START_TARGET = 3
+export const TARGET_MIN = 1
+export const TARGET_MAX = 6
+
+/**
+ * Today's target (owner, 2026-10-03: "a daily target that follows you"): the moves of a usual active day in
+ * the last two weeks, a quarter lower in a rough week (fewer active days this week than the one before), so
+ * it never reads as a debt. Today itself never counts.
+ */
+export function dailyTarget(history: readonly HistoryEntry[], today: number): number {
+  const days = Array.from({ length: 14 }, (_, i) => today - 1 - i)
+  const counts = days.map(day => movesOn(history, day))
+  const active = counts.filter(n => n > 0).sort((a, b) => a - b)
+  if (active.length < TARGET_HISTORY_DAYS) return START_TARGET
+  const usual = active[Math.floor((active.length - 1) / 2)] ?? START_TARGET
+  const thisWeek = counts.slice(0, 7).filter(n => n > 0).length
+  const lastWeek = counts.slice(7).filter(n => n > 0).length
+  const target = thisWeek < lastWeek ? Math.round(usual * 0.75) : usual
+  return Math.min(TARGET_MAX, Math.max(TARGET_MIN, target))
+}
+
 /** Just remind me sets on a day. */
 export const movedOn = (history: readonly HistoryEntry[], day: number): number => movedIn(history, day, day).length
 

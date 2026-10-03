@@ -25,6 +25,7 @@ import {
   restoreBand,
   warmupBand,
   bonusBand,
+  stillBand,
   stretchBand,
   whereBand,
   rescheduleBand,
@@ -43,7 +44,8 @@ import {
 import { agentDoing, COACH_NAME, emphasisRuns, fill, plainOf, pickAddress, COMMUNITY_URL, FEEDBACK_URL, line, progressDots, REASON_LINE, TELEMETRY_URL, usesAgent, whatsNewLine } from './copy'
 import type { LineContext, LineId } from './copy'
 import { appendHistory, isMovement, movedSeconds, rankFor, RANKS, setsThisWeek } from './history'
-import { ideasFor, isMoved, MOVED, movedOn } from './remind'
+import { dailyTarget, ideasFor, isMoved, MOVED, movedOn, movesOn } from './remind'
+import { sittingMs, STILL_MS } from './still'
 import { expectedWaitMs, keptTurns, waitSize } from './waits'
 import { greetingOf } from './greeting'
 import { ASIDE_GAP, ASIDE_MS, ASIDES, asideSpot, asideText, hasAsides } from './asides'
@@ -261,6 +263,8 @@ const coach: {
   turnCanNudge: boolean
   /** Just remind me: this turn may remind, or ask what they trained. */
   turnCanRemind: boolean
+  /** This turn may ask them to stand up: sitting a long while (hooks/still.ts). */
+  turnCanStill: boolean
   /** A timer band waiting for the prompt to empty (the gate's clause (c)). */
   deferred: BandSpec | null
   /** The first-run band was put off for this session (Not now). */
@@ -324,6 +328,7 @@ const coach: {
   turnCanStretch: false,
   turnCanNudge: false,
   turnCanRemind: false,
+  turnCanStill: false,
   deferred: null,
   isIntroDismissed: false,
   isStatusOpen: false,
@@ -921,6 +926,14 @@ async function setBandFor($: EngineInterface, cue: Cue, coachText: string | unde
 /** A cue's timer went off: the next set when today's workout was agreed to, else the question. */
 async function showDueCue($: EngineInterface) {
   if (!coach.isTurnRunning) return
+  // Sitting a long while comes first: standing up is the smallest ask there is.
+  if (coach.turnCanStill) {
+    const showing = await read($, band)
+    if (showing === null || showing.kind === 'logged') {
+      await offerStill($)
+      return
+    }
+  }
   if (coach.turnCanNudge) {
     await offerNudge($)
     return
@@ -1081,6 +1094,44 @@ async function couldRemindThisTurn($: EngineInterface): Promise<boolean> {
   return (await load<number | undefined>($, 'declinedOn', undefined)) !== (await today($))
 }
 
+/**
+ * Whether this turn may ask them to stand up: training (a plan or reminders), not paused, quiet hours over,
+ * not after Not today, once a day, and two hours of the agent working today with nothing moved since.
+ */
+async function couldStillThisTurn($: EngineInterface): Promise<boolean> {
+  if ((await trainingPlan($)) === null && !(await isRemindMode($))) return false
+  if (await load($, 'paused', false)) return false
+  const at = await now($)
+  if (inQuietHours(coach.options.quietHours, hourOf(at))) return false
+  const day = await today($)
+  if ((await load<number | undefined>($, 'declinedOn', undefined)) === day || !(await isDue($, 'still', 'day'))) return false
+  const lastMoved = Math.max(startOfDayMs(day), ...(await load<HistoryEntry[]>($, 'history', [])).filter(isMovement).map(e => e.t))
+  return sittingMs((await load<WorkIntervals>($, 'workIntervals', {}))[String(day)] ?? [], lastMoved) >= STILL_MS
+}
+
+async function offerStill($: EngineInterface) {
+  const day = await today($)
+  await markSeen($, 'still')
+  await offerBand($, stillBand(await coachLine($, 'still-ask', { day }), day), 'timer')
+}
+
+/** Stood up: it counts as moving (the daily target, the week), never as a set. */
+async function logStood($: EngineInterface) {
+  const day = await today($)
+  await writePatch($, { set: {}, append: [{ kind: 'stood', t: await now($), d: day }] })
+  await clearBand($)
+  $.ui.toast(await movedToast($, day, await coachLine($, 'stood-logged', { day })))
+  await refreshStatus($)
+}
+
+/** The toast for something moved: in Just remind me, the day's target met says so instead. */
+async function movedToast($: EngineInterface, day: number, otherwise: string): Promise<string> {
+  if (!(await isRemindMode($))) return otherwise
+  const history = await load<HistoryEntry[]>($, 'history', [])
+  const target = dailyTarget(history, day)
+  return movesOn(history, day) === target ? line('target-hit', { day, n: target }) : otherwise
+}
+
 /** Just remind me's band: a set, anything; the ideas change each time; the safety note until acknowledged. */
 async function remindBandFor($: EngineInterface, opts: { isFirst?: boolean } = {}): Promise<BandSpec> {
   const day = await today($)
@@ -1111,7 +1162,7 @@ async function logMoved($: EngineInterface, what: Moved) {
   await save($, 'nextCueAt', at + (await gapMs($)))
   await clearBand($)
   const n = movedOn(await load<HistoryEntry[]>($, 'history', []), day)
-  $.ui.toast(await coachLine($, 'moved-logged', { day, what: MOVED[what], n }))
+  $.ui.toast(await movedToast($, day, await coachLine($, 'moved-logged', { day, what: MOVED[what], n })))
   const rank = rankFor(before + 1).name
   if (!(rank !== rankFor(before).name && (await showRankUp($, rank, undefined)))) await showUnlock($, undefined)
   await refreshStatus($)
@@ -1219,7 +1270,7 @@ async function snooze($: EngineInterface) {
   stopCue()
   const showing = await read($, band)
   void track($, showing?.kind === 'ask' ? { event: 'ask_answered', properties: { answer: 'later' } } : { event: 'cue_later', properties: {} })
-  if (['ask', 'set', 'edit', 'timer', 'switch', 'time', 'remind'].includes(showing?.kind ?? '')) await clearBand($)
+  if (['ask', 'set', 'edit', 'timer', 'switch', 'time', 'remind', 'still'].includes(showing?.kind ?? '')) await clearBand($)
   await countLater($)
   const at = await now($)
   await save($, 'nextCueAt', at + (await gapMs($)))
@@ -2260,6 +2311,11 @@ async function runAction($: EngineInterface, kind: ActionKind, id: string, surfa
     await quickStart($, id === 'home' || id === 'gym' ? id : 'desk')
     return
   }
+  if (kind === 'still') {
+    if (id === 'stood') await logStood($)
+    else await clearBand($)
+    return
+  }
   if (kind === 'stretch') {
     if (id === 'stretched') await recordStretch($)
     else await clearBand($)
@@ -2886,7 +2942,7 @@ type GitOperation = { commit?: unknown; pr?: { action: string } }
 
 /** The sign a tool call gives of a long task, once per turn and only on a turn that could cue. */
 async function watchCall<R>($: EngineInterface, tool: string, input: Record<string, unknown>, run: () => Promise<R>): Promise<R> {
-  if (!(coach.turnCanCue || coach.turnCanStretch || coach.turnCanNudge || coach.turnCanRemind) || coach.hasStrongSign) return run()
+  if (!(coach.turnCanCue || coach.turnCanStretch || coach.turnCanNudge || coach.turnCanRemind || coach.turnCanStill) || coach.hasStrongSign) return run()
   coach.toolCalls += 1
   if (tool === 'TaskCreate') coach.tasksThisTurn += 1
   const sign = toolSign(factsOf(tool, input, coach.tasksThisTurn), coach.toolCalls)
@@ -3004,11 +3060,12 @@ export const register: Register = (on, options) => {
     coach.turnCanStretch = !coach.turnCanCue && (await couldStretchThisTurn($))
     coach.turnCanNudge = await couldNudgeThisTurn($)
     coach.turnCanRemind = await couldRemindThisTurn($)
+    coach.turnCanStill = await couldStillThisTurn($)
     coach.turnMisread = null
     const isTraining = (await trainingPlan($)) !== null || (await isRemindMode($))
     coach.turnCanMisread = isTraining && !(await load($, 'paused', false)) && !inQuietHours(coach.options.quietHours, hourOf(await now($)))
     const showing = await read($, band)
-    if ((coach.turnCanCue || coach.turnCanStretch || coach.turnCanNudge || coach.turnCanRemind) && (showing === null || showing.kind === 'logged')) {
+    if ((coach.turnCanCue || coach.turnCanStretch || coach.turnCanNudge || coach.turnCanRemind || coach.turnCanStill) && (showing === null || showing.kind === 'logged')) {
       scheduleCue($, cueDelayMs(turnWaitMs(isBig), await load<number | undefined>($, 'nextCueAt', undefined), coach.turnStartedAt))
     }
     return next(e)
