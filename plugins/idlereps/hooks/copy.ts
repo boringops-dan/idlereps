@@ -539,7 +539,7 @@ export function emphasisRuns(text: string): { text: string; isEmphasis: boolean 
 
 /** §1.10a: the introduction, verbatim; the address term only in the last line. */
 const INTRO = [
-  "Hi! I'm {coach}, your IdleReps trainer.",
+  "Hi! I'm {coach}, your personal trainer.",
   'Welcome to my... your CLI. Cardio, Lifts and Ibuprofen.',
   "*You* hand your agent work? Well, *I* hand *you* work.",
   'Quick start, or just a nudge to move, {mate}?',

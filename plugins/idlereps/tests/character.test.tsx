@@ -1,4 +1,5 @@
 import { expect, test } from 'claude-code/testing'
+import type { Engine } from 'claude-code/testing'
 
 import type { Cue, HistoryEntry, Plan } from '../types'
 import { firstSetLineId, ratingBand } from '../hooks/bands'
@@ -335,6 +336,139 @@ test('animated: on the full portrait, between lines he walks out of his square a
   expect(['squat', 'curl'].some(id => cellsOf(id).some(cells => seen.has(cells)))).toBe(true)
   expect(cellsOf('push-up').some(cells => seen.has(cells) && !cellsOf('squat').includes(cells) && !cellsOf('curl').includes(cells))).toBe(false)
   await ui.unmount()
+})
+
+test('animated: he idles for as long as the band is up, ten minutes on', ANIMATED, async ($, on) => {
+  const { clock } = world(on, TINY)
+  const blits = blitLog(on)
+  await $.session.start(SESSION)
+  await $.command.run(workout('start'))
+  const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
+  await clock.advance(10 * 60_000)
+  const before = blits.length
+  await clock.advance(30_000)
+  expect(blits.length).toBeGreaterThan(before)
+  await ui.unmount()
+})
+
+test('animated: a redraw with no room for him pauses his idling; room again, and he carries on', ANIMATED, async ($, on) => {
+  const { clock } = world(on, TINY)
+  const blits: { cells: string; columns: number }[] = []
+  on('ui.blit', ($, e) => {
+    if ('cells' in e) blits.push({ cells: e.cells, columns: e.columns ?? 0 })
+    return { value: {} }
+  })
+  await $.session.start(SESSION)
+  await $.command.run(workout('start'))
+  const wide = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
+  await clock.advance(20_000)
+  await wide.unmount()
+  const narrow = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND, props: { ...BAND.props, bodyColumns: 20 } })
+  const paused = blits.length
+  await clock.advance(30_000)
+  expect(blits.length).toBe(paused)
+  await narrow.unmount()
+  const again = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
+  await clock.advance(30_000)
+  expect(blits.length).toBeGreaterThan(paused)
+  // Every blit the size of the portrait it went to.
+  expect(new Set(blits.map(b => b.columns)).size).toBe(1)
+  await again.unmount()
+})
+
+/** Blits with the columns they were drawn at. */
+function sizedBlits(on: Parameters<typeof world>[0]) {
+  const blits: { cells: string; columns: number }[] = []
+  on('ui.blit', ($, e) => {
+    if ('cells' in e) blits.push({ cells: e.cells, columns: e.columns ?? 0 })
+    return { value: {} }
+  })
+  return blits
+}
+
+const mountAt = ($: Engine, bodyColumns: number) => $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND, props: { ...BAND.props, bodyColumns } })
+
+test('animated: once the band is answered, no idling comes back with the room', ANIMATED, async ($, on) => {
+  const { clock } = world(on, TINY)
+  const blits = sizedBlits(on)
+  await $.session.start(SESSION)
+  await $.command.run(workout('start'))
+  const narrow = await mountAt($, 20)
+  await clock.advance(20_000)
+  await narrow.unmount()
+  await $.command.run(workout('later'))
+  const wide = await mountAt($, 100)
+  const gone = blits.length
+  await clock.advance(60_000)
+  expect(blits.length).toBe(gone)
+  await wide.unmount()
+})
+
+test('animated: a band never drawn with room for him: no blits, however long', ANIMATED, async ($, on) => {
+  const { clock } = world(on, TINY)
+  const blits = sizedBlits(on)
+  await $.session.start(SESSION)
+  await $.command.run(workout('start'))
+  const ui = await mountAt($, 20)
+  await clock.advance(120_000)
+  expect(blits).toEqual([])
+  await ui.unmount()
+})
+
+test('animated: full size to the mini head and back: each blit the size it is drawn at', ANIMATED, async ($, on) => {
+  const { clock } = world(on, null, {}, { fresh: true })
+  const blits = sizedBlits(on)
+  await $.session.start(SESSION)
+  const full = await mountAt($, 100)
+  await clock.advance(40_000)
+  await full.unmount()
+  const atFull = blits.length
+  const mini = await mountAt($, 84)
+  await clock.advance(40_000)
+  await mini.unmount()
+  const asMini = blits.slice(atFull)
+  expect(asMini.length).toBeGreaterThan(0)
+  expect(asMini.every(b => b.columns === SPRITE.miniSize)).toBe(true)
+  const back = await mountAt($, 100)
+  const atMini = blits.length
+  await clock.advance(40_000)
+  await back.unmount()
+  expect(blits.slice(atMini).every(b => b.columns === SPRITE.width)).toBe(true)
+  expect(blits.length).toBeGreaterThan(atMini)
+})
+
+test('animated: a win twinkles only at full size; squeezed, it waits, and twinkles again with room', ANIMATED, async ($, on) => {
+  const { clock } = world(on, TINY, { totalDoneSets: 24 })
+  const blits = sizedBlits(on)
+  await $.session.start(SESSION)
+  await $.command.run(workout('start'))
+  await $.command.run(workout('done'))
+  const full = await mountAt($, 100)
+  await clock.advance(30_000)
+  await full.unmount()
+  const squeezed = await mountAt($, 84)
+  const paused = blits.length
+  await clock.advance(30_000)
+  expect(blits.slice(paused).every(b => b.columns === SPRITE.width)).toBe(true)
+  await squeezed.unmount()
+  const again = await mountAt($, 100)
+  const before = blits.length
+  await clock.advance(30_000)
+  expect(blits.length).toBeGreaterThan(before)
+  await again.unmount()
+})
+
+test('not animated: no idling, whatever the room', OPTIONS, async ($, on) => {
+  const { clock } = world(on, TINY)
+  const blits = sizedBlits(on)
+  await $.session.start(SESSION)
+  await $.command.run(workout('start'))
+  for (const columns of [100, 20, 100]) {
+    const ui = await mountAt($, columns)
+    await clock.advance(30_000)
+    await ui.unmount()
+  }
+  expect(blits).toEqual([])
 })
 
 test('animated: over the intro the band redraws only when more text shows, never once per tick', ANIMATED, async ($, on) => {

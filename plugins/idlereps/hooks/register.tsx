@@ -771,31 +771,53 @@ async function setAside($: EngineInterface, key: number, aside: string | undefin
  * The band's timers end it when the band goes.
  */
 function idleWhileShowing($: EngineInterface, key: number, n = 0, isWin = false) {
-  const size = coach.portrait?.size
-  if (size === undefined || (isWin && size !== 'full')) return
-  idleLoop($, 'band', { size, isWin, alive: () => coach.talkSeq === key && coach.portrait !== null, blit: cells => void blitPortrait($, cells) }, n)
+  idleLoop(
+    $,
+    'band',
+    {
+      size: () => coach.portrait?.size,
+      isWin,
+      alive: () => coach.talkSeq === key,
+      blit: (cells, size) => void blitPortrait($, cells, size),
+    },
+    n,
+  )
 }
 
-type IdleOptions = { size: PortraitSize; isWin: boolean; alive: () => boolean; blit: (cells: string) => void }
+/**
+ * How an idle loop reads its portrait: its size as drawn now (none while a redraw has no room for it), whether
+ * it is still wanted, and how to blit to it.
+ */
+type IdleOptions = { size: () => PortraitSize | undefined; isWin: boolean; alive: () => boolean; blit: (cells: string, size: PortraitSize) => void }
 
-/** One idle beat after its wait, then the next: the frames it resolves to, each blitted in turn. */
+/**
+ * One idle beat after its wait, then the next, for as long as it is alive: the frames it resolves to, each
+ * blitted in turn. A beat with no portrait drawn (a redraw too narrow for him) is skipped, not the end: he
+ * carries on once there is room again. A frame is only blitted to the size it was made for.
+ */
 function idleLoop($: EngineInterface, owner: 'band' | 'pane', opts: IdleOptions, n = 0) {
-  timer($, owner, idleBeat(n, opts.size, opts.isWin).wait, () =>
+  timer($, owner, idleBeat(n, 'full', opts.isWin).wait, () =>
     void (async () => {
       if (!opts.alive()) return
+      const size = opts.size()
+      const next = () => {
+        if (opts.alive()) idleLoop($, owner, opts, n + 1)
+      }
+      if (size === undefined || (opts.isWin && size !== 'full')) {
+        next()
+        return
+      }
       // Between lines he does the moves you have collected, the wins aside.
-      const moves = opts.isWin || opts.size !== 'full' ? [] : collected(await load<string[]>($, 'moves', [])).filter(move => move.family !== 'flex').map(move => move.id)
-      const beat = idleBeat(n, opts.size, opts.isWin, moves)
+      const moves = opts.isWin || size !== 'full' ? [] : collected(await load<string[]>($, 'moves', [])).filter(move => move.family !== 'flex').map(move => move.id)
+      const beat = idleBeat(n, size, opts.isWin, moves)
       let at = 0
-      for (const frame of [...beat.steps.flatMap(step => idleFrames(step, opts.size)), { cells: FRAMES[frameFor(opts.size, beat.rest)], ms: 0 }]) {
+      for (const frame of [...beat.steps.flatMap(step => idleFrames(step, size)), { cells: FRAMES[frameFor(size, beat.rest)], ms: 0 }]) {
         timer($, owner, at, () => {
-          if (opts.alive()) opts.blit(frame.cells)
+          if (opts.alive() && opts.size() === size) opts.blit(frame.cells, size)
         })
         at += frame.ms
       }
-      timer($, owner, at, () => {
-        if (opts.alive()) idleLoop($, owner, opts, n + 1)
-      })
+      timer($, owner, at, next)
     })(),
   )
 }
@@ -816,10 +838,10 @@ function idleFrames(step: IdleStep, size: PortraitSize): { cells: string; ms: nu
   return Array.from({ length: move.reps }, () => move.beats.map(([pose, ms]) => ({ cells: cells[pose] ?? FRAMES.idle, ms }))).flat()
 }
 
-/** Blits cells to the band's portrait, whichever size it is drawn at; a refused blit is ignored. */
-async function blitPortrait($: EngineInterface, cells: string) {
+/** Blits cells made for `size` to the band's portrait, while it is drawn at that size; a refused blit is ignored. */
+async function blitPortrait($: EngineInterface, cells: string, size: PortraitSize) {
   const portrait = coach.portrait
-  if (portrait === null) return
+  if (portrait === null || portrait.size !== size) return
   const { columns, rows } = portraitCells(SPRITE, portrait.size)
   await $.ui.blit({ requestId: portrait.requestId, key: 'swolomon', cells, columns, rows }).catch(() => undefined)
 }
@@ -2491,7 +2513,7 @@ function playPaneMove($: EngineInterface, move: Move | undefined) {
           coach.paneFrame = null
           const isWin = (await read($, statusView))?.isWin === true
           if (requestId !== null) await blitFull($, requestId, FRAMES[isWin ? 'flex' : 'idle'])
-          if (requestId !== null && !isWin) idlePane($)
+          if (coach.isStatusOpen && !isWin) idlePane($)
           return
         }
         if (pose === showing) return
@@ -2506,9 +2528,9 @@ function playPaneMove($: EngineInterface, move: Move | undefined) {
 /** The pane's Swolomon lives in his square too, once his move is done, while the pane is open. */
 function idlePane($: EngineInterface) {
   idleLoop($, 'pane', {
-    size: 'full',
+    size: () => (coach.panePortrait === null ? undefined : 'full'),
     isWin: false,
-    alive: () => coach.isStatusOpen && coach.panePortrait !== null,
+    alive: () => coach.isStatusOpen,
     blit: cells => {
       if (coach.panePortrait !== null) void blitFull($, coach.panePortrait, cells)
     },
