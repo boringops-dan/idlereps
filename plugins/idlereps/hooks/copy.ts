@@ -189,6 +189,8 @@ export const LINES = [
     voice: 'swolomon',
     variants: ["Your agent's busy, {mate}. Drop and give me a set. Anything.", '{AgentDoing}. Your turn, {mate}: one set.', 'The iron is calling, {mate}. One set, any set.'],
   },
+  // A project he has not seen them in: a new gym.
+  { id: 'new-gym', voice: 'swolomon', variants: ["New gym, {mate}? {gym}. Nice equipment.", "Never trained at {gym} before, {mate}. Smells new.", '{gym}! Fancy. Where do they keep the chalk, {mate}?'] },
   // The day's hello (hooks/greeting.ts): toasts at the first session of a day.
   {
     id: 'greet-missed',

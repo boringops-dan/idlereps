@@ -2370,6 +2370,20 @@ async function mondayRecap($: EngineInterface): Promise<boolean> {
   return true
 }
 
+/** Gyms (projects) kept, by folder name. */
+const GYMS_KEPT = 50
+
+/** A project he has not seen them in before: a new gym, and he says so (never on the very first session). */
+async function noticeGym($: EngineInterface, cwd: string) {
+  const gym = cwd.split(/[\\/]/).filter(part => part !== '').at(-1)
+  if (gym === undefined) return
+  const gyms = await load<string[]>($, 'gyms', [])
+  if (gyms.includes(gym)) return
+  await save($, 'gyms', [...gyms, gym].slice(-GYMS_KEPT))
+  if (gyms.length === 0 || (await decide($, { channel: 'toast', cause: 'timer' })) !== 'show') return
+  $.ui.toast(line('new-gym', { day: await today($), gym: gym.length > 24 ? `${gym.slice(0, 23)}…` : gym }))
+}
+
 /** The first session of a day: Swolomon's hello, if he has one (hooks/greeting.ts); whether he said it. */
 async function greet($: EngineInterface): Promise<boolean> {
   const day = await today($)
@@ -3271,6 +3285,7 @@ export const register: Register = (on, options) => {
     const isTraining = training !== null || (await isRemindMode($))
     // His hello first; then Monday's recap; the day toast only when neither said anything.
     const isGreeted = isTraining && (await greet($))
+    if (isTraining) await noticeGym($, e.cwd)
     const isRecapped = isTraining && (await mondayRecap($))
     if (training !== null && !isRecapped && !isGreeted) await dayToast($, training)
     // A block finished but not answered (Later, or the rating dismissed): asked again on a training day, once.

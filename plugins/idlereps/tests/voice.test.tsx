@@ -61,6 +61,7 @@ const FILLS = {
   sets: 9999,
   worked: '23 h 59 m',
   competition: 'the Galaxy Classic',
+  gym: 'a-long-project-name-here…',
   what: 'Cardio',
   ideas: 'a minute of jumping jacks · a minute of high knees · 10 lunges a leg',
   week: 9999,
@@ -126,6 +127,7 @@ test('lines fit: Swolomon’s and band rows within 80 columns, his band lines wi
   const TOASTS: readonly LineId[] = [
     'day-toast',
     'shiny-first',
+    'new-gym',
     'not-spotted',
     'prep-start',
     'prep-halfway',
