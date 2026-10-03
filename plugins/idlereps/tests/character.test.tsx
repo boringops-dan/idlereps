@@ -1184,7 +1184,7 @@ test('the logged line: today’s count, and a new best with Swolomon’s line', 
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   expect(drawnRows(await ui.drawn())).toEqual([
     `${COACH_NAME}: ${line('new-best', { day: TODAY })}`,
-    '✓ Logged Push-ups 10 reps · new best · 1 of 2 today   0: Undo',
+    '✓ Logged Push-ups 10 reps · new best · 1 of 2 today   h: High five   0: Undo',
   ])
   await ui.unmount()
 })

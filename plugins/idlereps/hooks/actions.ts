@@ -96,6 +96,7 @@ export const ACTIONS: readonly Action[] = [
   { kind: 'edit', id: 'lighter', hotkey: '4', label: '< weight' },
   { kind: 'edit', id: 'heavier', hotkey: '5', label: 'weight >' },
 
+  { kind: 'logged', id: 'highfive', hotkey: 'h', label: 'High five' },
   { kind: 'logged', id: 'undo', hotkey: '0', label: 'Undo' },
 
   { kind: 'rating', id: 'easy', hotkey: '1', label: 'Easy' },

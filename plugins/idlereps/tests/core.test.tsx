@@ -151,6 +151,7 @@ test('ACTIONS is D11 for the bands and panes Phase A draws (with Replay: 1 Let\'
     'edit 3 reps >',
     'edit 4 < weight',
     'edit 5 weight >',
+    'logged h High five',
     'logged 0 Undo',
     'rating 1 Easy',
     'rating 2 Good',

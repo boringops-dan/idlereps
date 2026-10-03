@@ -33,6 +33,7 @@ import {
   rescheduleBand,
   holdBand,
   LOGGED_MS,
+  highFiveOf,
   loggedBand,
   nextFromPending,
   offerToSlot,
@@ -89,7 +90,7 @@ import {
 import { drawMicro, MICRO_HEIGHT, MICRO_WIDTH } from './figure'
 import { misreadOf, saysOf } from './misreads'
 import type { Misread } from './misreads'
-import { drawMove, moveById, moveForExercise, MOVES, poseAt } from './moves'
+import { drawMove, GESTURES, moveById, moveForExercise, MOVES, poseAt } from './moves'
 import type { Move } from './moves'
 import {
   encodeCells,
@@ -206,7 +207,7 @@ const SVGS = Object.fromEntries((Object.keys(SPRITE.frames) as (keyof typeof SPR
 >
 const PORTRAIT_ROWS = SPRITE.height / 2
 /** Every move's poses as full-portrait cells, encoded once per load. */
-const MOVE_CELLS: Record<string, string[]> = Object.fromEntries(MOVES.map(move => [move.id, encodeMove(SPRITE, move.id, drawMove(move))]))
+const MOVE_CELLS: Record<string, string[]> = Object.fromEntries([...MOVES, ...GESTURES].map(move => [move.id, encodeMove(SPRITE, move.id, drawMove(move))]))
 /** The exercise moves drawn tiny, for beside a set (3 rows), encoded once per load. */
 const MICRO_CELLS: Record<string, string[]> = Object.fromEntries(
   MOVES.filter(move => move.family === 'exercise').map(move => [move.id, encodeMicro(SPRITE, move.id, move.poses.map(drawMicro), MICRO_WIDTH, MICRO_HEIGHT)]),
@@ -559,6 +560,7 @@ async function replaceBand($: EngineInterface, spec: BandSpec) {
   const placed = await startTalk($, spec)
   await update($, band, () => placed)
   await syncBandPane($)
+  if (spec.kind === 'logged') timer($, 'band', LOGGED_MS, () => void expireBand($, placed))
 }
 
 /**
@@ -1442,6 +1444,14 @@ async function recordSet($: EngineInterface, outcome: { result: 'done' | 'skip';
   }
   await refreshStatus($)
   return 'recorded'
+}
+
+/** High five on the logged line: he slaps one out of the screen; counted. */
+async function highFive($: EngineInterface) {
+  const shown = await read($, band)
+  if (shown?.kind !== 'logged') return
+  await save($, 'highFives', (await load($, 'highFives', 0)) + 1)
+  await replaceBand($, highFiveOf(shown, line('high-five', { day: await today($) })))
 }
 
 /** A set done: his prep moves on with it (hooks/prep.ts), and he says so at its turns. */
@@ -2410,6 +2420,10 @@ async function runAction($: EngineInterface, kind: ActionKind, id: string, surfa
   }
   if (kind === 'where') {
     await quickStart($, id === 'home' || id === 'gym' ? id : 'desk')
+    return
+  }
+  if (kind === 'logged' && id === 'highfive') {
+    await highFive($)
     return
   }
   if (kind === 'prep') {

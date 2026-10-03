@@ -41,6 +41,7 @@ export const STORE_KEYS = [
   { key: 'prep', shape: "Prep: Swolomon's competition prep and medals (hooks/prep.ts)", inBackup: true },
   { key: 'misreadsSeen', shape: 'times Swolomon said each reading of the agent, by id (hooks/misreads.ts)', cap: 60, inBackup: true },
   { key: 'shinies', shape: 'shiny Swolomons seen (hooks/shiny.ts)', inBackup: true },
+  { key: 'highFives', shape: 'high fives with Swolomon', inBackup: true },
 ] as const satisfies readonly StoreKeyInfo[]
 
 export type StoreKey = (typeof STORE_KEYS)[number]['key']

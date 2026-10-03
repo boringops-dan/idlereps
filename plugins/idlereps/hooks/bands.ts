@@ -493,9 +493,14 @@ export function loggedBand(
     // The first set ever: what happens next, once.
     ...(opts.isFirstEver === true ? { extras: [line('first-logged', { day: 0 })] } : {}),
     inline: true,
-    actions: ['undo'],
+    actions: ['highfive', 'undo'],
     undoId,
   }
+}
+
+/** High five (owner, 2026-10-03): the logged line stays, and he slaps one out of the screen; Undo stays too. */
+export function highFiveOf(logged: BandSpec, coachLine: string): BandSpec {
+  return { ...logged, coach: [coachLine], portrait: 'full', act: 'high-five', tall: true, actions: logged.actions.filter(id => id !== 'highfive') }
 }
 
 /**

@@ -1002,10 +1002,29 @@ export const MOVES: readonly Move[] = [
   moonwalk,
 ]
 
+/**
+ * His gestures: moves that are not collected, played for a moment with you (owner, 2026-10-03: "after a
+ * logged set, press h and he high-fives straight out of the screen").
+ */
+const highFive: Move = {
+  id: 'high-five',
+  title: 'High five',
+  family: 'gag',
+  poses: [
+    front({ arms: [ARMS_DOWN[0], [SHOULDER_R, [13.5, 4.5], [13.5, 1.5]]], expr: 'grin' }),
+    front({ y: -1, arms: [ARMS_DOWN[0], [SHOULDER_R, [13.5, 4.5], [13.5, 1.5]]], expr: 'talk', fx: [{ kind: 'star', at: [11, 1] }, { kind: 'star', at: [15, 3] }] }),
+    front({ arms: [ARMS_DOWN[0], [SHOULDER_R, [13.5, 4.5], [13.5, 1.5]]], expr: 'wink', fx: [{ kind: 'sparkle', at: [0, 1] }] }),
+  ],
+  beats: beat([0, 400], [1, 300], [2, 900]),
+  reps: 1,
+}
+
+export const GESTURES: readonly Move[] = [highFive]
+
 export type MoveId = string
 
 export function moveById(id: MoveId): Move | undefined {
-  return MOVES.find(move => move.id === id)
+  return MOVES.find(move => move.id === id) ?? GESTURES.find(move => move.id === id)
 }
 
 /** Each move's poses drawn once: 16 rows of palette characters each. */
