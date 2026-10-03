@@ -111,6 +111,7 @@ test('ACTIONS is D11 for the bands and panes Phase A draws (with Replay: 1 Let\'
     'remind 4 Other',
     'remind l Later',
     'remind 0 Not today',
+    "prep 1 Let's go",
     'question 1 Answer',
     'question 2 Answer',
     'question 3 Answer',

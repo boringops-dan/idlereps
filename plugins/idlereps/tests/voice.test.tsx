@@ -60,6 +60,7 @@ const FILLS = {
   status: 'status',
   sets: 9999,
   worked: '23 h 59 m',
+  competition: 'the Galaxy Classic',
   what: 'Cardio',
   ideas: 'a minute of jumping jacks · a minute of high knees · 10 lunges a leg',
   week: 9999,
@@ -124,6 +125,12 @@ test('lines fit: Swolomon’s and band rows within 80 columns, his band lines wi
   // Toasts, and the tall bands' lines (§1.10b: up to 8 rows), are never drawn beside a name tag in a short band.
   const TOASTS: readonly LineId[] = [
     'day-toast',
+    'prep-start',
+    'prep-halfway',
+    'prep-ready',
+    'answer-noted',
+    'stood-logged',
+    'target-hit',
     'greet-missed',
     'greet-long-away',
     'greet-yesterday',

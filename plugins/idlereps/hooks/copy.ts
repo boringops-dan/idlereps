@@ -203,6 +203,12 @@ export const LINES = [
   },
   { id: 'greet-yesterday-moved', voice: 'swolomon', variants: ['{n} moves yesterday, {mate}. Same again? Or one more?', 'You moved {n} times yesterday, {mate}. I wrote it on my arm.'] },
   { id: 'greet-yesterday-agent', voice: 'swolomon', variants: ['Your agent worked {worked} yesterday, {mate}. Today you get a turn too.', '{worked} of work for your agent yesterday, {mate}. Your turn today.'] },
+  // His competitions (hooks/prep.ts): your sets are his prep; he competes between your sessions.
+  { id: 'prep-start', voice: 'swolomon', variants: ["Big news, {mate}: I'm entering {competition}. Your sets train me too."] },
+  { id: 'prep-halfway', voice: 'swolomon', variants: ['Halfway to {competition}, {mate}. Your sets are my sets.', 'Half my prep for {competition} done, {mate}. I can feel it.'] },
+  { id: 'prep-ready', voice: 'swolomon', variants: ["That's my prep, {mate}. I compete before we next meet. Wish me luck!", 'Prep done, {mate}. Off to {competition} before your next session.'] },
+  { id: 'prep-gold', voice: 'swolomon', variants: ["Back from {competition}, {mate}. Gold. We did that.", 'Gold at {competition}, {mate}! Your sets were in every rep.'] },
+  { id: 'prep-silver', voice: 'swolomon', variants: ['Silver at {competition}, {mate}. The judges loved my smile.', 'Second at {competition}, {mate}. Next time. Together.'] },
   // Getting to know you (hooks/questions.ts): the questions, the thanks, and the recalls weeks later.
   { id: 'ask-owl', voice: 'swolomon', variants: ['Quick one, {mate}: morning person or night owl?'] },
   { id: 'ask-why', voice: 'swolomon', variants: ['Real talk, {mate}: why are you here?'] },

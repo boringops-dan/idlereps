@@ -38,6 +38,7 @@ export const STORE_KEYS = [
   { key: 'turnLengths', shape: 'ms of the last turns 30 s or longer, oldest first: the usual wait (hooks/waits.ts)', cap: 30, inBackup: false },
   { key: 'lastSeenOn', shape: 'local day number of the last session start: the day\'s hello (hooks/greeting.ts)', inBackup: false },
   { key: 'about', shape: "About: Swolomon's questions, answered by option index or 'pass' (hooks/questions.ts)", cap: 20, inBackup: true },
+  { key: 'prep', shape: "Prep: Swolomon's competition prep and medals (hooks/prep.ts)", inBackup: true },
 ] as const satisfies readonly StoreKeyInfo[]
 
 export type StoreKey = (typeof STORE_KEYS)[number]['key']

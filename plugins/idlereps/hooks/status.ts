@@ -6,10 +6,12 @@
 import type { BandLine, BandPart, Exercise, HistoryEntry, LastByExercise, Plan, Progress, StatusView, Targets, Workout } from '../types'
 import { weekLine } from './bands'
 import { equipmentLabel } from './setup'
-import { COMMUNITY_URL, line } from './copy'
+import { COACH_NAME, COMMUNITY_URL, line } from './copy'
 import type { LineId } from './copy'
 import { daysShowedUp, movedSeconds, nextRank, rankFor, setsThisWeek, sparkline, streak, trendOf, weekMarks } from './history'
 import type { WeekMark } from './history'
+import { competitionOf, PREP_SETS, prepSets } from './prep'
+import type { Prep } from './prep'
 import { dailyTarget, lastMovedText, movedOn, movedThisWeek, movesOn, remindWeekMarks } from './remind'
 import { collected, setsToNext, STARTER_MOVES, UNLOCK_ORDER } from './collection'
 import { mondayOf } from './ledger'
@@ -33,6 +35,8 @@ export type StatusFacts = {
   memory: LastByExercise
   /** Swolomon's moves unlocked so far (collection.ts). */
   moves: readonly string[]
+  /** His competition prep (prep.ts); none before the first set. */
+  prep?: Prep | undefined
 }
 
 type Day = 'training' | 'rest' | 'done' | 'declined' | 'finished'
@@ -279,6 +283,7 @@ export function statusViewOf(facts: StatusFacts): StatusView {
   ])
   more.push(rankBar(facts.totalDoneSets))
   more.push(movesRow(facts.totalDoneSets, facts.moves))
+  if (facts.prep !== undefined) more.push(prepRow(facts.prep, facts.totalDoneSets))
   const bests = plan.workouts
     .flatMap(w => w.exercises)
     .map(planned => effectiveExercise(planned, targetFor(planned, facts.targets)))
@@ -324,6 +329,15 @@ export function movesRow(totalSets: number, unlocked: readonly string[]): BandPa
     ...bar(Math.floor((have / total) * 10), 10),
     { text: toGo === null ? '  all of them' : `  next in ${plural(toGo, 'set')} · /workout moves`, tone: 'muted' },
   ]
+}
+
+/** His competition prep: `Swolomon's prep for Regionals ▰▰▰▱▱▱▱▱▱▱ 9/30 · 🥇 1`, or that he is off to compete. */
+export function prepRow(prep: Prep, totalSets: number): BandPart[] {
+  const medals = prep.medals.length === 0 ? [] : [{ text: `  ${prep.medals.map(m => (m === 'gold' ? '🥇' : '🥈')).join('')}` }]
+  const competition = competitionOf(prep.stage)
+  if (prep.isReady === true) return [{ text: `${COACH_NAME} competes at ${competition} before your next session`, bold: true }, ...medals]
+  const sets = prepSets(prep, totalSets)
+  return [{ text: `${COACH_NAME}'s prep for ${competition}`, bold: true }, { text: '  ' }, ...bar(Math.floor((sets / PREP_SETS) * 10), 10), { text: `  ${sets}/${PREP_SETS}`, tone: 'muted' }, ...medals]
 }
 
 /** The rank and how far the next one is, as a bar: `Rank: Regular ▰▰▰▱▱▱▱▱▱▱ 40/100 to Rack Regular`. */
@@ -387,6 +401,7 @@ export type RemindFacts = {
   paused: boolean
   totalDoneSets: number
   moves: readonly string[]
+  prep?: Prep | undefined
 }
 
 /** The pane in Just remind me: Swolomon's line, today and the week, the rank, the last set. */
@@ -410,6 +425,7 @@ export function remindViewOf(facts: RemindFacts): StatusView {
   if (showedUp > 0) more.push([{ text: `Showed up ${plural(showedUp, 'day')} this month`, bold: true }])
   more.push(rankBar(facts.totalDoneSets))
   more.push(movesRow(facts.totalDoneSets, facts.moves))
+  if (facts.prep !== undefined) more.push(prepRow(facts.prep, facts.totalDoneSets))
   const last = lastMovedText(history, today, shortDayName)
   if (last !== null) more.push([{ text: `Last set: ${last}`, tone: 'muted' }])
   more.push('')

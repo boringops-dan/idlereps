@@ -25,6 +25,7 @@ import {
   restoreBand,
   warmupBand,
   bonusBand,
+  prepBand,
   questionBand,
   stillBand,
   stretchBand,
@@ -49,6 +50,8 @@ import { dailyTarget, ideasFor, isMoved, MOVED, movedOn, movesOn } from './remin
 import { sittingMs, STILL_MS } from './still'
 import { expectedWaitMs, keptTurns, waitSize } from './waits'
 import { greetingOf } from './greeting'
+import { afterSet, compete, competitionOf } from './prep'
+import type { Prep } from './prep'
 import { ANSWER_IDS, nextQuestion, recallFor } from './questions'
 import type { About } from './questions'
 import { ASIDE_GAP, ASIDE_MS, ASIDES, asideSpot, asideText, hasAsides } from './asides'
@@ -1206,6 +1209,7 @@ async function logMoved($: EngineInterface, what: Moved) {
   const before = await load($, 'totalDoneSets', 0)
   await writePatch($, { set: {}, append: [{ kind: 'moved', t: at, d: day, what }] })
   await save($, 'totalDoneSets', before + 1)
+  await advancePrep($)
   await save($, 'nextCueAt', at + (await gapMs($)))
   await clearBand($)
   const n = movedOn(await load<HistoryEntry[]>($, 'history', []), day)
@@ -1370,6 +1374,7 @@ async function recordSet($: EngineInterface, outcome: { result: 'done' | 'skip';
     void track($, { event: 'set_finished', properties: { result: outcome.result, week: planWeek, ...(ratio === undefined ? {} : { ratio }) } })
   }
   // §1.10c after a record: a rank-up band (with a feat toast), else a new best, else the skip reassurance.
+  if (outcome.result === 'done') await advancePrep($)
   const rankShown = await showRankUp($, result.effects.rankUp, result.inverse.id)
   for (const feat of result.effects.feats ?? []) await toastFeat($, feat)
   const done = result.effects.workoutDone
@@ -1410,6 +1415,24 @@ async function recordSet($: EngineInterface, outcome: { result: 'done' | 'skip';
   }
   await refreshStatus($)
   return 'recorded'
+}
+
+/** A set done: his prep moves on with it (hooks/prep.ts), and he says so at its turns. */
+async function advancePrep($: EngineInterface) {
+  const { prep, news } = afterSet(await load<Prep | undefined>($, 'prep', undefined), await load($, 'totalDoneSets', 0))
+  if (prep === undefined) return
+  await save($, 'prep', prep)
+  if (news !== undefined) $.ui.toast(line(news, { day: await today($), competition: competitionOf(prep.stage) }))
+}
+
+/** His prep done: he competed between sessions, and is back with a medal. */
+async function backFromCompeting($: EngineInterface) {
+  const prep = await load<Prep | undefined>($, 'prep', undefined)
+  if (prep?.isReady !== true) return
+  const { prep: next, medal, competition } = compete(prep, await load($, 'totalDoneSets', 0))
+  await save($, 'prep', next)
+  const day = await today($)
+  await offerBand($, prepBand(line(medal === 'gold' ? 'prep-gold' : 'prep-silver', { day, competition }), competition, medal, next.medals.length), 'timer')
 }
 
 /** A move unlocked by the sets done (collection.ts): its band, Swolomon performing it; whether it showed. */
@@ -2080,6 +2103,7 @@ async function statusFacts($: EngineInterface, plan: Plan): Promise<StatusFacts>
     since: await planStartedOn($),
     memory: await load($, 'lastByExercise', {}),
     moves: await load<string[]>($, 'moves', []),
+    prep: await load<Prep | undefined>($, 'prep', undefined),
   }
 }
 
@@ -2118,6 +2142,7 @@ async function remindFacts($: EngineInterface): Promise<RemindFacts> {
     paused: await load($, 'paused', false),
     totalDoneSets: await load($, 'totalDoneSets', 0),
     moves: await load<string[]>($, 'moves', []),
+    prep: await load<Prep | undefined>($, 'prep', undefined),
   }
 }
 
@@ -2356,6 +2381,10 @@ async function runAction($: EngineInterface, kind: ActionKind, id: string, surfa
   }
   if (kind === 'where') {
     await quickStart($, id === 'home' || id === 'gym' ? id : 'desk')
+    return
+  }
+  if (kind === 'prep') {
+    await clearBand($)
     return
   }
   if (kind === 'question') {
@@ -3083,6 +3112,8 @@ export const register: Register = (on, options) => {
       const progress = await load($, 'progress', START)
       if (progress.workout >= training.workouts.length && isTrainingDay(training, progress, day)) await offerProgramEnd($, 'timer')
     }
+    // Back from a competition he went to since the last session.
+    if (isTraining && e.isInteractive) await backFromCompeting($)
     await refreshStatus($)
     await armIdle($)
     await armMidnight($)
@@ -3104,7 +3135,7 @@ export const register: Register = (on, options) => {
     // The first-run band goes once a plan exists, however it got there (by hand, another session).
     const shown = await read($, band)
     const isIntroDone = shown?.kind === 'intro' && (await trainingPlan($)) !== null
-    const isDismissedByPrompt = ['logged', 'rating', 'bonus', 'rankup', 'replay', 'flex', 'ready'].includes(shown?.kind ?? '') || shown?.isNudge === true
+    const isDismissedByPrompt = ['logged', 'rating', 'bonus', 'rankup', 'replay', 'flex', 'ready', 'prep'].includes(shown?.kind ?? '') || shown?.isNudge === true
     if (isDismissedByPrompt || isIntroDone) await clearBand($)
     const isBig = isBigAsk(e.text)
     coach.reason = isBig ? 'big-ask' : undefined

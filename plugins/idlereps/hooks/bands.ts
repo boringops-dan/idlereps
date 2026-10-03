@@ -13,7 +13,7 @@ import { PUSH_NAMES } from './programs'
 import { weekdayName } from './schedule'
 
 /** Which band keeps the slot when two want it (§4.3 item 4). A logged line gives way to anything. */
-export const BAND_PRIORITY: Record<BandKind, number> = { question: 1, still: 2, unlock: 6, program: 1, byoplan: 1, remind: 2, pulse: 0, rankup: 7, rating: 6, bonus: 5, programEnd: 5, restore: 8, erase: 8, warmup: 3, logged: 4, edit: 3, set: 3, ask: 2, ready: 2, stretch: 2, where: 1, reschedule: 2, timer: 3, switch: 3, time: 3, safety: 1, intro: 1, replay: 1, flex: 1 }
+export const BAND_PRIORITY: Record<BandKind, number> = { prep: 5, question: 1, still: 2, unlock: 6, program: 1, byoplan: 1, remind: 2, pulse: 0, rankup: 7, rating: 6, bonus: 5, programEnd: 5, restore: 8, erase: 8, warmup: 3, logged: 4, edit: 3, set: 3, ask: 2, ready: 2, stretch: 2, where: 1, reschedule: 2, timer: 3, switch: 3, time: 3, safety: 1, intro: 1, replay: 1, flex: 1 }
 
 export const LOGGED_MS = 120_000
 
@@ -108,6 +108,22 @@ export function remindBand(coachLine: string, day: number, ideas: readonly strin
     portrait: 'mini',
     body: [[{ text: ideasLine, tone: 'muted' }], ...(opts.withSafety === true ? [safetyRow(day)] : [])],
     actions: actionIdsOf('remind'),
+  }
+}
+
+/** Back from a competition: the medal, the trophy lifted for gold, a personal best anyway for silver. */
+export function prepBand(coachLine: string, competition: string, medal: 'gold' | 'silver', medals: number): BandSpec {
+  return {
+    kind: 'prep',
+    header: `${competition.charAt(0).toUpperCase()}${competition.slice(1)} · ${medal === 'gold' ? '🥇 gold' : '🥈 silver'} · medal ${medals}`,
+    headerFirst: true,
+    coach: [coachLine],
+    portrait: 'full',
+    ...(medal === 'gold' ? { isWin: true as const } : {}),
+    act: medal === 'gold' ? 'trophy' : 'personal-best',
+    body: [],
+    actions: actionIdsOf('prep'),
+    tall: true,
   }
 }
 

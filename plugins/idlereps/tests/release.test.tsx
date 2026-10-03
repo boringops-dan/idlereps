@@ -84,6 +84,7 @@ test('the store, filled to every cap, stays under half its limit; Undo under 4 K
     mode: 'remind',
     moves: Array.from({ length: 40 }, (_, i) => `a-long-move-name-${i}`),
     lastSeenOn: TODAY,
+    prep: { stage: 999, from: 999_999, isReady: true, medals: Array.from({ length: 999 }, () => 'silver') },
     about: Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`question-${i}`, 'pass'])),
     turnLengths: Array.from({ length: 30 }, () => 3_599_999),
     installId: '6f1c2a9e-0b7d-4c1e-9a55-3f8e2d7b4c10',
