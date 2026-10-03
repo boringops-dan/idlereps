@@ -68,7 +68,7 @@ test('the next prompt puts it away, like the logged line', OPTIONS, async ($, on
 })
 
 test('a gesture, not a move to collect: the 33 stay 33', () => {
-  expect(GESTURES.map(m => m.id)).toEqual(['high-five', 'hug'])
+  expect(GESTURES.map(m => m.id)).toEqual(['high-five', 'hug', 'struggle'])
   expect(MOVES.some(m => GESTURES.includes(m))).toBe(false)
   expect(STARTER_MOVES.length + UNLOCK_ORDER.length).toBe(MOVES.length)
 })

@@ -174,7 +174,7 @@ export type RatingBasis = {
 }
 export type SetResult = { result: 'done' | 'skip'; count?: number }
 
-export type BandKind = 'prep' | 'question' | 'still' | 'unlock' | 'remind' | 'program' | 'byoplan' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'safety' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex'
+export type BandKind = 'spotme' | 'prep' | 'question' | 'still' | 'unlock' | 'remind' | 'program' | 'byoplan' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'safety' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex'
 
 /** How a piece of text is coloured: the theme's own colours, so light and dark themes both read. */
 export type Tone = 'accent' | 'good' | 'muted' | 'aside'

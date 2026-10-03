@@ -40,6 +40,7 @@ import {
   pulseBand,
   rankupBand,
   showOffBand,
+  spotMeBand,
   unlockBand,
   ratingBand,
   replayBand,
@@ -1155,10 +1156,10 @@ async function couldStillThisTurn($: EngineInterface): Promise<boolean> {
 }
 
 /**
- * Whether this turn may ask one of his questions: training, met at least a day ago, not paused, quiet hours
- * over, once a day, one left to ask, and nothing else due now (inside the gap, or no set today).
+ * Whether this turn has room for a quiet moment of his (a question, or spot me): training, met at least a day
+ * ago, not paused, quiet hours over, one a day, and nothing else due now (inside the gap, or no set today).
  */
-async function couldAskThisTurn($: EngineInterface): Promise<boolean> {
+async function couldQuietMomentThisTurn($: EngineInterface): Promise<boolean> {
   if (coach.turnCanStill || coach.turnCanNudge) return false
   if ((await trainingPlan($)) === null && !(await isRemindMode($))) return false
   if (await load($, 'paused', false)) return false
@@ -1166,17 +1167,50 @@ async function couldAskThisTurn($: EngineInterface): Promise<boolean> {
   if (inQuietHours(coach.options.quietHours, hourOf(at))) return false
   const met = (await load<Seen>($, 'seen', {})).onboarded?.at
   if (met === undefined || dayNumberOf(met) >= (await today($))) return false
-  if (!(await isDue($, 'question', 'day')) || nextQuestion(await load<About>($, 'about', {})) === undefined) return false
+  if (!(await isDue($, 'question', 'day')) || (await quietMoment($)) === null) return false
   const isSetDue = (coach.turnCanCue || coach.turnCanRemind || coach.turnCanStretch) && (await load<number | undefined>($, 'nextCueAt', undefined) ?? 0) <= at
   return !isSetDue
 }
 
-async function offerQuestion($: EngineInterface) {
+/** Spot me at most every few days. */
+const SPOT_ME_EVERY_MS = 3 * 86_400_000
+
+/** Which quiet moment it would be: spot me when due (every third day, or no question left), else a question. */
+async function quietMoment($: EngineInterface): Promise<'spotme' | 'question' | null> {
+  const hasQuestion = nextQuestion(await load<About>($, 'about', {})) !== undefined
+  const canSpot = await isDue($, 'spotme', { everyMs: SPOT_ME_EVERY_MS })
+  if (canSpot && (!hasQuestion || (await today($)) % 3 === 0)) return 'spotme'
+  return hasQuestion ? 'question' : null
+}
+
+async function offerQuietMoment($: EngineInterface) {
   if (!coach.isTurnRunning || (await read($, band)) !== null) return
-  const question = nextQuestion(await load<About>($, 'about', {}))
-  if (question === undefined) return
+  const moment = await quietMoment($)
+  const day = await today($)
+  if (moment === null) return
+  // One quiet moment a day, whichever it is.
   await markSeen($, 'question')
-  await offerBand($, questionBand(line(question.ask, { day: await today($) }), question), 'timer')
+  if (moment === 'spotme') {
+    await markSeen($, 'spotme')
+    await offerBand($, spotMeBand(line('spot-me', { day })), 'timer')
+    return
+  }
+  const question = nextQuestion(await load<About>($, 'about', {}))
+  if (question !== undefined) await offerBand($, questionBand(line(question.ask, { day }), question), 'timer')
+}
+
+/** Spotted: he gets the rep up and celebrates (counted); not now: he racks it, no hard feelings. */
+async function answerSpotMe($: EngineInterface, id: string) {
+  const day = await today($)
+  if (id !== 'spot') {
+    await clearBand($)
+    $.ui.toast(line('not-spotted', { day }))
+    return
+  }
+  await save($, 'spots', (await load($, 'spots', 0)) + 1)
+  const move = moveById('victory-jump')
+  if (move === undefined) await clearBand($)
+  else await replaceBand($, { ...showOffBand(line('spotted', { day }), move), isWin: true })
 }
 
 /** An answer (or Pass): kept, and never asked again; an answer is thanked. */
@@ -2435,6 +2469,10 @@ async function runAction($: EngineInterface, kind: ActionKind, id: string, surfa
     await answerQuestion($, id)
     return
   }
+  if (kind === 'spotme') {
+    await answerSpotMe($, id)
+    return
+  }
   if (kind === 'still') {
     if (id === 'stood') await logStood($)
     else await clearBand($)
@@ -3221,7 +3259,7 @@ export const register: Register = (on, options) => {
     coach.turnCanRemind = await couldRemindThisTurn($)
     coach.turnCanStill = await couldStillThisTurn($)
     // One of his questions, when nothing else is due: its own timer, never the cue's (which waits for the gap).
-    if (await couldAskThisTurn($)) timer($, 'turn', turnWaitMs(isBig), () => void offerQuestion($))
+    if (await couldQuietMomentThisTurn($)) timer($, 'turn', turnWaitMs(isBig), () => void offerQuietMoment($))
     coach.turnMisread = null
     const isTraining = (await trainingPlan($)) !== null || (await isRemindMode($))
     coach.turnCanMisread = isTraining && !(await load($, 'paused', false)) && !inQuietHours(coach.options.quietHours, hourOf(await now($)))

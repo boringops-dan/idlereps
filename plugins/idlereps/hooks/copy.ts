@@ -203,6 +203,10 @@ export const LINES = [
   },
   { id: 'greet-yesterday-moved', voice: 'swolomon', variants: ['{n} moves yesterday, {mate}. Same again? Or one more?', 'You moved {n} times yesterday, {mate}. I wrote it on my arm.'] },
   { id: 'greet-yesterday-agent', voice: 'swolomon', variants: ['Your agent worked {worked} yesterday, {mate}. Today you get a turn too.', '{worked} of work for your agent yesterday, {mate}. Your turn today.'] },
+  // Spot me: he is stuck on his last rep; you cheer him through.
+  { id: 'spot-me', voice: 'swolomon', variants: ['Little help, {mate}? Last rep. Just say the words.', "Spot me, {mate}! It's not heavy. It's... personal.", 'One more rep, {mate}. I need a cheer. Anything.'] },
+  { id: 'spotted', voice: 'swolomon', variants: ['WE did that, {mate}. You and me.', 'Got it up! Your cheering, {mate}. Pure science.', 'Best spotter in the gym, {mate}. Do not tell the others.'] },
+  { id: 'not-spotted', voice: 'swolomon', variants: ['Racked it. Next time, {mate}.', "All good, {mate}. I'll get it tomorrow."] },
   // Hidden commands, found by word of mouth: /workout hug, /workout dance, /workout highfive.
   { id: 'hug', voice: 'swolomon', variants: ['Bring it in, {mate}.', 'Hug accepted, {mate}. Spotting your heart.', 'Come here, {mate}. Gentle. I know my strength.'] },
   { id: 'dance', voice: 'swolomon', variants: ['You found the music, {mate}. Watch the hips.', 'Leg day, but fun, {mate}.'] },

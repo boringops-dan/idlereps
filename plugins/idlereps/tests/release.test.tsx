@@ -86,6 +86,7 @@ test('the store, filled to every cap, stays under half its limit; Undo under 4 K
     lastSeenOn: TODAY,
     shinies: 999_999,
     highFives: 999_999,
+    spots: 999_999,
     misreadsSeen: Object.fromEntries(Array.from({ length: 60 }, (_, i) => [`a-long-reading-id-${i}`, 999_999])),
     prep: { stage: 999, from: 999_999, isReady: true, medals: Array.from({ length: 999 }, () => 'silver') },
     about: Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`question-${i}`, 'pass'])),

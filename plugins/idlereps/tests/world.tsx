@@ -105,7 +105,12 @@ type WorldOptions = { legacy?: string; now?: number; surfaces?: RenderSurface[];
 /** Every question of Swolomon's asked, passed on. */
 export const ASKED = Object.fromEntries(QUESTIONS.map(q => [q.id, 'pass']))
 
-export const ONBOARDED = { onboarded: { at: 1, n: 1 }, safety: { at: 1, n: 1 } }
+export const ONBOARDED = {
+  onboarded: { at: 1, n: 1 },
+  safety: { at: 1, n: 1 },
+  // Spot me never due, unless the test is about it (it shares the quiet turns with the questions).
+  spotme: { at: 8_640_000_000_000_000, n: 1 },
+}
 
 /**
  * The seed as the store starts: onboarding and the safety note already done, every move of Swolomon's

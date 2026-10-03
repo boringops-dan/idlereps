@@ -4,7 +4,7 @@
  * every button has a command by construction. Pure data.
  */
 
-export type ActionKind = 'prep' | 'question' | 'still' | 'unlock' | 'remindPane' | 'remind' | 'program' | 'byoplan' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex' | 'status' | 'safety' | 'byo'
+export type ActionKind = 'spotme' | 'prep' | 'question' | 'still' | 'unlock' | 'remindPane' | 'remind' | 'program' | 'byoplan' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex' | 'status' | 'safety' | 'byo'
 
 export type Action = {
   id: string
@@ -37,6 +37,10 @@ export const ACTIONS: readonly Action[] = [
   { kind: 'remind', id: 'other', hotkey: '4', label: 'Other' },
   { kind: 'remind', id: 'later', hotkey: 'l', label: 'Later' },
   { kind: 'remind', id: 'skipday', hotkey: '0', label: 'Not today' },
+
+  // Spot me: he is stuck on his last rep.
+  { kind: 'spotme', id: 'spot', hotkey: '1', label: 'You got this!', isPrimary: true },
+  { kind: 'spotme', id: 'nospot', hotkey: '2', label: 'Not now' },
 
   // Back from a competition.
   { kind: 'prep', id: 'letsgo', hotkey: '1', label: "Let's go", isPrimary: true },

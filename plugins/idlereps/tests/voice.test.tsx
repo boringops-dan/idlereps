@@ -126,6 +126,7 @@ test('lines fit: Swolomon’s and band rows within 80 columns, his band lines wi
   const TOASTS: readonly LineId[] = [
     'day-toast',
     'shiny-first',
+    'not-spotted',
     'prep-start',
     'prep-halfway',
     'prep-ready',

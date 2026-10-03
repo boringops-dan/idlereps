@@ -1039,7 +1039,28 @@ const hug: Move = {
   reps: 1,
 }
 
-export const GESTURES: readonly Move[] = [highFive, hug]
+/** Stuck on his last rep, shaking: the weights halfway up, straining, sweating. Spot him. */
+const struggle: Move = {
+  id: 'struggle',
+  title: 'Last rep',
+  family: 'gag',
+  poses: [0, 1].map(x =>
+    front({
+      x,
+      arms: arms([2, 6.5], [2.5, 3.5]),
+      expr: 'strain',
+      props: [
+        { kind: 'dumbbell', at: [2.5, 3], upright: true },
+        { kind: 'dumbbell', at: [12.5, 3], upright: true },
+      ],
+      fx: x === 0 ? [{ kind: 'sweat', at: [11, 2] }] : [{ kind: 'drop', at: [4, 4] }],
+    }),
+  ),
+  beats: beat([0, 150], [1, 150]),
+  reps: 6,
+}
+
+export const GESTURES: readonly Move[] = [highFive, hug, struggle]
 
 export type MoveId = string
 
