@@ -3,14 +3,14 @@
  * one-line `/workout status`. Pure: computed when a record is made or the pane opens, never while drawing.
  */
 
-import type { BandLine, BandPart, Exercise, HistoryEntry, LastByExercise, Plan, Progress, Routine, StatusView, Targets, Workout } from '../types'
+import type { BandLine, BandPart, Exercise, HistoryEntry, LastByExercise, Plan, Progress, StatusView, Targets, Workout } from '../types'
 import { weekLine } from './bands'
 import { equipmentLabel } from './setup'
 import { COMMUNITY_URL, line } from './copy'
 import type { LineId } from './copy'
 import { daysShowedUp, movedSeconds, nextRank, rankFor, setsThisWeek, sparkline, streak, trendOf, weekMarks } from './history'
 import type { WeekMark } from './history'
-import { daysLabel, isRoutineDay, lastTrainedText, routineWeekMarks, weekCount } from './routine'
+import { lastMovedText, movedOn, movedThisWeek, remindWeekMarks } from './remind'
 import { mondayOf } from './ledger'
 import { describeAmount, effectiveExercise, minutesWords, shortWorkoutName, setsOf, stepsFor, targetFor, targetOf, weekProgress } from './plan'
 import { isTrainingDay, longDayName, nextTrainingDay, shortDayName } from './schedule'
@@ -362,65 +362,43 @@ export function statusTextOf(facts: StatusFacts): string {
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// Just remind me: no plan, their days, the sessions they log.
+// Just remind me: no plan; sets of their own, logged by what they worked.
 
-export type RoutineFacts = {
-  routine: Routine
+export type RemindFacts = {
   history: readonly HistoryEntry[]
   today: number
-  declinedOn: number | undefined
   paused: boolean
-  /** When reminders started: days before it are not missed days. */
-  since: number
+  totalDoneSets: number
 }
 
-type RoutineDay = 'day' | 'going' | 'done' | 'rest'
-
-const ROUTINE_PANE_LINE: Record<RoutineDay, LineId> = { day: 'routine-pane-day', going: 'routine-pane-going', done: 'routine-pane-done', rest: 'routine-pane-rest' }
-
-function routineDayOf(facts: RoutineFacts): RoutineDay {
-  if (facts.history.some(e => e.kind === 'trained' && e.d === facts.today)) return 'done'
-  if (facts.routine.going !== undefined) return 'going'
-  return isRoutineDay(facts.routine, facts.today) && facts.declinedOn !== facts.today ? 'day' : 'rest'
-}
-
-/** The next of their days after today, as `Wednesday`; `soon` with none set. */
-export function nextRoutineDayText(facts: Pick<RoutineFacts, 'routine' | 'today'>): string {
-  for (let day = facts.today + 1; day <= facts.today + 7; day += 1) if (isRoutineDay(facts.routine, day)) return longDayName(day)
-  return 'soon'
-}
-
-/** The pane in Remind me mode: Swolomon's line, the week, the count, the last session, the days. */
-export function routineViewOf(facts: RoutineFacts): StatusView {
-  const { routine, history, today } = facts
-  const day = routineDayOf(facts)
-  const ctx = { day: today, nextDay: nextRoutineDayText(facts) }
-  const coach = line(facts.paused ? 'pane-paused' : ROUTINE_PANE_LINE[day], ctx)
-  const week = weekCount(routine, history, today)
+/** The pane in Just remind me: Swolomon's line, today and the week, the rank, the last set. */
+export function remindViewOf(facts: RemindFacts): StatusView {
+  const { history, today } = facts
+  const n = movedOn(history, today)
+  const ctx = { day: today, n, nextDay: 'tomorrow' }
+  const coach = line(facts.paused ? 'pane-paused' : n > 0 ? 'remind-pane-done' : 'remind-pane-fresh', ctx)
   const head: BandLine[] = []
   if (facts.paused) head.push([{ text: 'Paused. ', bold: true, tone: 'accent' }, { text: '/workout resume to start again.', tone: 'muted' }])
-  head.push([{ text: 'Your days ', tone: 'muted' }, { text: daysLabel(routine.days), bold: true }])
-  head.push([{ text: 'This week ', tone: 'muted' }, ...bar(Math.min(week.done, week.of), week.of), { text: `  ${week.done} of ${week.of}`, ...(week.done >= week.of ? { tone: 'good' as const, bold: true as const } : {}) }])
-  const more: BandLine[] = [weekRowOf(routineWeekMarks(routine, history, today, facts.since), today)]
+  head.push([{ text: 'Today ', tone: 'muted' }, { text: plural(n, 'set'), bold: true, ...(n > 0 ? { tone: 'good' as const } : {}) }])
+  head.push([{ text: 'This week ', tone: 'muted' }, { text: plural(movedThisWeek(history, today), 'set') }])
+  const more: BandLine[] = [weekRowOf(remindWeekMarks(history, today), today)]
   const showedUp = daysShowedUp(history, today)
   if (showedUp > 0) more.push([{ text: `Showed up ${plural(showedUp, 'day')} this month`, bold: true }])
-  const last = lastTrainedText(history, today)
-  if (last !== null) more.push([{ text: `Last session: ${last}`, tone: 'muted' }])
+  more.push(rankBar(facts.totalDoneSets))
+  const last = lastMovedText(history, today, shortDayName)
+  if (last !== null) more.push([{ text: `Last set: ${last}`, tone: 'muted' }])
   more.push('')
-  more.push([{ text: 'Just remind me: you train your way, Swolomon keeps count. Want a program? 3.', tone: 'muted', truncate: true }])
+  more.push([{ text: 'Just remind me: any set you like, while your agent works. Want a plan? 2.', tone: 'muted', truncate: true }])
   more.push([{ text: `Feedback: /workout feedback · Ideas and plans: ${COMMUNITY_URL.replace('https://', '')}`, tone: 'muted', truncate: true }])
-  return { coach, isWin: day === 'done', head, more, isRestDay: day === 'rest', canShare: false, isRoutine: true }
+  return { coach, isWin: n > 0, head, more, isRestDay: false, canShare: false, isRemind: true }
 }
 
-/** The footer tally in Remind me mode: `💪 done` once trained today, `💪 lift day` on one of their days. */
-export function routineLineOf(facts: RoutineFacts): string | undefined {
-  const day = routineDayOf(facts)
-  return day === 'done' ? '💪 done' : day === 'day' || day === 'going' ? '💪 lift day' : undefined
+/** The footer tally in Just remind me: `💪 3 today` once a set is in. */
+export function remindLineOf(facts: RemindFacts): string | undefined {
+  const n = movedOn(facts.history, facts.today)
+  return n > 0 ? `💪 ${n} today` : undefined
 }
 
-/** `/workout status` in Remind me mode. */
-export function routineTextOf(facts: RoutineFacts): string {
-  const week = weekCount(facts.routine, facts.history, facts.today)
-  const today = { day: 'Today is one of your days.', going: 'Out training: /workout log when back.', done: 'Trained today.', rest: `Next: ${nextRoutineDayText(facts)}.` }[routineDayOf(facts)]
-  return line('routine-status', { day: facts.today, days: daysLabel(facts.routine.days), done: week.done, of: week.of, today })
-}
+/** `/workout status` in Just remind me. */
+export const remindTextOf = (facts: RemindFacts): string =>
+  line('remind-status', { day: facts.today, n: movedOn(facts.history, facts.today), week: movedThisWeek(facts.history, facts.today) })

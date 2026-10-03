@@ -2,20 +2,18 @@ import { expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
 import { line } from '../hooks/copy'
-import { daysLabel, parseDays, routineWeekMarks, wantsLog, ASK_AFTER_MS } from '../hooks/routine'
-import { weekdayName } from '../hooks/schedule'
-import type { HistoryEntry, Plan, Routine } from '../types'
+import { ideasFor, IDEAS, remindWeekMarks } from '../hooks/remind'
+import type { HistoryEntry, Plan } from '../types'
 import { BAND, drawnRows, NOON, OPTIONS, ownStore, SESSION, STATUS, tallyOf, TINY, TODAY, workout, world } from './world'
 
 /**
- * Just remind me (owner, 2026-10-02: "some people may just want reminders ... hey go for a lift and tracking
- * that"): no plan; on their days Swolomon reminds them while the agent works, and asks what they hit.
- * And Give me a plan's three ways: Quick start (now with weights), build it, or bring their own.
+ * Just remind me (owner, 2026-10-03: "Hey why don't you go and do a set or do some quick cardio"): no
+ * plan. While the agent works Swolomon says do a set, anything; one tap logs what it worked, and it counts
+ * as a set. And Build my own's ways to a plan: Quick start (now with weights), build it, or bring your own.
  */
 
-const ACKED = { seen: { safety: { at: 1, n: 1 } } }
-const TODAYS = weekdayName(TODAY)
-const OTHER_DAY = weekdayName(TODAY + 1)
+const REMIND = { mode: 'remind' }
+const REMIND_KEYS = ['upper', 'lower', 'cardio', 'other', 'later', 'skipday']
 const done = (turnId: string) => ({ turnId, answer: '', reason: 'answer', durationMs: 60_000, isAborted: false }) as never
 
 async function bandOf($: Engine) {
@@ -26,146 +24,129 @@ async function bandOf($: Engine) {
   return { rows, keys, text: rows.join('\n') }
 }
 
-/** A long turn: the band as it stands once the wait has passed, the turn left running. */
+/** A long turn: the band once the wait has passed, the turn left running. */
 async function longTurn($: Engine, clock: { advance: (ms: number) => Promise<void> }, turnId: string) {
   await $.turn.start({ text: 'go', turnId })
-  await clock.advance(31_000)
+  await clock.advance(61_000)
   return bandOf($)
 }
 
-const trained = (store: Map<string, unknown>) => ((store.get('history') as HistoryEntry[] | undefined) ?? []).filter(e => e.kind === 'trained')
+const moved = (store: Map<string, unknown>) => ((store.get('history') as HistoryEntry[] | undefined) ?? []).filter(e => e.kind === 'moved')
 
-test('Just remind me from the introduction: the safety step, the days, how it works, then today’s reminder', OPTIONS, async ($, on) => {
+test('Just remind me from the introduction: no plan, and a set offered right there, the safety note on it', OPTIONS, async ($, on) => {
   const store = ownStore(on, {}, { fresh: true })
-  world(on, null, 'own-store')
+  const { w } = world(on, null, 'own-store')
   await $.session.start(SESSION)
-  expect((await bandOf($)).keys).toEqual(['program', 'remind', 'notnow', 'dontask'])
   await $.command.run(workout('remind'))
-  expect((await bandOf($)).keys).toContain('understand')
-  await $.command.run(workout('understand'))
-  expect((await bandOf($)).keys).toEqual(['mwf', 'tts', 'weekdays', 'everyday', 'back'])
-  await $.command.run(workout('everyday'))
-  expect((store.get('routine') as Routine).days).toHaveLength(7)
-  const howto = await bandOf($)
-  expect(howto.keys).toEqual(['gotit'])
-  expect(howto.text).toContain(line('howto-remind-days', { day: TODAY }))
-  await $.command.run(workout('gotit'))
-  expect((await bandOf($)).keys).toEqual(['going', 'did', 'skipday'])
+  const first = await bandOf($)
+  expect(first.keys).toEqual(REMIND_KEYS)
+  expect(first.text).toContain(line('remind-first', { day: TODAY }))
+  expect(first.text).toContain(line('safety-short', { day: TODAY }))
+  expect(store.get('mode')).toBe('remind')
+  expect(w.writes.filter(x => x.path.endsWith('plan.json'))).toEqual([])
+  await $.command.run(workout('upper'))
+  expect(moved(store)).toMatchObject([{ kind: 'moved', d: TODAY, what: 'upper' }])
+  expect(store.get('totalDoneSets')).toBe(1)
+  expect((store.get('seen') as Record<string, unknown>).safety).toBeDefined()
 })
 
-test('on one of their days, a long turn reminds; Going, and a later turn asks what they hit', OPTIONS, async ($, on) => {
-  const store = ownStore(on, { routine: { days: [TODAYS] } })
+test('while the agent works: a reminder; one tap logs it, and the gap holds the next one off', OPTIONS, async ($, on) => {
+  const store = ownStore(on, REMIND)
   const { clock, w } = world(on, null, 'own-store')
   await $.session.start(SESSION)
-  const remind = await longTurn($, clock, 't1')
-  expect(remind.keys).toEqual(['going', 'did', 'skipday'])
-  await $.command.run(workout('going'))
-  expect(w.toasts.at(-1)).toBe(line('remind-going', { day: TODAY }))
-  expect((store.get('routine') as Routine).going?.d).toBe(TODAY)
+  expect((await longTurn($, clock, 't1')).keys).toEqual(REMIND_KEYS)
+  await $.command.run(workout('cardio'))
+  expect(w.toasts.at(-1)).toMatch(/^Cardio/)
   await $.turn.complete(done('t1'))
-  // Too soon: no question yet.
+  // Inside the gap: nothing.
   expect((await longTurn($, clock, 't2')).keys).toEqual([])
   await $.turn.complete(done('t2'))
-  await clock.advance(ASK_AFTER_MS)
-  const ask = await longTurn($, clock, 't3')
-  expect(ask.keys).toEqual(['upper', 'lower', 'full', 'cardio', 'other', 'didnt'])
-  await $.command.run(workout('upper'))
-  expect(trained(store)).toMatchObject([{ kind: 'trained', d: TODAY, what: 'upper' }])
-  expect((store.get('routine') as Routine).going).toBeUndefined()
+  await clock.advance(15 * 60_000)
+  expect((await longTurn($, clock, 't3')).keys).toEqual(REMIND_KEYS)
+  expect(moved(store)).toHaveLength(1)
 })
 
-test('not one of their days: no reminder, however long the turn', OPTIONS, async ($, on) => {
-  const { clock } = world(on, null, { routine: { days: [OTHER_DAY] } })
+test('Later holds it off for the gap; Not today for the day', OPTIONS, async ($, on) => {
+  const { clock } = world(on, null, REMIND)
+  await $.session.start(SESSION)
+  await longTurn($, clock, 't1')
+  await $.command.run(workout('later'))
+  expect((await bandOf($)).keys).toEqual([])
+  await $.turn.complete(done('t1'))
+  await clock.advance(15 * 60_000)
+  expect((await longTurn($, clock, 't2')).keys).toEqual(REMIND_KEYS)
+  await $.command.run(workout('skipday'))
+  await $.turn.complete(done('t2'))
+  await clock.advance(60 * 60_000)
+  expect((await longTurn($, clock, 't3')).keys).toEqual([])
+})
+
+test('a short turn, paused, or quiet hours: no reminder', OPTIONS, async ($, on) => {
+  const { clock } = world(on, null, { ...REMIND, paused: true })
   await $.session.start(SESSION)
   expect((await longTurn($, clock, 't1')).keys).toEqual([])
 })
 
-test('Not today: no reminder again that day', OPTIONS, async ($, on) => {
-  const { clock } = world(on, null, { routine: { days: [TODAYS] } })
+test('Swolomon still misreads the agent in Just remind me', OPTIONS, async ($, on) => {
+  const { clock } = world(on, null, REMIND)
   await $.session.start(SESSION)
-  await longTurn($, clock, 't1')
-  await $.command.run(workout('skipday'))
-  await $.turn.complete(done('t1'))
-  expect((await longTurn($, clock, 't2')).keys).toEqual([])
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  await $.tool.call({ tool: 'Read', file_path: '/x' } as never)
+  await $.turn.complete({ turnId: 't1', answer: '', reason: 'answer', durationMs: 183_000, isAborted: false } as never)
+  const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', component: 'TurnDuration', props: { word: 'Baked', durationMs: 183_000 } })
+  expect(drawnRows(await ui.drawn())[1]).toMatch(/^Swolomon: Your agent read a fitness magazine/)
+  await ui.unmount()
+  void clock
 })
 
-test('Already did: straight to what it was, logged today', OPTIONS, async ($, on) => {
-  const store = ownStore(on, { routine: { days: [TODAYS] } })
-  const { clock } = world(on, null, 'own-store')
+test('a set from a reminder can rank you up', OPTIONS, async ($, on) => {
+  world(on, null, { ...REMIND, totalDoneSets: 24 })
   await $.session.start(SESSION)
-  await longTurn($, clock, 't1')
-  await $.command.run(workout('did'))
-  await $.command.run(workout('cardio'))
-  expect(trained(store)).toMatchObject([{ d: TODAY, what: 'cardio' }])
-  // Logged today: no reminder after that.
-  await $.turn.complete(done('t1'))
-  expect((await longTurn($, clock, 't2')).keys).toEqual([])
-})
-
-test("Didn't go: nothing logged, and the question goes", OPTIONS, async ($, on) => {
-  const store = ownStore(on, { routine: { days: [TODAYS], going: { d: TODAY - 1, t: NOON - 86_400_000 } } })
-  const { clock } = world(on, null, 'own-store')
-  await $.session.start(SESSION)
-  const ask = await longTurn($, clock, 't1')
-  expect(ask.text).toContain(line('trained-detail-late', { day: TODAY, when: 'yesterday' }))
-  await $.command.run(workout('didnt'))
-  expect(trained(store)).toEqual([])
-  expect((store.get('routine') as Routine).going).toBeUndefined()
-})
-
-test('a session from an earlier day is logged on that day', OPTIONS, async ($, on) => {
-  const store = ownStore(on, { routine: { days: [OTHER_DAY], going: { d: TODAY - 2, t: NOON - 2 * 86_400_000 } } })
-  const { clock } = world(on, null, 'own-store')
-  await $.session.start(SESSION)
-  await longTurn($, clock, 't1')
+  await $.command.run(workout('log'))
   await $.command.run(workout('lower'))
-  expect(trained(store)).toMatchObject([{ d: TODAY - 2, what: 'lower' }])
+  const band = await bandOf($)
+  expect(band.keys).toEqual(['letsgo'])
+  expect(band.text).toContain('Rank up')
 })
 
-test('/workout days names the days; reminders replace the plan’s sets', OPTIONS, async ($, on) => {
-  const store = ownStore(on, {})
-  const { clock } = world(on, TINY, 'own-store')
-  await $.session.start(SESSION)
-  expect((await $.command.run(workout(`days ${TODAYS}`))).text).toBe(line('days-set', { day: TODAY, days: daysLabel([TODAYS]) }))
-  expect((store.get('routine') as Routine).days).toEqual([TODAYS])
-  // TINY would cue a set today: with reminders, the reminder comes instead.
-  expect((await longTurn($, clock, 't1')).keys).toEqual(['going', 'did', 'skipday'])
-  expect((await $.command.run(workout('days someday'))).text).toBe(line('reply-days-usage', { day: TODAY }))
-})
-
-test('/workout in reminders: the week, the count, their days, and its own buttons', OPTIONS, async ($, on) => {
-  const history: HistoryEntry[] = [{ kind: 'trained', t: NOON, d: TODAY, what: 'full' }]
-  const { w } = world(on, null, { routine: { days: ['mon', 'wed', 'fri'] }, history })
+test('/workout in Just remind me: today, the week, the rank, and its own buttons', OPTIONS, async ($, on) => {
+  const history: HistoryEntry[] = [{ kind: 'moved', t: NOON, d: TODAY, what: 'upper' }, { kind: 'moved', t: NOON + 1, d: TODAY, what: 'cardio' }]
+  const { w } = world(on, null, { ...REMIND, history, totalDoneSets: 2 })
   await $.session.start(SESSION)
   await $.command.run(workout(''))
   expect(w.opened).toContain('workout-status')
   const pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...STATUS })
   const rows = drawnRows(await pane.drawn()).join('\n')
-  expect(rows).toContain('Mon Wed Fri')
-  expect(rows).toContain('1 of 3')
-  expect(rows).toContain('Last session: Full body, today')
-  expect((await pane.findAll({ type: 'Button' })).map(b => String(b.key))).toEqual(['log', 'days', 'plan', 'close'])
+  expect(rows).toContain('2 sets')
+  expect(rows).toContain('Last set: Cardio, today')
+  expect(rows).toContain('Rank:')
+  expect((await pane.findAll({ type: 'Button' })).map(b => String(b.key))).toEqual(['now', 'plan', 'close'])
+  await pane.press({ key: 'now' })
   await pane.unmount()
-  expect((await $.command.run(workout('status'))).text).toBe(line('routine-status', { day: TODAY, days: 'Mon Wed Fri', done: 1, of: 3, today: 'Trained today.' }))
+  expect((await bandOf($)).keys).toEqual(REMIND_KEYS)
+  expect((await $.command.run(workout('status'))).text).toBe(line('remind-status', { day: TODAY, n: 2, week: 2 }))
 })
 
-test('the footer says it is a lift day, and done once trained', OPTIONS, async ($, on) => {
-  world(on, null, { routine: { days: [TODAYS] } })
+test('the footer counts today’s sets', OPTIONS, async ($, on) => {
+  world(on, null, REMIND)
   await $.session.start(SESSION)
-  expect(await tallyOf($)).toBe('💪 lift day')
+  expect(await tallyOf($)).toBeUndefined()
   await $.command.run(workout('log'))
-  await $.command.run(workout('upper'))
-  expect(await tallyOf($)).toBe('💪 done')
+  await $.command.run(workout('other'))
+  expect(await tallyOf($)).toBe('💪 1 today')
 })
 
-test('/workout log any day, and without reminders it says how to set them', OPTIONS, async ($, on) => {
-  world(on, null, {})
+test('/workout log and /workout remind: off, it says how to turn it on; /workout remind turns it on', OPTIONS, async ($, on) => {
+  const store = ownStore(on, {})
+  world(on, TINY, 'own-store')
   await $.session.start(SESSION)
-  expect((await $.command.run(workout('log'))).text).toBe(line('reply-no-routine', { day: TODAY }))
+  expect((await $.command.run(workout('log'))).text).toBe(line('reply-no-remind', { day: TODAY }))
+  expect((await $.command.run(workout('remind'))).text).toBe(line('reply-remind-on', { day: TODAY }))
+  expect(store.get('mode')).toBe('remind')
 })
 
-test('a plan replaces reminders: Get a plan from the pane, Quick start, and the reminders are gone', OPTIONS, async ($, on) => {
-  const store = ownStore(on, { ...ACKED, routine: { days: [TODAYS] } })
+test('a plan replaces Just remind me: Get a plan from the pane, Quick start', OPTIONS, async ($, on) => {
+  const store = ownStore(on, REMIND)
   world(on, null, 'own-store')
   await $.session.start(SESSION)
   await $.command.run(workout(''))
@@ -175,11 +156,11 @@ test('a plan replaces reminders: Get a plan from the pane, Quick start, and the 
   expect((await bandOf($)).keys).toEqual(['quickstart', 'setup', 'own', 'back'])
   await $.command.run(workout('quickstart'))
   await $.command.run(workout('desk'))
-  expect(store.get('routine')).toBeUndefined()
+  expect(store.get('mode')).toBeUndefined()
 })
 
-test('I have my own: how to paste it, or where the file is; Back to the three ways', OPTIONS, async ($, on) => {
-  world(on, null, ACKED, { fresh: true })
+test('I have my own: how to paste it, or where the file is; Back, and Back again to the introduction', OPTIONS, async ($, on) => {
+  world(on, null, {}, { fresh: true })
   await $.session.start(SESSION)
   await $.command.run(workout('program'))
   await $.command.run(workout('own'))
@@ -189,11 +170,11 @@ test('I have my own: how to paste it, or where the file is; Back to the three wa
   await $.command.run(workout('back'))
   expect((await bandOf($)).keys).toEqual(['quickstart', 'setup', 'own', 'back'])
   await $.command.run(workout('back'))
-  expect((await bandOf($)).keys).toEqual(['program', 'remind', 'notnow', 'dontask'])
+  expect((await bandOf($)).keys).toEqual(['quickstart', 'remind', 'program', 'notnow'])
 })
 
 test('Quick start with weights: the starter plan built for dumbbells, a bar and bands', OPTIONS, async ($, on) => {
-  const { w } = world(on, null, ACKED)
+  const { w } = world(on, null)
   await $.session.start(SESSION)
   await $.command.run(workout('quickstart'))
   expect((await bandOf($)).keys).toEqual(['desk', 'home', 'gym'])
@@ -203,24 +184,11 @@ test('Quick start with weights: the starter plan built for dumbbells, a bar and 
   expect(w.toasts).toContain(line('quick-start-gym', { day: TODAY }))
 })
 
-test('the safety step remembers which way in asked for it', OPTIONS, async ($, on) => {
-  world(on, TINY, {}, { fresh: true })
-  await $.session.start(SESSION)
-  await $.command.run(workout('remind'))
-  await $.command.run(workout('understand'))
-  expect((await bandOf($)).keys).toContain('mwf')
-})
-
-test('reminder words: the days parsed from any spelling, the week marked, the question timed', () => {
-  expect(parseDays('Mon, wednesday & FRI')).toEqual(['mon', 'wed', 'fri'])
-  expect(parseDays('sunday saturday')).toEqual(['sat', 'sun'])
-  expect(parseDays('someday')).toBeNull()
-  expect(daysLabel(['fri', 'mon'])).toBe('Mon Fri')
-  expect(daysLabel(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'])).toBe('Every day')
-  const routine: Routine = { days: [TODAYS] }
-  const marks = routineWeekMarks(routine, [{ kind: 'trained', t: NOON, d: TODAY, what: 'upper' }], TODAY)
+test('ideas: three at a time, a different three each time, every idea in turn', () => {
+  expect(ideasFor(0)).toHaveLength(3)
+  expect(ideasFor(1)).not.toEqual(ideasFor(0))
+  const seen = new Set(Array.from({ length: IDEAS.length }, (_, n) => ideasFor(n)).flat())
+  expect(seen.size).toBe(IDEAS.length)
+  const marks = remindWeekMarks([{ kind: 'moved', t: NOON, d: TODAY, what: 'upper' }], TODAY)
   expect(marks.filter(m => m === '●')).toHaveLength(1)
-  expect(wantsLog({ ...routine, going: { d: TODAY, t: NOON } }, NOON + ASK_AFTER_MS - 1, TODAY)).toBe(false)
-  expect(wantsLog({ ...routine, going: { d: TODAY, t: NOON } }, NOON + ASK_AFTER_MS, TODAY)).toBe(true)
-  expect(wantsLog({ ...routine, going: { d: TODAY - 1, t: NOON } }, NOON, TODAY)).toBe(true)
 })

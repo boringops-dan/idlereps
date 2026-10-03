@@ -182,16 +182,16 @@ export const LINES = [
   { id: 'pane-rest', voice: 'swolomon', variants: ['Rest day, {mate}. Muscles grow on the couch.', 'No sets today, {mate}. Recovery is a lift too.'] },
   { id: 'pane-declined', voice: 'swolomon', variants: ['Rest is training too, {mate}. See you {nextDay}.'] },
   { id: 'pane-paused', voice: 'swolomon', variants: ['Paused, {mate}. The iron will wait for you.'] },
-  // Just remind me: the pane, the reminder, what was trained.
-  { id: 'routine-pane-day', voice: 'swolomon', variants: ['Lift day, {mate}. The iron is calling. Pick up.', 'Your day, {mate}. Go make the weights nervous.'] },
-  { id: 'routine-pane-going', voice: 'swolomon', variants: ["Out training, {mate}. Tell me what you hit when you're back."] },
-  { id: 'routine-pane-done', voice: 'swolomon', variants: ['Trained today, {mate}. The iron remembers.', 'Session logged, {mate}. That is the way.'] },
-  { id: 'routine-pane-rest', voice: 'swolomon', variants: ['Rest day, {mate}. Muscles grow on the couch. Next: {nextDay}.'] },
-  { id: 'remind-ask', voice: 'swolomon', variants: ["Lift day, {mate}. Your agent's busy. Go hit it?", "{AgentDoing}. Your turn, {mate}.", 'The iron is calling, {mate}. Going today?'] },
-  { id: 'remind-going', voice: 'swolomon', variants: ["Go get it, {mate}. I'll ask what you hit.", "That's the spirit, {mate}. Go."] },
-  { id: 'trained-ask', voice: 'swolomon', variants: ['Back from the iron, {mate}? What did you hit?', 'Welcome back, {mate}. What did we train?'] },
-  { id: 'trained-logged', voice: 'swolomon', variants: ['{what} logged, {mate}. {n} sessions this week.', '{what}, {mate}. Written in the scrolls. {n} this week.'] },
-  { id: 'days-ask', voice: 'swolomon', variants: ['Which days do you train, {mate}? I will hold you to them.'] },
+  // Just remind me: a set, anything, while the agent works.
+  { id: 'remind-first', voice: 'swolomon', variants: ['Deal, {mate}. Your agent works, you do a set. Try one now?'] },
+  {
+    id: 'remind-ask',
+    voice: 'swolomon',
+    variants: ["Your agent's busy, {mate}. Drop and give me a set. Anything.", '{AgentDoing}. Your turn, {mate}: one set.', 'The iron is calling, {mate}. One set, any set.'],
+  },
+  { id: 'moved-logged', voice: 'swolomon', variants: ['{what} logged, {mate}. {n} today.', '{what}, {mate}. Written in the scrolls. {n} today.'] },
+  { id: 'remind-pane-fresh', voice: 'swolomon', variants: ["No sets yet today, {mate}. Your agent's next long task is yours."] },
+  { id: 'remind-pane-done', voice: 'swolomon', variants: ['{n} sets today, {mate}. The iron remembers.'] },
   { id: 'program-ask', voice: 'swolomon', variants: ["A program! Now we're talking, {mate}. How do we build it?"] },
   { id: 'byoplan-ask', voice: 'swolomon', variants: ['Got your own program, {mate}? Show me.'] },
   { id: 'pane-finished', voice: 'swolomon', variants: ['The whole program, {mate}. Legends are made like this.'] },
@@ -254,8 +254,6 @@ export const LINES = [
     voice: 'swolomon',
     variants: ["Your agent's on it, {mate}. Perfect time for a first set.", 'Waiting on your agent, {mate}? {coach} has a set for that.'],
   },
-  // Onboarding's last step, before the first set: how training here works.
-  { id: 'howto', voice: 'swolomon', variants: ["Here's how we train together, {mate}."] },
   // Quick start's one question.
   { id: 'where-ask', voice: 'swolomon', variants: ['Where do you train, {mate}? Iron or not, I build for it.'] },
   // The week's finish line.
@@ -332,28 +330,16 @@ export const LINES = [
   { id: 'feat-full-week', voice: 'swolomon', variants: ["A full week, {mate}. Every training day. That's how legends start."] },
 
   // Plain: bands.
-  { id: 'howto-header', voice: 'plain', variants: ['How IdleReps works'] },
-  { id: 'howto-sets', voice: 'plain', variants: ['A set shows up here while your agent works on something long.'] },
-  { id: 'howto-keys', voice: 'plain', variants: ['Busy? Press Later and it comes back. Half a workout still counts.'] },
-  { id: 'howto-gap', voice: 'plain', variants: ['It waits between sets and never interrupts your typing.'] },
-  { id: 'howto-more', voice: 'plain', variants: ['/workout shows your week. /workout flex shows off.'] },
-  { id: 'howto-remind-days', voice: 'plain', variants: ['On your days, a reminder shows up here while your agent works.'] },
-  { id: 'howto-remind-keys', voice: 'plain', variants: ["Going? Press 1. When you're back, log what you hit in one tap."] },
-  { id: 'howto-remind-gap', voice: 'plain', variants: ["Can't make it? Not today. It never interrupts your typing."] },
-  { id: 'howto-remind-more', voice: 'plain', variants: ['/workout shows your week. /workout log logs a session any day.'] },
-  { id: 'remind-detail', voice: 'plain', variants: ['Your days: {days}. Already been? 2 logs it.'] },
-  { id: 'trained-detail', voice: 'plain', variants: ['One tap: what the session was. It counts toward your week.'] },
-  { id: 'trained-detail-late', voice: 'plain', variants: ['From {when}. One tap: what the session was.'] },
-  { id: 'days-detail', voice: 'plain', variants: ['Any other days: /workout days mon thu sat'] },
+  { id: 'remind-ideas', voice: 'plain', variants: ['Ideas: {ideas}'] },
+  { id: 'remind-skipped', voice: 'plain', variants: ['Not today. Back tomorrow.'] },
+  { id: 'remind-status', voice: 'plain', variants: ['Just remind me. Today: {n} sets. This week: {week} sets.'] },
+  { id: 'reply-remind-on', voice: 'plain', variants: ['Just remind me is on: any set you like, while your agent works.'] },
+  { id: 'reply-no-remind', voice: 'plain', variants: ['Just remind me is off. /workout remind turns it on.'] },
+  { id: 'reply-dontask', voice: 'plain', variants: ["Swolomon won't ask again. /workout setup or /workout remind any time."] },
+  { id: 'safety-short', voice: 'plain', variants: ['Not medical advice. Stop if anything hurts; ask a doctor if unsure.'] },
   { id: 'program-detail', voice: 'plain', variants: ['Quick start: a starter plan now. Build: your gear, days, goal. Own: paste yours.'] },
   { id: 'byoplan-paste', voice: 'plain', variants: ['Type /workout plan, then paste it: any format, any app. It reads it.'] },
   { id: 'byoplan-file', voice: 'plain', variants: ['Or write it by hand: {path}'] },
-  { id: 'days-set', voice: 'plain', variants: ['Your days: {days}. A reminder comes while your agent works.'] },
-  { id: 'trained-didnt', voice: 'plain', variants: ['No session logged. Showing up next time still counts.'] },
-  { id: 'remind-skipped', voice: 'plain', variants: ['Not today. Next up: {nextDay}.'] },
-  { id: 'reply-days-usage', voice: 'plain', variants: ['Name the days you train: /workout days mon wed fri'] },
-  { id: 'reply-no-routine', voice: 'plain', variants: ['No reminders set. /workout days mon wed fri sets them up.'] },
-  { id: 'routine-status', voice: 'plain', variants: ['Reminders on {days}. This week: {done} of {of}. {today}'] },
   { id: 'reply-meet', voice: 'plain', variants: ['Swolomon is just above the prompt: press 1 to begin.'] },
   { id: 'intro-header', voice: 'plain', variants: ['IdleReps · a workout plan and tracker that runs while your agent works'] },
   { id: 'ask-detail', voice: 'plain', variants: ['First up: {exercise}, {amount} · about {time}.'] },
@@ -473,7 +459,6 @@ export const LINES = [
   { id: 'reply-plan-written', voice: 'plain', variants: ['Plan ready: {name}. {workouts} workouts, {schedule}. Written to {path}.'] },
   { id: 'reply-plan-failed', voice: 'plain', variants: ["That didn't turn into a plan ({reason}). Nothing changed. Try describing it differently."] },
   { id: 'reply-plan-unreachable', voice: 'plain', variants: ["Couldn't reach the model ({reason}). Nothing changed."] },
-  { id: 'reply-safety-first', voice: 'plain', variants: ['{safety} Run /workout setup to accept it first.'] },
   { id: 'reply-setup-opened', voice: 'plain', variants: ['Setup is open.'] },
   { id: 'reply-swolomon-busy', voice: 'plain', variants: ['{coach} is spotting your set. /workout swolomon again after it.'] },
 ] as const satisfies readonly LineEntry[]
@@ -536,7 +521,7 @@ const INTRO = [
   "{coach}. I don't breathe air, I breathe reps. Lifting is life.",
   'You hand your agent work? Cute. I hand YOU work.',
   'Your agent grinds, you lift. Press 1 when the set is done. Glory.',
-  'Want a full plan from me, or just reminders to train, {mate}?',
+  'A plan from me, or just a nudge to move, {mate}?',
 ] as const
 
 /** The introduction's last line when a plan is already there (made by hand, or brought from before). */

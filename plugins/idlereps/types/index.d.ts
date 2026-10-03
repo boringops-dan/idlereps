@@ -88,18 +88,14 @@ export type HistoryEntry =
   | { kind: 'rating'; t: number; d: number; w: number; rating: Rating }
   /** A rest-day stretch: counts toward time moved, never toward sets, ranks or progression. */
   | { kind: 'stretch'; t: number; d: number; exercise: string; seconds: number }
-  /** A session trained away from the desk (Remind me mode): what it was, on the day it was done. */
-  | { kind: 'trained'; t: number; d: number; what: Trained }
+  /** A set of their own choosing (Just remind me): what it worked, logged in one tap. Counts as a set. */
+  | { kind: 'moved'; t: number; d: number; what: Moved }
 
-/** What a session away from the desk trained, in one tap. */
-export type Trained = 'upper' | 'lower' | 'full' | 'cardio' | 'other'
+/** What a Just remind me set worked. */
+export type Moved = 'upper' | 'lower' | 'cardio' | 'other'
 
-/**
- * Remind me mode (store key `routine`): no plan, the person trains their own way on their days, and
- * Swolomon reminds them while the agent works and asks what they hit. `going` is the day they said they were
- * going and when, until they log it.
- */
-export type Routine = { days: Weekday[]; going?: { d: number; t: number } }
+/** How they train without a plan (store key `mode`): 'remind' is Just remind me. */
+export type Mode = 'remind'
 
 export type Rating = 'easy' | 'good' | 'tough'
 
@@ -176,7 +172,7 @@ export type RatingBasis = {
 }
 export type SetResult = { result: 'done' | 'skip'; count?: number }
 
-export type BandKind = 'remind' | 'trained' | 'days' | 'program' | 'byoplan' | 'howto' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'safety' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex'
+export type BandKind = 'remind' | 'program' | 'byoplan' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'safety' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex'
 
 /** How a piece of text is coloured: the theme's own colours, so light and dark themes both read. */
 export type Tone = 'accent' | 'good' | 'muted'
@@ -207,8 +203,6 @@ export type BandSpec = {
   entrance?: true
   /** Once his line is out, the move he acts out in the full portrait (§1.11 Moves; an id in moves.ts). */
   act?: string
-  /** The band's safety step: where I understand goes next (the way in that asked for it). */
-  then?: 'quickstart' | 'keep' | 'remind'
   /**
    * The hold timer (§1.12 item 1) on a timed set: when it ends, the hold's seconds, which side of how
    * many, and the whole seconds left as last drawn.
@@ -310,8 +304,8 @@ export type StatusView = {
   isRestDay: boolean
   /** A set done this week: the pane offers Share week. */
   canShare: boolean
-  /** Remind me mode's pane: its own buttons (log a session, change days, get a plan). */
-  isRoutine?: true
+  /** Just remind me's pane: its own buttons (a set now, get a plan). */
+  isRemind?: true
 }
 
 declare module 'claude-code' {

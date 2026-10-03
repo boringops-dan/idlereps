@@ -337,10 +337,9 @@ test('animated: a button pressed during the entrance does its job at once', ANIM
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   await clock.advance(500)
   expect(await ui.find({ key: 'stage' })).toBeDefined()
-  await ui.press({ key: 'program' })
   await ui.press({ key: 'quickstart' })
-  // Quick start's next step, the safety step, takes the band at once.
-  expect(await ui.find({ key: 'understand' })).toBeDefined()
+  // Quick start's next step, its one question, takes the band at once.
+  expect(await ui.find({ key: 'desk' })).toBeDefined()
   expect(w.writes).toEqual([])
   await ui.unmount()
 })
@@ -754,48 +753,44 @@ test('Quick start on a training day: the first set offered with how the rest wil
   await ui.unmount()
 })
 
-test('the safety step in the band: Back returns to the introduction, without walking on again', ANIMATED, async ($, on) => {
+test('Build my own: Back returns to the introduction, without walking on again', ANIMATED, async ($, on) => {
   const { w } = world(on, null)
   blitLog(on)
   await $.session.start(SESSION)
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   await ui.press({ key: 'program' })
-  await ui.press({ key: 'quickstart' })
-  expect(await ui.find({ type: 'Text', text: line('safety-header', { day: TODAY }) })).toBeDefined()
+  expect(await ui.find({ key: 'own' })).toBeDefined()
   await ui.press({ key: 'back' })
-  expect(await ui.find({ key: 'program' })).toBeDefined()
+  expect(await ui.find({ key: 'quickstart' })).toBeDefined()
   expect(await ui.find({ key: 'stage' })).toBeUndefined()
   expect(w.writes).toEqual([])
   await ui.unmount()
 })
 
-test('the safety step answers /workout understand, and is never asked twice', OPTIONS, async ($, on) => {
+test('Quick start again after the plan file went: straight to its question, then the plan', OPTIONS, async ($, on) => {
   const { w } = world(on, null)
   await $.session.start(SESSION)
   await $.command.run(workout('quickstart'))
-  expect((await $.command.run(workout('understand'))).text).toBeUndefined()
   await $.command.run(workout('desk'))
   expect(w.writes.some(write => write.path === PLAN_PATH)).toBe(true)
-  // The plan file deleted, the introduction back: Quick start goes straight to the plan.
   await $.command.run(workout('later'))
   w.file.text = null
   await $.command.run(workout('swolomon'))
-  expect(w.writes.length).toBeGreaterThan(0)
   const before = w.writes.length
   await $.command.run(workout('quickstart'))
   await $.command.run(workout('home'))
   expect(w.writes.length).toBeGreaterThan(before)
 })
 
-test('the safety step is a sentence a row, within the tall budget at 80 columns', OPTIONS, async ($, on) => {
-  world(on, null)
+test('the safety note on the first offer: one row, within the band at 80 columns', OPTIONS, async ($, on) => {
+  world(on, null, {}, { fresh: true })
   await $.session.start(SESSION)
   await $.command.run(workout('quickstart'))
+  await $.command.run(workout('desk'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND, props: { ...BAND.props, bodyColumns: 80 } })
   const rows = drawnRows(await ui.drawn())
-  expect(rows).toEqual([line('safety-header', { day: TODAY }), ...SAFETY_SENTENCES, '1: I understand   2: Back'])
-  // The long sentence wraps once at 80 columns: 6 rows drawn, within 8.
-  expect(rows.reduce((n, row) => n + Math.max(1, Math.ceil(row.length / 80)), 0)).toBe(6)
+  expect(rows).toContain(line('safety-short', { day: TODAY }))
+  expect(rows.every(row => row.length <= 80)).toBe(true)
   await ui.unmount()
 })
 

@@ -32,7 +32,7 @@ export const STORE_KEYS = [
   { key: 'laterStreak', shape: '{ day, n }: Laters in a row today', inBackup: false },
   { key: 'workIntervals', shape: 'WorkIntervals: each local day\'s merged turn intervals (§1.9)', cap: 14, inBackup: false },
   { key: 'installId', shape: 'a random UUID: the anonymous id telemetry and feedback carry (D9)', inBackup: false },
-  { key: 'routine', shape: 'Routine: Remind me mode, its days and a session not yet logged', inBackup: true },
+  { key: 'mode', shape: "Mode: 'remind' for Just remind me, absent with a plan", inBackup: true },
   { key: 'easyDay', shape: 'local day number the gap is doubled on (a busy day)', inBackup: false },
 ] as const satisfies readonly StoreKeyInfo[]
 

@@ -54,7 +54,7 @@ export function streak(plan: Plan, history: readonly HistoryEntry[], today: numb
 export function daysShowedUp(history: readonly HistoryEntry[], today: number, span = 30): number {
   const days = new Set<number>()
   for (const e of history) {
-    const isDone = (e.kind === 'set' && e.result === 'done') || e.kind === 'stretch' || e.kind === 'trained'
+    const isDone = (e.kind === 'set' && e.result === 'done') || e.kind === 'stretch' || e.kind === 'moved'
     if (isDone && e.d > today - span && e.d <= today) days.add(e.d)
   }
   return days.size

@@ -57,11 +57,9 @@ const FILLS = {
   schedule: 'Mon Wed Fri',
   status: 'status',
   sets: 9999,
-  what: 'A session',
-  days: 'Mon Tue Wed Thu Fri Sat',
-  done: 7,
-  of: 7,
-  today: 'Out training: /workout log when back.',
+  what: 'Cardio',
+  ideas: 'a minute of jumping jacks · a minute of high knees · 10 lunges a leg',
+  week: 9999,
   wait: 'about 55 min',
   minutes: '12 h 45 min',
   from: 'Wednesday',
@@ -179,7 +177,7 @@ test('the introduction, verbatim, its address term only in the last line', () =>
       "Swolomon. I don't breathe air, I breathe reps. Lifting is life.",
       'You hand your agent work? Cute. I hand YOU work.',
       'Your agent grinds, you lift. Press 1 when the set is done. Glory.',
-      `Want a full plan from me, or just reminders to train, ${mate}?`,
+      `A plan from me, or just a nudge to move, ${mate}?`,
     ])
     expect(lines.map(l => words(l, ADDRESS_TERMS).length)).toEqual([0, 0, 0, 1])
     for (const l of lines) expect(fill(l, {}).length).toBeLessThanOrEqual(80)
@@ -209,17 +207,6 @@ test('the first-run band: header, four lines, live buttons; /workout swolomon re
   expect(JSON.stringify([...store.entries()])).toBe(before)
   await $.turn.start({ text: 'go', turnId: 't1' })
   expect(await ui.find({ type: 'Text', text: introLines(TODAY)[0] ?? '' })).toBeUndefined()
-  await ui.unmount()
-})
-
-test('how it works: header, his line, four rows and Got it inside the tall band at 80 columns', OPTIONS, async ($, on) => {
-  world(on, TINY, { seen: { safety: { at: 1, n: 1 } } }, { fresh: true })
-  await $.session.start(SESSION)
-  await $.command.run(workout('keep'))
-  const narrow = { ...BAND, props: { ...BAND.props, bodyColumns: 80 } }
-  const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...narrow })
-  expect(await ui.find({ key: 'gotit' })).toBeDefined()
-  expect(rowsOf(await ui.drawn(), 80)).toBeLessThanOrEqual(8)
   await ui.unmount()
 })
 
@@ -575,6 +562,7 @@ test('the beat moves on with each line that names the agent, shared by sessions,
 // D22: nothing the product shows says "Claude".
 
 test('no band, pane, toast, status line or reply says Claude', OPTIONS, async ($, on) => {
+  on('model.complete', () => ({ value: { isAnswered: false, reason: 'aborted', usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } }))
   const { clock, w } = world(on, null)
   const shown: string[] = []
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })

@@ -15,26 +15,27 @@ const planWritten = (writes: { path: string; text: string }[]): Plan | undefined
   return last === undefined ? undefined : parsePlan(last.text)
 }
 
-test('the first-run band: Quick start, after the safety step, writes exactly the starter plan', OPTIONS, async ($, on) => {
-  const { w } = world(on, null)
+test('the first-run band: Quick start, one question, the starter plan, and its first set with the safety note', OPTIONS, async ($, on) => {
+  const { w } = world(on, null, {}, { fresh: true })
   await $.session.start(SESSION)
   const band = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   expect(await band.find({ type: 'Text', text: 'IdleReps · a workout plan and tracker that runs while your agent works' })).toBeDefined()
-  await band.press({ key: 'program' })
   await band.press({ key: 'quickstart' })
+  // One question first: where the person trains. Nothing is written until it is answered; no pane opens.
   expect(w.writes).toEqual([])
-  // The safety step shows in the band itself, a sentence a row; no pane opens.
   expect(w.opened).toEqual([])
-  for (const sentence of SAFETY_SENTENCES) expect(await band.find({ type: 'Text', text: sentence })).toBeDefined()
-  expect(SAFETY_SENTENCES.join(' ')).toBe(SAFETY_TEXT)
-  await band.press({ key: 'understand' })
-  // One question first: where the person trains. Nothing is written until it is answered.
-  expect(w.writes).toEqual([])
   expect(await band.find({ type: 'Text', text: line('where-detail', { day: TODAY }) })).toBeDefined()
   await band.press({ key: 'desk' })
   expect(planWritten(w.writes)).toEqual(generateProgram(STARTER_ANSWERS))
   expect(w.toasts).toContain('Starter plan ready: no gear, no floor, Mon Wed Fri. /workout setup to change it.')
-  expect(await band.find({ key: 'program' })).toBeUndefined()
+  // Two presses in, the first set is offered, the safety note on it until it is answered.
+  expect(await band.find({ key: 'start' })).toBeDefined()
+  expect(await band.find({ type: 'Text', text: line('safety-short', { day: TODAY }) })).toBeDefined()
+  await band.press({ key: 'start' })
+  await $.command.run(workout('done'))
+  await $.command.run(workout('later'))
+  await $.command.run(workout('now'))
+  expect(await band.find({ type: 'Text', text: line('safety-short', { day: TODAY }) })).toBeUndefined()
   await band.unmount()
 })
 
@@ -42,7 +43,6 @@ test('Quick start once the safety step was acknowledged writes the plan at once'
   const { w } = world(on, null, ACKED)
   await $.session.start(SESSION)
   const band = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await band.press({ key: 'program' })
   await band.press({ key: 'quickstart' })
   await band.press({ key: 'home' })
   expect(planWritten(w.writes)?.name).toBe('Beginner general fitness · 3x/week · 4 weeks')
@@ -52,7 +52,7 @@ test('Quick start once the safety step was acknowledged writes the plan at once'
 })
 
 test('Close on the safety step writes nothing, and the step never shows once acknowledged', OPTIONS, async ($, on) => {
-  const { w } = world(on, null)
+  const { w } = world(on, null, {}, { fresh: true })
   await $.session.start(SESSION)
   await $.command.run(workout('setup'))
   const pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...SETUP })
@@ -67,13 +67,18 @@ test('Close on the safety step writes nothing, and the step never shows once ack
   await pane.unmount()
 })
 
-test('/workout plan before the safety step writes nothing and answers with its copy', OPTIONS, async ($, on) => {
-  const { w } = world(on, null)
+test('/workout plan before the safety note: the plan is written, and its first offer carries the note', OPTIONS, async ($, on) => {
+  on('model.complete', () => ({
+    value: { isAnswered: true, text: JSON.stringify(TINY), usage: { input_tokens: 1, output_tokens: 1, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } },
+  }))
+  const { w } = world(on, null, {}, { fresh: true })
   await $.session.start(SESSION)
-  const said = JSON.stringify(await $.command.run(workout('plan 5x5 squats Mon Wed Fri')))
-  expect(said).toContain('it is not medical advice')
-  expect(said).toContain('Run /workout setup to accept it first.')
-  expect(w.writes).toEqual([])
+  await $.command.run(workout('plan 5x5 squats Mon Wed Fri'))
+  expect(w.writes.some(x => x.path.endsWith('plan.json'))).toBe(true)
+  const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
+  expect(await ui.find({ type: 'Text', text: line('safety-short', { day: TODAY }) })).toBeDefined()
+  expect(await ui.find({ key: 'start' })).toBeDefined()
+  await ui.unmount()
 })
 
 test('the safety copy is verbatim', () => {
@@ -278,7 +283,7 @@ test('the first-run band: Don’t ask again marks it for good', OPTIONS, async (
   world(on, null, 'own-store')
   await $.session.start(SESSION)
   const band = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await band.press({ key: 'dontask' })
+  expect((await $.command.run(workout('dontask'))).text).toBe(line('reply-dontask', { day: TODAY }))
   expect(await band.find({ key: 'program' })).toBeUndefined()
   expect((store.get('seen') as Record<string, unknown>)['setup-prompt']).toBeDefined()
   await band.unmount()

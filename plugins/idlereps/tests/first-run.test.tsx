@@ -46,7 +46,7 @@ test('a later session opens quietly: no band until the agent is working', OPTION
   expect(nudged).toBe(true)
   expect(rows).toContain(line('nudge', { day: TODAY }))
   expect(rows).toContain(line('nudge-detail', { day: TODAY }))
-  expect(rows.at(-1)).toBe("1: Give me a plan   2: Just remind me   3: Not now   4: Don't ask again")
+  expect(rows.at(-1)).toBe('1: Quick start   2: Just remind me   3: Build my own   4: Not now')
 })
 
 test('the nudge leads straight into Quick start', OPTIONS, async ($, on) => {
@@ -55,7 +55,7 @@ test('the nudge leads straight into Quick start', OPTIONS, async ($, on) => {
   await longTurn($, clock, 't1')
   await $.command.run(workout('quickstart'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(await ui.find({ key: 'understand' })).toBeDefined()
+  expect(await ui.find({ key: 'desk' })).toBeDefined()
   await ui.unmount()
 })
 
@@ -143,14 +143,14 @@ test('the first session’s introduction is not put away by a prompt', OPTIONS, 
   await ui.unmount()
 })
 
-test('answered, the nudge’s next step (the safety step) stays through the next prompt', OPTIONS, async ($, on) => {
+test('answered, the nudge’s next step (where you train) stays through the next prompt', OPTIONS, async ($, on) => {
   const { clock } = world(on, null, { seen: { intro: { at: 1, n: 1 } } })
   await $.session.start(SESSION)
   await longTurn($, clock, 't1')
   await $.command.run(workout('quickstart'))
   await $.turn.start({ text: 'next', turnId: 't2' })
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(await ui.find({ key: 'understand' })).toBeDefined()
+  expect(await ui.find({ key: 'desk' })).toBeDefined()
   await ui.unmount()
 })
 

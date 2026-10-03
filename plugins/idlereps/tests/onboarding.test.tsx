@@ -6,71 +6,51 @@ import { BAND, drawnRows, OPTIONS, ownStore, SESSION, STATUS, TINY, TODAY, worko
 
 /**
  * Onboarding (owner, 2026-10-02: "/workout shouldn't just be into a workout where we never talked to the
- * user"): Swolomon introduces himself, the safety step, how training here works, then the first set. A plan
- * already there (made by hand, brought from the prototype) is kept, not skipped past.
+ * user"): Swolomon introduces himself, then two presses to the first set (or one to keep a plan already
+ * there, made by hand or brought from the prototype); the safety note rides on that first offer.
  */
 
-const ACKED = { seen: { safety: { at: 1, n: 1 } } }
 const done = (turnId: string) => ({ turnId, answer: '', reason: 'answer', durationMs: 60_000, isAborted: false }) as never
 
 async function bandOf($: Engine) {
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   const rows = drawnRows(await ui.drawn())
   const has = async (key: string) => (await ui.find({ key })) !== undefined
-  const keys = { keep: await has('keep'), quickstart: await has('program'), understand: await has('understand'), gotit: await has('gotit'), start: await has('start') }
+  const keys = { keep: await has('keep'), quickstart: await has('quickstart'), remind: await has('remind'), start: await has('start') }
   await ui.unmount()
-  return { rows, ...keys }
+  return { rows, ...keys, text: rows.join('\n') }
 }
 
 test('a plan Swolomon never walked in: the first session introduces him, with Keep my plan in place of Quick start', OPTIONS, async ($, on) => {
   const { w } = world(on, TINY, {}, { fresh: true })
   await $.session.start(SESSION)
   const band = await bandOf($)
-  expect([band.keep, band.quickstart]).toEqual([true, false])
-  expect(band.rows.join('\n')).toContain('You have a plan already. Keep it, or just get reminders')
+  expect([band.keep, band.quickstart, band.remind]).toEqual([true, false, true])
+  expect(band.text).toContain('You have a plan already. Keep it, or just get reminders')
   expect(introLines(TODAY, true).slice(0, 3)).toEqual(introLines(TODAY).slice(0, 3))
   expect(w.toasts).toContain(line('installed', { day: TODAY }))
 })
 
-test('Keep my plan: the safety step, how it works, then today’s first set', OPTIONS, async ($, on) => {
+test('Keep my plan: one press to today’s first set, the safety note on it; the plan untouched', OPTIONS, async ($, on) => {
   const store = ownStore(on, {}, { fresh: true })
   const { w } = world(on, TINY, 'own-store')
   await $.session.start(SESSION)
   await $.command.run(workout('keep'))
-  expect((await bandOf($)).understand).toBe(true)
-  await $.command.run(workout('understand'))
-  const howto = await bandOf($)
-  expect(howto.gotit).toBe(true)
-  for (const id of ['howto-sets', 'howto-keys', 'howto-gap', 'howto-more'] as const) expect(howto.rows.join('\n')).toContain(line(id, { day: TODAY }))
-  await $.command.run(workout('gotit'))
-  expect((await bandOf($)).start).toBe(true)
+  const offer = await bandOf($)
+  expect(offer.start).toBe(true)
+  expect(offer.text).toContain(line('safety-short', { day: TODAY }))
   expect((store.get('seen') as Record<string, unknown>).onboarded).toBeDefined()
-  // The plan is the one that was there: nothing wrote over it.
   expect(w.writes.filter(write => write.path.endsWith('plan.json'))).toEqual([])
 })
 
-test('Quick start from nothing: how it works comes before the first set, and Got it offers it', OPTIONS, async ($, on) => {
-  world(on, null, ACKED, { fresh: true })
+test('Quick start from nothing: two presses to the first set', OPTIONS, async ($, on) => {
+  const store = ownStore(on, {}, { fresh: true })
+  world(on, null, 'own-store')
   await $.session.start(SESSION)
   await $.command.run(workout('quickstart'))
   await $.command.run(workout('desk'))
-  expect((await bandOf($)).gotit).toBe(true)
-  await $.command.run(workout('gotit'))
   expect((await bandOf($)).start).toBe(true)
-})
-
-test('how it works shows once: a later new plan offers its first set straight away', OPTIONS, async ($, on) => {
-  const { w } = world(on, null, ACKED, { fresh: true })
-  await $.session.start(SESSION)
-  await $.command.run(workout('quickstart'))
-  await $.command.run(workout('desk'))
-  await $.command.run(workout('gotit'))
-  // Another plan, chosen later through Quick start again: no second walkthrough.
-  w.file.text = null
-  await $.command.run(workout('quickstart'))
-  await $.command.run(workout('desk'))
-  const band = await bandOf($)
-  expect([band.gotit, band.start]).toEqual([false, true])
+  expect((store.get('seen') as Record<string, unknown>).onboarded).toBeDefined()
 })
 
 test('/workout before onboarding: the introduction where they are, not the week', OPTIONS, async ($, on) => {
@@ -162,11 +142,12 @@ test('someone who trained before is marked as onboarded at session start, once',
   expect((store.get('seen') as Record<string, unknown>).onboarded).toBeDefined()
 })
 
-test('/workout now before onboarding: the set they asked for, and no walkthrough after it', OPTIONS, async ($, on) => {
+test('/workout now before onboarding: the set they asked for, the safety note taken as read', OPTIONS, async ($, on) => {
   const store = ownStore(on, { seen: { intro: { at: 1, n: 1 } } }, { fresh: true })
   world(on, TINY, 'own-store')
   await $.session.start(SESSION)
   await $.command.run(workout('now'))
   expect((store.get('seen') as Record<string, unknown>).onboarded).toBeDefined()
-  expect((await bandOf($)).gotit).toBe(false)
+  expect((store.get('seen') as Record<string, unknown>).safety).toBeDefined()
+  expect((await bandOf($)).keep).toBe(false)
 })

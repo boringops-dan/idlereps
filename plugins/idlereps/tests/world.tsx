@@ -75,12 +75,12 @@ export type World = {
 }
 
 type Seed = Record<string, unknown> | 'own-store'
-/** `fresh`: someone Swolomon hasn't walked in yet; otherwise the store says onboarding is behind them. */
+/** `fresh`: someone Swolomon hasn't walked in yet; otherwise the store says onboarding and the safety note are behind them. */
 type WorldOptions = { legacy?: string; now?: number; surfaces?: RenderSurface[]; fresh?: true }
 
-export const ONBOARDED = { onboarded: { at: 1, n: 1 } }
+export const ONBOARDED = { onboarded: { at: 1, n: 1 }, safety: { at: 1, n: 1 } }
 
-/** The seed as the store starts: onboarding already done, unless the test is about it. */
+/** The seed as the store starts: onboarding and the safety note already done, unless the test is about them. */
 function withOnboarding(seed: Record<string, unknown>, fresh: boolean): Record<string, unknown> {
   if (fresh) return seed
   return { ...seed, seen: { ...ONBOARDED, ...(seed.seen as Record<string, unknown> | undefined) } }
