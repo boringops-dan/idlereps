@@ -40,7 +40,7 @@ import {
   replayBand,
   setBand,
 } from './bands'
-import { agentDoing, COACH_NAME, fill, pickAddress, COMMUNITY_URL, FEEDBACK_URL, line, progressDots, REASON_LINE, TELEMETRY_URL, usesAgent, whatsNewLine } from './copy'
+import { agentDoing, COACH_NAME, emphasisRuns, fill, plainOf, pickAddress, COMMUNITY_URL, FEEDBACK_URL, line, progressDots, REASON_LINE, TELEMETRY_URL, usesAgent, whatsNewLine } from './copy'
 import type { LineContext, LineId } from './copy'
 import { appendHistory, movedSeconds, rankFor, RANKS, setsThisWeek } from './history'
 import { ideasFor, isMoved, MOVED, movedOn } from './remind'
@@ -574,7 +574,7 @@ async function clearBand($: EngineInterface) {
 async function startTalk($: EngineInterface, spec: BandSpec): Promise<BandSpec> {
   coach.talkTimeline = null
   coach.pose = 'idle'
-  coach.talkText = spec.coach?.join(' ') ?? ''
+  coach.talkText = plainOf(spec.coach?.join(' ') ?? '')
   // Read aloud when the line starts: now, or once Swolomon has walked on.
   if (spec.coach !== undefined && spec.entrance !== true) void speakLine($)
   coach.microFrame = null
@@ -2666,7 +2666,7 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
   const buttonColumns = spec.actions.reduce((n, id, i) => n + (i > 0 ? 3 : 0) + actionOf(spec.kind, id).hotkey.length + 2 + labelOf(id).length, 0)
   const textColumns = Math.max(
     widthOf(headerParts),
-    ...(spec.coach ?? []).map(text => text.length),
+    ...(spec.coach ?? []).map(text => plainOf(text).length),
     ...spec.body.map(widthOf),
     ...(spec.extras ?? []).map(text => text.length),
     ...(spec.footer ?? []).map(text => text.length),
@@ -2696,14 +2696,15 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
   const spot =
     aside === undefined
       ? 'none'
-      : asideSpot(spec, aside, { columns: site.bodyColumns - besideColumns, lineColumns: nameColumns + (spec.coach?.[0]?.length ?? 0) })
+      : asideSpot(spec, aside, { columns: site.bodyColumns - besideColumns, lineColumns: nameColumns + plainOf(spec.coach?.[0] ?? '').length })
   // While typing, each line shows what is out so far; rows keep their place so the band never jumps.
   const isTalking = said !== null && said.key === spec.talkKey
   const coachRows = (spec.coach ?? []).map((text, i) => {
     const shown = isTalking ? text.slice(0, said.shown[i] ?? text.length) : text
     const tag: BandPart[] = fit === 'none' && svgSize === null && i === 0 ? [{ text: `${COACH_NAME}:`, bold: true, tone: 'accent' }, { text: ' ' }] : []
     const after: BandPart[] = i === 0 && spot === 'after-line' && aside !== undefined ? [{ text: ' '.repeat(ASIDE_GAP) }, { text: asideText(aside), tone: 'aside' }] : []
-    return rowText(Text, [...tag, { text: shown === '' ? ' ' : shown }, ...after], `coach-${i}`)
+    const spoken: BandPart[] = shown === '' ? [{ text: ' ' }] : emphasisRuns(shown).map(run => ({ text: run.text, ...(run.isEmphasis ? { italic: true } : {}) }))
+    return rowText(Text, [...tag, ...spoken, ...after], `coach-${i}`)
   })
   const bodyRows = spec.body.map((row, i) => {
     const isLast = i === spec.body.length - 1

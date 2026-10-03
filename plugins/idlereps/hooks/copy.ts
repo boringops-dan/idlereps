@@ -529,11 +529,19 @@ export const REASON_LINE: Record<LongTaskReason, LineId> = {
   planned: 'reason-planned',
 }
 
+/** Emphasis in a line: `*word*`, drawn in italics; the stars never show. */
+export const plainOf = (text: string): string => text.replaceAll('*', '')
+
+/** A line (or as much of it as is out) as runs, each emphasized or not. */
+export function emphasisRuns(text: string): { text: string; isEmphasis: boolean }[] {
+  return text.split('*').flatMap((run, i) => (run === '' ? [] : [{ text: run, isEmphasis: i % 2 === 1 }]))
+}
+
 /** §1.10a: the introduction, verbatim; the address term only in the last line. */
 const INTRO = [
   "Hi! I'm {coach}, your IdleReps trainer.",
   'Welcome to my... your CLI. Cardio, Lifts and Ibuprofen.',
-  "You hand your agent work? Cute. While it's out, I hand YOU work.",
+  "*You* hand your agent work? Well, *I* hand *you* work.",
   'Quick start, or just a nudge to move, {mate}?',
 ] as const
 

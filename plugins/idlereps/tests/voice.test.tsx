@@ -8,12 +8,14 @@ import {
   AGENT_JOBS,
   agentDoing,
   COACH_NAME,
+  emphasisRuns,
   fill,
   introLines,
   line,
   LINES,
   LONG_TURN_MS,
   pickAddress,
+  plainOf,
   RELEASES,
   replayLines,
   variantOf,
@@ -178,12 +180,24 @@ test('the introduction, verbatim, its address term only in the last line', () =>
     expect(lines).toEqual([
       "Hi! I'm Swolomon, your IdleReps trainer.",
       'Welcome to my... your CLI. Cardio, Lifts and Ibuprofen.',
-      "You hand your agent work? Cute. While it's out, I hand YOU work.",
+      "*You* hand your agent work? Well, *I* hand *you* work.",
       `Quick start, or just a nudge to move, ${mate}?`,
     ])
     expect(lines.map(l => words(l, ADDRESS_TERMS).length)).toEqual([0, 0, 0, 1])
     for (const l of lines) expect(fill(l, {}).length).toBeLessThanOrEqual(80)
   }
+  // Emphasis: the stars mark it and never show.
+  expect(plainOf(introLines(0)[2] ?? '')).toBe('You hand your agent work? Well, I hand you work.')
+  expect(emphasisRuns('*You* hand, *I* hand *you*')).toEqual([
+    { text: 'You', isEmphasis: true },
+    { text: ' hand, ', isEmphasis: false },
+    { text: 'I', isEmphasis: true },
+    { text: ' hand ', isEmphasis: false },
+    { text: 'you', isEmphasis: true },
+  ])
+  // Part of a line out, mid-word: still emphasized; no line has an unclosed star.
+  expect(emphasisRuns('*Yo')).toEqual([{ text: 'Yo', isEmphasis: true }])
+  for (const entry of LINES) for (const variant of entry.variants) expect(variant.split('*').length % 2).toBe(1)
   expect(line('intro-header', { day: 0 })).toBe('IdleReps · a workout plan and tracker that runs while your agent works')
 })
 
@@ -192,7 +206,11 @@ test('the first-run band: header, four lines, live buttons; /workout swolomon re
   const { w } = world(on, null, 'own-store')
   await $.session.start(SESSION)
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  for (const text of introLines(TODAY)) expect(await ui.find({ type: 'Text', text })).toBeDefined()
+  for (const text of introLines(TODAY)) expect(await ui.find({ type: 'Text', text: plainOf(text) })).toBeDefined()
+  // *I* drawn in italics, its stars gone.
+  const italic = (await ui.findAll({ type: 'Text' })).filter(t => (t as { props: { italic?: boolean } }).props.italic === true)
+  expect(italic.map(t => (t as { text?: string }).text)).toEqual(['You', 'I', 'you'])
+  expect(JSON.stringify(await ui.drawn())).not.toContain('*')
   // Header, four lines and the buttons beside the 8-row portrait: the tall band's budget, exactly (§1.10b).
   expect(await ui.find({ key: 'swolomon' })).toBeDefined()
   expect(rowsOf(await ui.drawn(), BAND.props.bodyColumns)).toBe(8)
@@ -203,7 +221,7 @@ test('the first-run band: header, four lines, live buttons; /workout swolomon re
   w.file.text = JSON.stringify(TINY)
   const before = JSON.stringify([...store.entries()])
   await $.command.run(workout('swolomon'))
-  for (const text of replayLines(TODAY)) expect(await ui.find({ type: 'Text', text })).toBeDefined()
+  for (const text of replayLines(TODAY)) expect(await ui.find({ type: 'Text', text: plainOf(text) })).toBeDefined()
   expect(await ui.find({ key: 'program' })).toBeUndefined()
   expect(await ui.find({ key: 'letsgo' })).toBeDefined()
   expect(JSON.stringify([...store.entries()])).toBe(before)
