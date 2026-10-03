@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "idlereps",
+  "owner": { "name": "zrobok" },
+  "description": "IdleReps: a workout plan and tracker that trains you while your agent works",
+  "plugins": [
+    {
+      "name": "idlereps",
+      "description": "A workout plan and tracker: builds a plan around your equipment, hands you one set at a time while your agent works, and logs your progress",
+      "author": { "name": "zrobok" },
+      "source": "./plugins/idlereps",
+      "category": "productivity"
+    }
+  ]
+}

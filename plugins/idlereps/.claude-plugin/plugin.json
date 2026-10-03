@@ -1,0 +1,95 @@
+{
+  "name": "idlereps",
+  "version": "1.0.0",
+  "description": "A workout plan and tracker: builds a plan around your equipment, hands you one set at a time while your agent works, and logs your progress",
+  "author": {
+    "name": "zrobok"
+  },
+  "homepage": "https://idlereps.app",
+  "repository": "https://github.com/boringops-dan/idlereps",
+  "license": "Apache-2.0",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "cueEvery": {
+      "type": "string",
+      "title": "Minutes between sets",
+      "description": "After you answer a set, IdleReps stays quiet for this long before offering the next one.",
+      "default": "15",
+      "options": [
+        "10",
+        "15",
+        "30",
+        "60"
+      ]
+    },
+    "cueAfter": {
+      "type": "string",
+      "title": "Only on turns longer than (seconds)",
+      "description": "When nothing suggests a long task, your agent must have been working this long before a set is offered.",
+      "default": "60",
+      "options": [
+        "30",
+        "60",
+        "120"
+      ]
+    },
+    "idleReminder": {
+      "type": "string",
+      "title": "Remind me when idle (minutes)",
+      "description": "On a training day with sets left and your agent not working, a reminder at most this often.",
+      "default": "60",
+      "options": [
+        "off",
+        "60",
+        "120"
+      ]
+    },
+    "quietHours": {
+      "type": "string",
+      "title": "Quiet hours",
+      "description": "No sets, reminders or notices inside this window (local time).",
+      "default": "off",
+      "options": [
+        "off",
+        "22-07",
+        "21-08",
+        "23-06"
+      ]
+    },
+    "statusLine": {
+      "type": "boolean",
+      "title": "Show today's sets under the prompt",
+      "description": "Shows sets done today, or done once today's workout is finished. Nothing on rest days.",
+      "default": true
+    },
+    "timerBeep": {
+      "type": "boolean",
+      "title": "Beep when a timed hold ends",
+      "description": "The hold timer on timed sets (planks, holds) beeps once at zero.",
+      "default": true
+    },
+    "warmUp": {
+      "type": "boolean",
+      "title": "Warm up first",
+      "description": "A one-minute warm-up before the first set of a workout, once a day.",
+      "default": true
+    },
+    "coachAnimation": {
+      "type": "boolean",
+      "title": "Animate Swolomon",
+      "description": "Swolomon walks on, and the lines type out while the portrait talks. Off shows the whole line at once.",
+      "default": true
+    },
+    "coachSound": {
+      "type": "string",
+      "title": "Swolomon's sound",
+      "description": "Off; soft blips while Swolomon talks; or his lines read aloud (your system voice). The hold timer's beep has its own setting.",
+      "default": "off",
+      "options": [
+        "off",
+        "blips",
+        "voice"
+      ]
+    }
+  }
+}

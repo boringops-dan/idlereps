@@ -1,0 +1,2543 @@
+import { atom, read, update } from 'claude-code'
+import type { ElementTable, EngineInterface, PluginOptions, Register, RenderSurface, Timer } from 'claude-code'
+
+import type { BandPart, BandSpec, Cue, Draft, HistoryEntry, LongTaskReason, Plan, Progress, Rating, Seen, SetupState, Targets, Tone, Weekday } from '../types'
+import { STORE_KEYS } from '../types/store-keys'
+import type { StoreKey } from '../types/store-keys'
+import { actionOf, loadLabel, stepperLabel } from './actions'
+import type { ActionKind } from './actions'
+import {
+  askBand,
+  askLineId,
+  bandRows,
+  cueLineContext,
+  firstSetLineId,
+  editBand,
+  flexBand,
+  introBand,
+  readyBand,
+  nudgeBand,
+  eraseBand,
+  programEndBand,
+  restoreBand,
+  warmupBand,
+  bonusBand,
+  stretchBand,
+  whereBand,
+  rescheduleBand,
+  holdBand,
+  safetyBand,
+  LOGGED_MS,
+  loggedBand,
+  nextFromPending,
+  offerToSlot,
+  rankupBand,
+  ratingBand,
+  replayBand,
+  setBand,
+} from './bands'
+import { agentDoing, COACH_NAME, line, progressDots, REASON_LINE, SAFETY_TEXT, usesAgent, whatsNewLine } from './copy'
+import type { LineContext, LineId } from './copy'
+import { appendHistory, movedSeconds, rankFor, RANKS, setsThisWeek } from './history'
+import { due, mark, mondayOf } from './ledger'
+import type { Scope } from './ledger'
+import { CURRENT_SCHEMA, STEP_READS, STEPS } from './migrations'
+import type { Snapshot } from './migrations'
+import {
+  cueFor,
+  dayNumberOf,
+  describeAmount,
+  minutesWords,
+  hourOf,
+  legacyPathOf,
+  parseLegacyPlan,
+  parsePlan,
+  PLAN_PROMPT,
+  planPathOf,
+  shortWorkoutName,
+  START,
+  stepBand,
+  stepCount,
+  stepsFor,
+  startOfDayMs,
+  stepsOf,
+  effectiveExercise,
+  targetFor,
+  stepWeight,
+  stripFence,
+  targetOf,
+  weekProgress,
+} from './plan'
+import {
+  BLINK_EVERY_MS,
+  BLINK_FOR_MS,
+  BLINK_MS,
+  encodeSprite,
+  ENTRANCE_MS,
+  entranceAt,
+  fitPortrait,
+  frameAt,
+  frameFor,
+  PORTRAIT_GAP,
+  portraitCells,
+  STAGE_COLUMNS,
+  SVG_PIXELS,
+  svgOf,
+  STAGE_ROWS,
+  stageCells,
+  TICK_MS,
+  timelineOf,
+} from './portrait'
+import type { Fit, Pose, PortraitSize, Timeline } from './portrait'
+import { backupOf, BACKUP_KEYS, backupPathOf, csvPathOf, historyCsv, parseBackup } from './data'
+import { PUSH_NAMES, STARTER_ANSWERS, generateProgram, stretchFor } from './programs'
+import { addInterval, shareLine, workedMs } from './worktime'
+import type { WorkIntervals } from './worktime'
+import { raisedTargets, record } from './record'
+import type { Feat, Inverse, Patch, RecordStore } from './record'
+import {
+  cueAllowed,
+  cueDelayMs,
+  gate,
+  inQuietHours,
+  isTrainingDay,
+  longDayName,
+  moveWeekday,
+  nextTrainingDay,
+  rescheduleOffer,
+  weekdayLongName,
+  weekdayName,
+  weekdayShortName,
+} from './schedule'
+import type { CueContext, Message } from './schedule'
+import {
+  back,
+  continueEquipment,
+  EXAMPLE_PLAN,
+  newSetup,
+  planOf,
+  scheduleLabel,
+  screenOf,
+  setUnit,
+  toggleEquipment,
+} from './setup'
+import { BIG_ASK_WAIT_MS, factsOf, isBigAsk, outcomeOf, SLOW_STEP_MS, STRONG_SIGN_DELAY_MS, toolSign, turnOutcome, waitWords } from './signals'
+import type { Outcome, Sign } from './signals'
+import { gainsOf, PLUGIN_VERSION, statusLineOf, statusTextOf, statusViewOf } from './status'
+import { SPRITE } from './swolomon-sprite'
+import type { StatusFacts } from './status'
+
+const band = atom({ plugin: 'idlereps', key: 'band' } as const, null)
+const pending = atom({ plugin: 'idlereps', key: 'pending' } as const, [])
+const setup = atom({ plugin: 'idlereps', key: 'setup' } as const, null)
+const statusView = atom({ plugin: 'idlereps', key: 'statusView' } as const, null)
+const talk = atom({ plugin: 'idlereps', key: 'talk' } as const, null)
+
+const SETUP_PANE = 'workout-setup'
+const STATUS_PANE = 'workout-status'
+/** The band, as a pane, where no attached surface draws the band above the prompt. */
+const BAND_PANE = 'workout-band'
+/** D8: the model `/workout plan` uses. */
+const PLAN_MODEL = 'claude-haiku-4-5-20251001'
+
+type Options = {
+  cueEvery: string
+  cueAfter: string
+  idleReminder: string
+  quietHours: string
+  statusLine: boolean
+  coachAnimation: boolean
+  timerBeep: boolean
+  warmUp: boolean
+  coachSound: 'off' | 'blips' | 'voice'
+}
+
+const readOptions = (options: PluginOptions): Options => ({
+  cueEvery: typeof options.cueEvery === 'string' ? options.cueEvery : '15',
+  cueAfter: typeof options.cueAfter === 'string' ? options.cueAfter : '60',
+  idleReminder: typeof options.idleReminder === 'string' ? options.idleReminder : '60',
+  quietHours: typeof options.quietHours === 'string' ? options.quietHours : 'off',
+  statusLine: typeof options.statusLine === 'boolean' ? options.statusLine : true,
+  coachAnimation: typeof options.coachAnimation === 'boolean' ? options.coachAnimation : true,
+  timerBeep: typeof options.timerBeep === 'boolean' ? options.timerBeep : true,
+  warmUp: typeof options.warmUp === 'boolean' ? options.warmUp : true,
+  coachSound: options.coachSound === 'blips' || options.coachSound === 'voice' ? options.coachSound : 'off',
+})
+
+/** The portrait's frames as Raster cells, encoded once per load. */
+const FRAMES = encodeSprite(SPRITE)
+/** The same frames as SVG documents, for surfaces without terminal cells. */
+const SVGS = Object.fromEntries((Object.keys(SPRITE.frames) as (keyof typeof SPRITE.frames)[]).map(name => [name, svgOf(SPRITE, name)])) as Record<
+  keyof typeof SPRITE.frames,
+  string
+>
+const PORTRAIT_ROWS = SPRITE.height / 2
+
+/** The theme's own colours for each tone, so light and dark themes both read (muted is the dim style). */
+const TONE_COLOUR: Record<Exclude<Tone, 'muted'>, string> = { accent: 'warning', good: 'success' }
+
+type Owner = 'band' | 'turn' | 'session'
+
+/** Per-load state; a hot reload starts it over (timers go with the old environment). */
+const coach: {
+  options: Options
+  home: string
+  planCache: { key: string; plan: Plan | null; error: string | null } | null
+  /** The broken plan file already toasted about, by size and time (§1.7 ease 8). */
+  brokenKey: string | null
+  timers: Record<Owner, Timer[]>
+  cueTimer: Timer | null
+  idleTimer: Timer | null
+  midnightTimer: Timer | null
+  isTurnRunning: boolean
+  turnStartedAt: number
+  /** Decided at turn.start (D21): with no chance of a cue this turn, the tool hook does nothing. */
+  turnCanCue: boolean
+  toolCalls: number
+  hasStrongSign: boolean
+  reason: LongTaskReason | undefined
+  /** How long the agent said it will be away this turn (a scheduled wake-up), when it said. */
+  waitMs: number | undefined
+  /** TaskCreate calls this turn: three is a planned job. */
+  tasksThisTurn: number
+  /** Swolomon's line while a hold counts down. */
+  holdLine: string
+  /** The band's whole line, for reading aloud; and whether a reading is still going. */
+  talkText: string
+  isSpeaking: boolean
+  /** Today's tally in the prompt footer (`💪 3/9`), or nothing. */
+  tally: string | undefined
+  /** Today's workout is under way: started, not finished (the spinner lifts). */
+  isMidWorkout: boolean
+  /** Sets done during the running turn, and during each finished turn of the session by its length. */
+  turnSets: number
+  /** What the agent got done this turn worth a word (tests, a commit, a PR), and each finished turn's by its length. */
+  turnOutcome: Outcome | undefined
+  setsByTurnLength: Map<number, { sets: number; outcome?: Outcome }>
+  /** This turn may offer the rest day's desk stretch (instead of a set). */
+  turnCanStretch: boolean
+  /** No plan yet: this turn may ask once more to get started. */
+  turnCanNudge: boolean
+  /** A timer band waiting for the prompt to empty (the gate's clause (c)). */
+  deferred: BandSpec | null
+  /** The first-run band was put off for this session (Not now). */
+  isIntroDismissed: boolean
+  isStatusOpen: boolean
+  /** The band's own pane is open (no attached surface draws the band above the prompt). */
+  isBandPaneOpen: boolean
+  /** The typewriter (§1.11): the run now playing, when it started, and its timeline. */
+  talkSeq: number
+  talkStartedAt: number
+  talkTimeline: Timeline | null
+  /** Where the band's portrait is drawn, recorded as it is drawn, so frames can be blitted to it. */
+  portrait: { requestId: string; size: PortraitSize } | null
+  pose: Pose
+  /** The entrance (§1.11 Entrance): when it started, where its stage is drawn (or that the band had no room). */
+  entranceStartedAt: number
+  stage: { requestId: string } | 'declined' | null
+  /** The stage frame last painted, so a tick that changes nothing paints nothing. */
+  stageFrame: string
+} = {
+  options: readOptions({}),
+  home: '',
+  planCache: null,
+  brokenKey: null,
+  timers: { band: [], turn: [], session: [] },
+  cueTimer: null,
+  idleTimer: null,
+  midnightTimer: null,
+  isTurnRunning: false,
+  turnStartedAt: 0,
+  turnCanCue: false,
+  toolCalls: 0,
+  hasStrongSign: false,
+  reason: undefined,
+  waitMs: undefined,
+  tasksThisTurn: 0,
+  holdLine: '',
+  talkText: '',
+  isSpeaking: false,
+  tally: undefined,
+  isMidWorkout: false,
+  turnSets: 0,
+  turnOutcome: undefined,
+  setsByTurnLength: new Map(),
+  turnCanStretch: false,
+  turnCanNudge: false,
+  deferred: null,
+  isIntroDismissed: false,
+  isStatusOpen: false,
+  isBandPaneOpen: false,
+  talkSeq: 0,
+  talkStartedAt: 0,
+  talkTimeline: null,
+  portrait: null,
+  pose: 'idle',
+  entranceStartedAt: 0,
+  stage: null,
+  stageFrame: '',
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Timers (plan §4.3 item 3): every timer has an owner; showing or clearing a band cancels the band's, the
+// turn's end cancels the turn's.
+
+function timer($: EngineInterface, owner: Owner, ms: number, fn: () => void): Timer {
+  const made: Timer = $.clock.after(Math.max(0, ms), () => {
+    coach.timers[owner] = coach.timers[owner].filter(t => t !== made)
+    fn()
+  })
+  coach.timers[owner].push(made)
+  return made
+}
+
+/** A repeating timer, owned like any other; it runs until cancelled or its owner's timers are. */
+function ticker($: EngineInterface, owner: Owner, ms: number, fn: (stop: () => void) => void): Timer {
+  const made: Timer = $.clock.every(ms, () => fn(stop))
+  const stop = () => {
+    made.cancel()
+    coach.timers[owner] = coach.timers[owner].filter(t => t !== made)
+  }
+  coach.timers[owner].push(made)
+  return made
+}
+
+function cancelTimers(owner: Owner) {
+  for (const t of coach.timers[owner]) t.cancel()
+  coach.timers[owner] = []
+}
+
+function stopCue() {
+  coach.cueTimer?.cancel()
+  coach.cueTimer = null
+}
+
+/** Cues after `ms` this turn, unless one is already pending. */
+function scheduleCue($: EngineInterface, ms: number) {
+  if (coach.cueTimer !== null) return
+  coach.cueTimer = timer($, 'turn', ms, () => {
+    coach.cueTimer = null
+    void showDueCue($)
+  })
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// The store: every key registered (types/store-keys.ts).
+
+async function load<T>($: EngineInterface, key: StoreKey, fallback: T): Promise<T> {
+  const value = await $.store.get(key)
+  return value === undefined ? fallback : (value as T)
+}
+
+async function save($: EngineInterface, key: StoreKey, value: unknown) {
+  if (value === undefined) await $.store.delete(key)
+  else await $.store.set(key, value)
+}
+
+async function now($: EngineInterface) {
+  return $.clock.now()
+}
+
+async function today($: EngineInterface) {
+  return dayNumberOf(await $.clock.now())
+}
+
+/** The gap between sets (D7): the setting, doubled on a busy day (three Laters in a row). */
+async function gapMs($: EngineInterface): Promise<number> {
+  const base = Number(coach.options.cueEvery) * 60_000
+  return (await load<number | undefined>($, 'easyDay', undefined)) === (await today($)) ? base * 2 : base
+}
+const turnWaitMs = (isBig: boolean) => (isBig ? BIG_ASK_WAIT_MS : Number(coach.options.cueAfter) * 1000)
+
+/** The once ledger: whether `id` may happen now, and marking it. */
+async function isDue($: EngineInterface, id: string, scope: Scope) {
+  return due(await load<Seen>($, 'seen', {}), id, scope, await now($), dayNumberOf)
+}
+
+async function markSeen($: EngineInterface, id: string) {
+  await save($, 'seen', mark(await load<Seen>($, 'seen', {}), id, await now($)))
+}
+
+/** D18: every step from the stored version up to the current one; a newer store is left alone. */
+async function migrate($: EngineInterface): Promise<'fresh' | 'current' | 'newer'> {
+  const stored = await $.store.get('schemaVersion')
+  const version = typeof stored === 'number' ? stored : 0
+  if (version > CURRENT_SCHEMA) return 'newer'
+  // No recorded version: this plugin never ran on this machine (a prototype store is another plugin's).
+  const isFresh = stored === undefined
+  for (let v = version; v < CURRENT_SCHEMA; v += 1) {
+    const step = STEPS[v]
+    if (step === undefined) break
+    const snapshot: Snapshot = {}
+    for (const key of STEP_READS[v] ?? []) {
+      const value = await $.store.get(key)
+      if (value !== undefined) snapshot[key] = value
+    }
+    const change = step(snapshot)
+    for (const [key, value] of Object.entries(change.set)) await save($, key as StoreKey, value)
+    for (const key of change.remove) await $.store.delete(key)
+  }
+  return isFresh ? 'fresh' : 'current'
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// The plan file, cached by size and time (§4.3 item 6).
+
+const planPath = () => planPathOf(coach.home)
+
+async function planFile($: EngineInterface): Promise<{ plan: Plan | null; error: string | null; isMissing: boolean }> {
+  const path = planPath()
+  const stat = await $.fs.stat(path).catch(() => null)
+  if (stat === null) {
+    coach.planCache = null
+    return { plan: null, error: null, isMissing: true }
+  }
+  const key = `${stat.size}:${stat.mtimeMs}`
+  if (coach.planCache?.key !== key) {
+    try {
+      coach.planCache = { key, plan: parsePlan(await $.fs.read(path)), error: null }
+    } catch (error) {
+      coach.planCache = { key, plan: null, error: (error as Error).message }
+    }
+  }
+  const { plan, error } = coach.planCache
+  if (error !== null && coach.brokenKey !== key) {
+    coach.brokenKey = key
+    await toast($, line('broken-plan', { day: await today($), path, reason: error }), 'timer')
+  }
+  return { plan, error, isMissing: false }
+}
+
+async function loadPlan($: EngineInterface): Promise<Plan | null> {
+  return (await planFile($)).plan
+}
+
+/** Writes a new plan: workout 1, fresh targets; history, bests and the log are kept (§1.7 real-world 8). */
+async function writePlan($: EngineInterface, plan: Plan) {
+  await $.fs.write(planPath(), `${JSON.stringify(plan, null, 2)}\n`)
+  coach.planCache = null
+  await save($, 'progress', START)
+  await save($, 'targets', undefined)
+  await save($, 'undo', undefined)
+  await save($, 'planStartedOn', await today($))
+  const showing = await read($, band)
+  if (showing !== null && showing.kind !== 'logged') await clearBand($)
+  await refreshStatus($)
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// The delivery gate (D23) and the band slot (§4.3 item 4).
+
+async function deliveryContext($: EngineInterface) {
+  const paused = await load($, 'paused', false)
+  const isQuietHours = inQuietHours(coach.options.quietHours, hourOf(await now($)))
+  const { text } = await $.prompt.read()
+  return { paused, isQuietHours, promptHasText: text !== '', soundAllowed: false }
+}
+
+async function decide($: EngineInterface, msg: Message) {
+  return gate(msg, await deliveryContext($))
+}
+
+async function toast($: EngineInterface, text: string, cause: Message['cause']) {
+  if ((await decide($, { channel: 'toast', cause })) === 'show') $.ui.toast(text)
+}
+
+/** Puts a band in the slot, or behind the one there when that one matters more. */
+async function placeBand($: EngineInterface, spec: BandSpec) {
+  const slot = offerToSlot(await read($, band), await read($, pending), spec)
+  if (!slot.isPlaced) {
+    await update($, pending, () => slot.pending)
+    return
+  }
+  cancelTimers('band')
+  const placed = await startTalk($, spec)
+  await update($, band, () => placed)
+  await syncBandPane($)
+  if (spec.kind === 'logged') timer($, 'band', LOGGED_MS, () => void expireBand($, spec))
+}
+
+/** Puts a band in the slot only if it takes it now (nothing there matters more); whether it did. */
+async function placeIfFree($: EngineInterface, spec: BandSpec): Promise<boolean> {
+  if (!offerToSlot(await read($, band), await read($, pending), spec).isPlaced) return false
+  await placeBand($, spec)
+  return true
+}
+
+/** Puts a band in the slot whatever is there: the person's own answer replaced it (Undo, Edit). */
+async function replaceBand($: EngineInterface, spec: BandSpec) {
+  cancelTimers('band')
+  const placed = await startTalk($, spec)
+  await update($, band, () => placed)
+  await syncBandPane($)
+}
+
+/**
+ * Where every surface attached draws no band above the prompt (VS Code; `AbovePrompt` is the terminal's
+ * and the desktop's), the band is a pane of its own: open while a band is in the slot, closed when not.
+ */
+async function syncBandPane($: EngineInterface) {
+  const surfaces = await $.session.surfaces()
+  const isBandless = surfaces.length > 0 && !surfaces.some(surface => surface === 'terminal' || surface === 'desktop')
+  const isShowing = isBandless && (await read($, band)) !== null
+  if (isShowing === coach.isBandPaneOpen) return
+  coach.isBandPaneOpen = isShowing
+  if (isShowing) await $.ui.open({ id: BAND_PANE, title: 'IdleReps', rows: 9 })
+  else await $.ui.close({ id: BAND_PANE })
+}
+
+/** Empties the slot; the highest waiting band that passes the gate takes it. */
+async function clearBand($: EngineInterface) {
+  cancelTimers('band')
+  await stopTalk($)
+  await update($, band, () => null)
+  await syncBandPane($)
+  const { next, pending: rest } = nextFromPending(await read($, pending))
+  if (next === undefined) return
+  await update($, pending, () => rest)
+  await offerBand($, next, 'timer')
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// The typewriter and the portrait (§1.11): one 50 ms clock per band, owned by the band, revealing the lines
+// through `talk` (a redraw only when the revealed text changes) and moving the mouth with blits.
+
+/** Starts a band's lines typing, when it has lines and animation is on; the band carries the run's key. */
+async function startTalk($: EngineInterface, spec: BandSpec): Promise<BandSpec> {
+  coach.talkTimeline = null
+  coach.pose = 'idle'
+  coach.talkText = spec.coach?.join(' ') ?? ''
+  // Read aloud when the line starts: now, or once Swolomon has walked on.
+  if (spec.coach !== undefined && spec.entrance !== true) void speakLine($)
+  if (spec.coach === undefined || !coach.options.coachAnimation) {
+    if ((await read($, talk)) !== null) await update($, talk, () => null)
+    return spec
+  }
+  coach.talkSeq += 1
+  const key = coach.talkSeq
+  const isWin = spec.isWin === true
+  const timeline = timelineOf(spec.coach)
+  const startedAt = await now($)
+  const isEntering = spec.entrance === true
+  coach.talkTimeline = timeline
+  // With an entrance the line starts once Swolomon is in place (or at once, if the band has no room for it).
+  coach.talkStartedAt = isEntering ? startedAt + ENTRANCE_MS : startedAt
+  coach.entranceStartedAt = startedAt
+  coach.stage = null
+  coach.stageFrame = ''
+  const first = frameAt(timeline, 0, isWin)
+  coach.pose = first.pose
+  if (!isEntering && first.pose === 'talkA' && coach.options.coachSound === 'blips') void playCue($, BLIP_ASSET, 'timer', true)
+  await update($, talk, () => ({ key, shown: first.shown, pose: first.pose, ...(isEntering ? { isEntering: true as const } : {}) }))
+  ticker($, 'band', TICK_MS, stop => void tick($, key, isWin, stop))
+  return { ...spec, talkKey: key }
+}
+
+async function stopTalk($: EngineInterface) {
+  coach.talkTimeline = null
+  coach.portrait = null
+  coach.stage = null
+  if ((await read($, talk)) !== null) await update($, talk, () => null)
+}
+
+async function tick($: EngineInterface, key: number, isWin: boolean, stop: () => void) {
+  const timeline = coach.talkTimeline
+  const said = await read($, talk)
+  if (timeline === null || said === null || said.key !== key) {
+    stop()
+    return
+  }
+  if (said.isEntering === true) {
+    const sinceEntrance = (await now($)) - coach.entranceStartedAt
+    if (coach.stage === 'declined' || entranceAt(sinceEntrance).isDone) {
+      // In place: the band redraws as the portrait beside its lines, and the line starts now.
+      coach.talkStartedAt = await now($)
+      await update($, talk, () => ({ key, shown: said.shown, pose: 'idle' }))
+      void speakLine($)
+    } else await showStage($, sinceEntrance)
+    return
+  }
+  const t = (await now($)) - coach.talkStartedAt
+  const frame = frameAt(timeline, t, isWin)
+  if (frame.isDone) {
+    // The line is out: rest (blinking a while), or for a win hold the flex while the band shows.
+    stop()
+    coach.pose = frame.pose
+    await update($, talk, () => ({ key, shown: frame.shown, pose: frame.pose }))
+    if (!isWin) blinkWhileShowing($, key)
+    return
+  }
+  // Each time the mouth opens, a blip (none while it rests between sentences).
+  if (frame.pose === 'talkA' && coach.pose !== 'talkA' && coach.options.coachSound === 'blips') void playCue($, BLIP_ASSET, 'timer', true)
+  if (frame.shown.some((n, i) => n !== said.shown[i])) {
+    coach.pose = frame.pose
+    await update($, talk, () => ({ key, shown: frame.shown, pose: frame.pose }))
+  } else if (frame.pose !== coach.pose) {
+    coach.pose = frame.pose
+    await showPose($, frame.pose)
+  }
+}
+
+/** Repaints the portrait in a pose, where one is drawn; a refused blit (the band moved on) is ignored. */
+async function showPose($: EngineInterface, pose: Pose) {
+  const portrait = coach.portrait
+  if (portrait === null) return
+  const { columns, rows } = portraitCells(SPRITE, portrait.size)
+  await $.ui.blit({ requestId: portrait.requestId, key: 'swolomon', cells: FRAMES[frameFor(portrait.size, pose)], columns, rows }).catch(() => undefined)
+}
+
+/** Repaints the entrance's stage `t` ms in, where one is drawn and the frame has changed. */
+async function showStage($: EngineInterface, t: number) {
+  const stage = coach.stage
+  if (stage === null || stage === 'declined') return
+  const at = entranceAt(t)
+  const frame = `${at.x},${at.y},${at.frame},${at.isBang}`
+  if (frame === coach.stageFrame) return
+  coach.stageFrame = frame
+  await $.ui.blit({ requestId: stage.requestId, key: 'stage', cells: stageCells(SPRITE, t), columns: STAGE_COLUMNS, rows: STAGE_ROWS }).catch(() => undefined)
+}
+
+/** A blink every 4 s for 20 s once the line is out, then still (§1.11 step 3); the band's timers end them. */
+function blinkWhileShowing($: EngineInterface, key: number) {
+  for (let at = BLINK_EVERY_MS; at <= BLINK_FOR_MS; at += BLINK_EVERY_MS) {
+    timer($, 'band', at, () => {
+      if (coach.talkSeq !== key || coach.portrait === null) return
+      void showPose($, 'blink')
+      timer($, 'band', BLINK_MS, () => void showPose($, 'idle'))
+    })
+  }
+}
+
+async function expireBand($: EngineInterface, spec: BandSpec) {
+  if ((await read($, band)) === spec) await clearBand($)
+  else if ((await read($, band))?.undoId === spec.undoId && (await read($, band))?.kind === spec.kind) await clearBand($)
+}
+
+/** Shows a band through the gate: now, once the prompt is empty, or not at all. */
+async function offerBand($: EngineInterface, spec: BandSpec, cause: Message['cause']) {
+  const decision = await decide($, { channel: 'band', cause })
+  if (decision === 'show') await placeBand($, spec)
+  else if (decision === 'defer') coach.deferred = spec
+}
+
+/** `whenPromptIsEmpty`: a deferred band shows on the edit that empties the prompt. */
+async function deliverDeferred($: EngineInterface) {
+  const spec = coach.deferred
+  if (spec === null) return
+  coach.deferred = null
+  await offerBand($, spec, 'timer')
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Cues.
+
+async function cueContextOf($: EngineInterface, plan: Plan): Promise<CueContext> {
+  return {
+    plan,
+    progress: await load($, 'progress', START),
+    today: await today($),
+    declinedOn: await load<number | undefined>($, 'declinedOn', undefined),
+    nextCueAt: await load<number | undefined>($, 'nextCueAt', undefined),
+    now: await now($),
+  }
+}
+
+/** `{agentDoing}` for a line, moving the day's storyline on when the line names the agent (§1.13.2). */
+async function agentFill($: EngineInterface, id: LineId, day: number): Promise<string> {
+  const stored = await load($, 'agentBeat', { day, n: 0 })
+  const beat = (stored.day === day ? stored.n : 0) + 1
+  const turnMs = coach.isTurnRunning ? (await now($)) - coach.turnStartedAt : 0
+  if (usesAgent(id, day)) await save($, 'agentBeat', { day, n: beat })
+  return agentDoing(day, beat, turnMs)
+}
+
+/** A Swolomon line whose context may name the agent. */
+async function coachLine($: EngineInterface, id: LineId, ctx: LineContext): Promise<string> {
+  return line(id, { ...ctx, agentDoing: await agentFill($, id, ctx.day) })
+}
+
+/** The set band for a cue; `coach` only on the first set after Start (§1.10c). */
+async function setBandFor($: EngineInterface, cue: Cue, coachText: string | undefined): Promise<BandSpec> {
+  const memory = (await load<Record<string, RecordStore['lastByExercise'][string]>>($, 'lastByExercise', {}))[cue.exercise.name]
+  const day = await today($)
+  const showHint = await isDue($, 'hint', { count: 3 })
+  if (showHint) await markSeen($, 'hint')
+  return setBand(cue, {
+    ...(coachText === undefined ? {} : { coach: coachText }),
+    ...(memory === undefined ? {} : { memory }),
+    showHint,
+    hint: line('hint', { day }),
+  })
+}
+
+/** A cue's timer went off: the next set when today's workout was agreed to, else the question. */
+async function showDueCue($: EngineInterface) {
+  if (!coach.isTurnRunning) return
+  if (coach.turnCanNudge) {
+    await offerNudge($)
+    return
+  }
+  const plan = await loadPlan($)
+  if (plan === null) return
+  if (coach.turnCanStretch) {
+    await offerStretch($)
+    return
+  }
+  const ctx = await cueContextOf($, plan)
+  if (!cueAllowed(ctx, { ignoreTrainingDay: false, ignoreGap: true })) return
+  // Another session may have answered since: the gap moved, so come back when it ends.
+  if ((ctx.nextCueAt ?? 0) > ctx.now) {
+    scheduleCue($, (ctx.nextCueAt ?? 0) - ctx.now)
+    return
+  }
+  const showing = await read($, band)
+  if (showing !== null && showing.kind !== 'logged') return
+  const cue = cueFor(plan, ctx.progress, await load<Targets>($, 'targets', {}))
+  if (cue === null) return
+  const isAgreed = (await load<number | undefined>($, 'startedOn', undefined)) === ctx.today
+  if (isAgreed) {
+    await offerBand($, await setBandFor($, cue, undefined), 'timer')
+    return
+  }
+  const id = (await softerAskLine($, cue, ctx.today)) ?? askLineId(cue, coach.reason, coach.waitMs)
+  const text = await coachLine($, id, { ...cueLineContext(cue, ctx.today, ''), ...(coach.waitMs === undefined ? {} : { wait: waitWords(coach.waitMs) }) })
+  await offerBand($, askBand(cue, text, ctx.today, coach.reason), 'timer')
+}
+
+/** A strong sign of a long task: the cue comes 5 s from now, still never inside the gap. Once per turn. */
+async function noticeLongTask($: EngineInterface, sign: Sign) {
+  if (!coach.isTurnRunning || coach.hasStrongSign) return
+  coach.hasStrongSign = true
+  coach.reason = sign.reason
+  coach.waitMs = sign.waitMs
+  const showing = await read($, band)
+  if (showing !== null && showing.kind !== 'logged') return
+  stopCue()
+  scheduleCue($, cueDelayMs(STRONG_SIGN_DELAY_MS, await load<number | undefined>($, 'nextCueAt', undefined), await now($)))
+}
+
+/** Whether IdleReps may still ask to get started: no Don't ask again, no Not now this session. */
+async function mayAskToStart($: EngineInterface): Promise<boolean> {
+  return !coach.isIntroDismissed && (await isDue($, 'setup-prompt', 'ever'))
+}
+
+/** How many times, in all, a later session asks to get started before IdleReps stays quiet. */
+const NUDGES = 5
+
+/**
+ * No plan yet, after the first session: a long turn may ask once more, once a day and five times in all,
+ * never on the day of the introduction, never paused or in quiet hours.
+ */
+async function couldNudgeThisTurn($: EngineInterface): Promise<boolean> {
+  // A plan file that is there but broken is someone already setting up: the broken-plan toast is theirs.
+  if (!(await planFile($)).isMissing || !(await mayAskToStart($))) return false
+  if (await isDue($, 'intro', 'ever')) return false
+  if (await load($, 'paused', false)) return false
+  if (inQuietHours(coach.options.quietHours, hourOf(await now($)))) return false
+  return (await isDue($, 'nudge', { count: NUDGES })) && (await isDue($, 'nudge-day', 'day')) && (await isDue($, 'intro-day', 'day'))
+}
+
+/** The ask, small and timely: replaces the introduction if it is still up, otherwise only an empty slot. */
+async function offerNudge($: EngineInterface) {
+  const showing = await read($, band)
+  if (showing !== null && showing.kind !== 'intro') return
+  const day = await today($)
+  const seen = (await load<Seen>($, 'seen', {})).nudge?.n ?? 0
+  await markSeen($, 'nudge')
+  await markSeen($, 'nudge-day')
+  await offerBand($, nudgeBand(await coachLine($, 'nudge', { day }), day, seen + 1 >= NUDGES), 'timer')
+}
+
+/**
+ * A rest day's one desk stretch: offered the way a set is (a long turn, the prompt empty), once a day, on
+ * a day with no workout due or done, and never after Not today.
+ */
+async function couldStretchThisTurn($: EngineInterface): Promise<boolean> {
+  const plan = await loadPlan($)
+  if (plan === null || (await load($, 'paused', false))) return false
+  if (inQuietHours(coach.options.quietHours, hourOf(await now($)))) return false
+  const ctx = await cueContextOf($, plan)
+  if (ctx.progress.workout >= plan.workouts.length || ctx.progress.lastCompletedOn === ctx.today || ctx.declinedOn === ctx.today) return false
+  if (isTrainingDay(plan, ctx.progress, ctx.today)) return false
+  return isDue($, 'stretch', 'day')
+}
+
+async function offerStretch($: EngineInterface) {
+  if ((await read($, band)) !== null || !(await isDue($, 'stretch', 'day'))) return
+  const day = await today($)
+  await markSeen($, 'stretch')
+  await offerBand($, stretchBand(await coachLine($, 'stretch-ask', { day }), stretchFor(day), day), 'timer')
+}
+
+/** Done on the stretch: it goes in the history (and the minutes moved), and Swolomon's thanks is a toast. */
+async function recordStretch($: EngineInterface) {
+  const shown = await read($, band)
+  if (shown?.stretch === undefined) return
+  const day = await today($)
+  await writePatch($, { set: {}, append: [{ kind: 'stretch', t: await now($), d: day, ...shown.stretch }] })
+  await clearBand($)
+  $.ui.toast(line('stretched', { day, exercise: shown.stretch.exercise }))
+  await refreshStatus($)
+}
+
+/** Whether this turn could cue at all (D21): a plan, not paused, quiet hours over, a training day with sets left. */
+async function couldCueThisTurn($: EngineInterface): Promise<boolean> {
+  const plan = await loadPlan($)
+  if (plan === null) return false
+  if (await load($, 'paused', false)) return false
+  if (inQuietHours(coach.options.quietHours, hourOf(await now($)))) return false
+  return cueAllowed(await cueContextOf($, plan), { ignoreTrainingDay: false, ignoreGap: true })
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Answers.
+
+/** Start: today's workout is agreed to; its next set shows at once (a key press is never delayed). */
+async function startWorkout($: EngineInterface, reason: LongTaskReason | undefined, opts: { half?: boolean } = {}): Promise<Cue | null> {
+  stopCue()
+  const day = await today($)
+  await save($, 'laterStreak', undefined)
+  if (opts.half === true) await save($, 'progress', { ...(await load($, 'progress', START)), half: true })
+  // Swolomon speaks on the first set after Start only (§1.10c): not when today's workout was already started.
+  // Choosing the half version always gets its word: it is the moment that most needs one.
+  const isStart = opts.half === true || (await load<number | undefined>($, 'startedOn', undefined)) !== day
+  await save($, 'startedOn', day)
+  await save($, 'declinedOn', undefined)
+  const plan = await loadPlan($)
+  if (plan === null) return null
+  const cue = cueFor(plan, await load($, 'progress', START), await load<Targets>($, 'targets', {}))
+  if (cue === null) {
+    await clearBand($)
+    return null
+  }
+  const id = opts.half === true ? 'half-start' : firstSetLineId(cue, plan, day, reason)
+  const coachText = isStart ? line(id, { day }) : undefined
+  // A minute's warm-up comes first, once a day, before a workout's first set (§1.12 item 2).
+  const progress = await load($, 'progress', START)
+  if (coach.options.warmUp && progress.done === 0 && (await isDue($, 'warmup', 'day'))) {
+    await markSeen($, 'warmup')
+    await placeBand($, warmupBand(cue, day, coachText))
+  } else await placeBand($, await setBandFor($, cue, coachText))
+  await refreshStatus($)
+  return cue
+}
+
+/** Not today: nothing more today, in any session. */
+async function declineToday($: EngineInterface) {
+  stopCue()
+  const day = await today($)
+  await save($, 'declinedOn', day)
+  const showing = await read($, band)
+  if (showing?.kind === 'ask' || showing?.kind === 'set' || showing?.kind === 'edit') await clearBand($)
+  const plan = await loadPlan($)
+  const next = plan === null ? null : nextTrainingDay(plan, await load($, 'progress', START), day)
+  await toast($, line('not-today', { day, nextDay: next === null ? 'soon' : longDayName(next) }), 'keypress')
+  const declines = [...(await load<number[]>($, 'declines', [])).filter(d => d !== day), day].slice(-60)
+  await save($, 'declines', declines)
+  await offerReschedule($, plan, declines, day)
+  await refreshStatus($)
+}
+
+/** The same training weekday declined three weeks running: offer to move it (asked again at most every 4 weeks). */
+async function offerReschedule($: EngineInterface, plan: Plan | null, declines: readonly number[], day: number) {
+  const move = plan === null ? null : rescheduleOffer(plan, declines, day)
+  if (move === null || !(await isDue($, `reschedule:${move.from}`, { everyMs: 28 * 86_400_000 }))) return
+  const coachText = await coachLine($, 'reschedule-ask', { day, from: weekdayLongName(move.from) })
+  await offerBand($, rescheduleBand(coachText, line('reschedule-detail', { day, to: weekdayLongName(move.to) }), move), 'keypress')
+}
+
+/** Move it: the plan file's schedule changes, nothing else does (progress and targets stay). */
+async function moveTrainingDay($: EngineInterface, move: { from: Weekday; to: Weekday }) {
+  const plan = await loadPlan($)
+  if (plan === null || !('days' in plan.schedule)) return
+  await $.fs.write(planPath(), `${JSON.stringify({ ...plan, schedule: { days: moveWeekday(plan.schedule.days, move.from, move.to) } }, null, 2)}\n`)
+  coach.planCache = null
+  $.ui.toast(line('rescheduled', { day: await today($), from: weekdayLongName(move.from), to: weekdayLongName(move.to) }))
+  await refreshStatus($)
+}
+
+/**
+ * Three Laters in a row in a day mean a busy day: the gap doubles for the rest of it, and Swolomon says
+ * so, once. Any Start or Done ends the run.
+ */
+async function countLater($: EngineInterface) {
+  const day = await today($)
+  const streak = await load<{ day: number; n: number } | undefined>($, 'laterStreak', undefined)
+  const n = streak?.day === day ? streak.n + 1 : 1
+  if (n < 3 || (await load<number | undefined>($, 'easyDay', undefined)) === day) {
+    await save($, 'laterStreak', { day, n })
+    return
+  }
+  await save($, 'laterStreak', undefined)
+  await save($, 'easyDay', day)
+  await toast($, await coachLine($, 'busy-day', { day, n: Math.round((await gapMs($)) / 60_000) }), 'keypress')
+}
+
+/** Later: hides the set or the question for one gap, recording nothing. */
+async function snooze($: EngineInterface) {
+  stopCue()
+  const showing = await read($, band)
+  if (['ask', 'set', 'edit', 'timer', 'switch', 'time'].includes(showing?.kind ?? '')) await clearBand($)
+  await countLater($)
+  const at = await now($)
+  await save($, 'nextCueAt', at + (await gapMs($)))
+  if (coach.isTurnRunning) scheduleCue($, cueDelayMs(turnWaitMs(false), at + (await gapMs($)), at))
+}
+
+async function recordStoreOf($: EngineInterface): Promise<RecordStore> {
+  return {
+    progress: await load($, 'progress', START),
+    history: await load<HistoryEntry[]>($, 'history', []),
+    targets: await load<Targets>($, 'targets', {}),
+    lastByExercise: await load($, 'lastByExercise', {}),
+    totalDoneSets: await load($, 'totalDoneSets', 0),
+    nextCueAt: await load<number | undefined>($, 'nextCueAt', undefined),
+  }
+}
+
+async function writePatch($: EngineInterface, patch: Patch) {
+  for (const [key, value] of Object.entries(patch.set)) await save($, key as StoreKey, value)
+  if (patch.append.length > 0) await save($, 'history', appendHistory(await load<HistoryEntry[]>($, 'history', []), ...patch.append))
+}
+
+/** Records the showing set, done with these values or skipped, through the record reducer. */
+async function recordSet($: EngineInterface, outcome: { result: 'done' | 'skip'; count?: number; weight?: number; band?: string }): Promise<'recorded' | 'stale' | 'none'> {
+  const shown = await read($, band)
+  const cue = shown?.cue
+  const plan = await loadPlan($)
+  if (cue === undefined || plan === null || !['set', 'edit', 'timer', 'time'].includes(shown?.kind ?? '')) return 'none'
+  const day = await today($)
+  const at = await now($)
+  const result = record(
+    await recordStoreOf($),
+    { type: 'set', showing: { workout: cue.workout, step: cue.step }, ...outcome },
+    { plan, today: day, now: at, gapMs: (await gapMs($)), setting: plan.answers?.setting ?? 'home' },
+  )
+  if (result.effects.isStale === true) {
+    await clearBand($)
+    $.ui.toast(line('stale', { day }))
+    return 'stale'
+  }
+  stopCue()
+  await writePatch($, result.patch)
+  await save($, 'undo', result.inverse)
+  if (outcome.result === 'done') await save($, 'laterStreak', undefined)
+  if (coach.isTurnRunning && outcome.result === 'done') coach.turnSets += 1
+  // §1.10c after a record: a rank-up band (with a feat toast), else a new best, else the skip reassurance.
+  const rankShown = await showRankUp($, result.effects.rankUp, result.inverse.id)
+  for (const feat of result.effects.feats ?? []) await toastFeat($, feat)
+  const done = result.effects.workoutDone
+  if (done !== undefined) {
+    const week = weekProgress(plan, (result.patch.set.progress as Progress).workout, done.workout)
+    await placeBand($, ratingBand(done.name, day, done.basis, result.inverse.id, done.levelUps, week))
+    if (!done.isPlanDone) {
+      const progress = result.patch.set.progress as Progress
+      const next = nextTrainingDay(plan, progress, day)
+      const nextWorkout = shortWorkoutName(plan.workouts[progress.workout]?.name ?? '')
+      $.ui.toast(
+        next === null
+          ? line('workout-complete-soon', { day, n: done.workout + 1, nextWorkout })
+          : line('workout-complete', { day, n: done.workout + 1, nextDay: longDayName(next).slice(0, 3), nextWorkout }),
+      )
+    }
+  } else {
+    if (!rankShown) {
+      const isBest = result.effects.isNewBest === true
+      const said = isBest ? line('new-best', { day }) : outcome.result === 'skip' ? line('skip', { day }) : undefined
+      const progress = result.patch.set.progress as Progress
+      const workout = plan.workouts[progress.workout]
+      await placeBand(
+        $,
+        loggedBand(result.effects.logged ?? '', result.inverse.id, {
+          ...(said === undefined ? {} : { coach: said }),
+          isBest,
+          ...(result.effects.gain === undefined ? {} : { gain: result.effects.gain }),
+          isFirstEver: (result.effects.feats ?? []).includes('first-set'),
+          ...(workout === undefined ? {} : { today: { done: progress.done, total: stepsFor(workout, progress).length } }),
+        }),
+      )
+    }
+    if (coach.isTurnRunning) scheduleCue($, cueDelayMs(turnWaitMs(false), at + (await gapMs($)), at))
+  }
+  await refreshStatus($)
+  return 'recorded'
+}
+
+/** A new rank: its band, once per rank ever (§1.13.1); Undo drops the rank but keeps the mark. */
+async function showRankUp($: EngineInterface, rank: string | undefined, undoId: number): Promise<boolean> {
+  if (rank === undefined) return false
+  const id = `rank:${rank}`
+  if (!(await isDue($, id, 'ever'))) return false
+  await markSeen($, id)
+  const lineId = RANKS.find(r => r.name === rank)?.line
+  if (lineId === undefined || lineId === null) return false
+  const day = await today($)
+  await placeBand($, rankupBand(rank, line(lineId, { day }), await load($, 'totalDoneSets', 0), undoId))
+  return true
+}
+
+/** A feat's toast, once ever (§1.13.6). */
+async function toastFeat($: EngineInterface, feat: Feat) {
+  const id = `feat:${feat}`
+  if (!(await isDue($, id, 'ever'))) return
+  await markSeen($, id)
+  await toast($, line(`feat-${feat}`, { day: await today($) }), 'keypress')
+}
+
+/** Done: one key records the set as prescribed. */
+async function pressDone($: EngineInterface) {
+  const shown = await read($, band)
+  const cue = shown?.cue
+  if (cue === undefined) return 'none' as const
+  // Done mid-hold logs the seconds actually held; a hold run to the end, the full time.
+  const held = shown?.kind === 'timer' && shown.hold !== undefined ? Math.max(1, shown.hold.seconds - shown.hold.left) : null
+  const count = held ?? cue.count
+  return recordSet($, {
+    result: 'done',
+    ...(count === null ? {} : { count }),
+    ...(cue.weight === null ? {} : { weight: cue.weight }),
+    ...(cue.band === null ? {} : { band: cue.band }),
+  })
+}
+
+/** Edit: the steppers, at the prescribed values (from a set, or a hold that just ended). */
+async function pressEdit($: EngineInterface) {
+  const shown = await read($, band)
+  if ((shown?.kind !== 'set' && shown?.kind !== 'time') || shown.cue === undefined) return
+  const { cue } = shown
+  const draft: Draft = { count: cue.count ?? 0, weight: cue.weight, band: cue.band }
+  await replaceBand($, editBand(cue, draft, await today($)))
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// The hold timer (§1.12 item 1): one 1 s clock, owned by the band, so it ends with the band.
+
+/** Starts the countdown for side 1 (from the set band) or side 2 (from Side 1 done). */
+async function startHold($: EngineInterface, side: 1 | 2) {
+  const shown = await read($, band)
+  const cue = shown?.cue
+  const target = cue === undefined ? null : targetOf(cue.exercise.reps)
+  if (cue === undefined || target === null || !target.isTimed) return
+  if (side === 1 ? shown?.kind !== 'set' : shown?.kind !== 'switch') return
+  const seconds = cue.count ?? target.value
+  const sides = /\beach\b/.test(target.unit) ? 2 : 1
+  const hold = { endsAt: (await now($)) + seconds * 1000, seconds, side, sides, left: seconds } as const
+  coach.holdLine = await coachLine($, 'hold-go', { day: await today($) })
+  await replaceBand($, holdBand(cue, hold, coach.holdLine))
+  ticker($, 'band', 1000, stop => void tickHold($, stop))
+}
+
+async function tickHold($: EngineInterface, stop: () => void) {
+  const shown = await read($, band)
+  const hold = shown?.hold
+  if (shown?.kind !== 'timer' || hold === undefined || shown.cue === undefined) {
+    stop()
+    return
+  }
+  const left = Math.max(0, Math.ceil((hold.endsAt - (await now($))) / 1000))
+  if (left === hold.left) return
+  if (left > 0) {
+    await update($, band, () => holdBand(shown.cue as Cue, { ...hold, left }, coach.holdLine))
+    return
+  }
+  stop()
+  const day = await today($)
+  const isSwitch = hold.side === 1 && hold.sides === 2
+  await replaceBand($, holdBand(shown.cue, { ...hold, left: 0 }, await coachLine($, isSwitch ? 'hold-switch' : 'hold-time', { day })))
+  await playBeep($)
+}
+
+/** The hold timer's beep, unless turned off. */
+async function playBeep($: EngineInterface) {
+  await playCue($, 'assets/time.wav', 'keypress', coach.options.timerBeep)
+}
+
+/**
+ * Every sound IdleReps makes (§1.11 Sound): through the delivery gate (paused and quiet hours silence what
+ * the person did not just ask for), and a surface that cannot play it, or refuses, plays nothing.
+ */
+async function playCue($: EngineInterface, asset: string, cause: Message['cause'], allowed: boolean) {
+  if (gate({ channel: 'sound', cause }, { ...(await deliveryContext($)), soundAllowed: allowed }) !== 'show') return
+  try {
+    await $.audio.play({ asset })
+  } catch {
+    // No sound here: nothing to do.
+  }
+}
+
+/** Swolomon's line read aloud (coachSound "voice"): never two at once, so lines never queue up stale. */
+async function speakLine($: EngineInterface) {
+  const text = coach.talkText
+  if (coach.options.coachSound !== 'voice' || coach.isSpeaking || text === '') return
+  if (gate({ channel: 'sound', cause: 'timer' }, { ...(await deliveryContext($)), soundAllowed: true }) !== 'show') return
+  coach.isSpeaking = true
+  try {
+    await $.audio.speak(text)
+  } catch {
+    // No voice here: nothing to do.
+  } finally {
+    coach.isSpeaking = false
+  }
+}
+
+/** One press of a stepper. */
+async function nudge($: EngineInterface, id: 'fewer' | 'more' | 'lighter' | 'heavier') {
+  const shown = await read($, band)
+  if (shown?.kind !== 'edit' || shown.cue === undefined || shown.draft === undefined) return
+  const { cue, draft } = shown
+  const direction = id === 'fewer' || id === 'lighter' ? -1 : 1
+  const exercise = cue.exercise
+  let next: Draft = draft
+  if (id === 'fewer' || id === 'more') {
+    next = { ...draft, count: stepCount(draft.count, targetOf(exercise.reps)?.isTimed ?? false, direction) }
+  } else if (exercise.weight !== undefined && draft.weight !== null) {
+    next = { ...draft, weight: stepWeight(draft.weight, exercise.weight.step, direction) }
+  } else if (exercise.band !== undefined && draft.band !== null) {
+    next = { ...draft, band: stepBand(exercise.band.levels, draft.band, direction) }
+  }
+  await update($, band, () => editBand(cue, next, dayNumberOf(Date.now())))
+}
+
+/** Save: records what the steppers say. */
+async function saveDraft($: EngineInterface) {
+  const shown = await read($, band)
+  if (shown?.kind !== 'edit' || shown.cue === undefined || shown.draft === undefined) return 'none' as const
+  const { cue, draft } = shown
+  return recordSet($, {
+    result: 'done',
+    ...(cue.count === null ? {} : { count: draft.count }),
+    ...(draft.weight === null ? {} : { weight: draft.weight }),
+    ...(draft.band === null ? {} : { band: draft.band }),
+  })
+}
+
+/** Undo: puts back exactly what the last record changed, and shows that set again. A band's Undo undoes only its own record. */
+async function undoLast($: EngineInterface, fromBand: number | undefined): Promise<boolean> {
+  const inverse = await load<Inverse | undefined>($, 'undo', undefined)
+  if (inverse === undefined) return false
+  if (fromBand !== undefined && inverse.id !== fromBand) {
+    await clearBand($)
+    $.ui.toast(line('undo-stale', { day: await today($) }))
+    return true
+  }
+  stopCue()
+  for (const [key, value] of Object.entries(inverse.restore)) await save($, key as StoreKey, value)
+  for (const key of inverse.remove) await save($, key, undefined)
+  if (inverse.drop > 0) await save($, 'history', (await load<HistoryEntry[]>($, 'history', [])).slice(0, -inverse.drop))
+  await save($, 'undo', undefined)
+  if (inverse.cue === null) await clearBand($)
+  else await replaceBand($, await setBandFor($, inverse.cue, undefined))
+  await refreshStatus($)
+  return true
+}
+
+/** The workout's rating: recorded, and the progression redone with it. */
+async function rate($: EngineInterface, rating: Rating): Promise<boolean> {
+  const shown = await read($, band)
+  const plan = await loadPlan($)
+  if (shown?.kind !== 'rating' || shown.basis === undefined || plan === null) return false
+  const result = record(
+    await recordStoreOf($),
+    { type: 'rating', rating, basis: shown.basis },
+    { plan, today: await today($), now: await now($), gapMs: (await gapMs($)), setting: plan.answers?.setting ?? 'home' },
+  )
+  await writePatch($, result.patch)
+  await save($, 'undo', result.inverse)
+  await clearBand($)
+  // What the workout earned, now that the rating has settled it: the new targets, said once.
+  const workout = plan.workouts[shown.basis.workout]
+  const after = (result.patch.set.targets as Targets | undefined) ?? (await load<Targets>($, 'targets', {}))
+  const raised = workout === undefined ? [] : raisedTargets(workout, shown.basis.targetsBefore, after)
+  if (raised.length > 0) await toast($, line('next-time', { day: await today($), list: raised.map(r => `${r.name} ${r.amount}`).join(' · ') }), 'keypress')
+  // The plan's last workout: the block is done, and that is the moment, not a bonus set.
+  if ((await load($, 'progress', START)).workout >= plan.workouts.length) {
+    await offerProgramEnd($, 'keypress')
+    return true
+  }
+  // It felt easy: push a little further while it does. One set of the workout's first exercise, at its new target.
+  const planned = workout?.exercises[0]
+  if (rating === 'easy' && shown.basis.half !== true && planned !== undefined) {
+    const target = targetFor(planned, after)
+    const exercise = effectiveExercise(planned, target)
+    const count = targetOf(exercise.reps)?.value
+    const weight = exercise.weight === undefined ? undefined : (target.weight ?? exercise.weight.start)
+    const level = exercise.band === undefined ? undefined : (target.band ?? exercise.band.start)
+    const bonus = {
+      workout: shown.basis.workout,
+      exercise: exercise.name,
+      target: exercise.reps,
+      ...(count === undefined ? {} : { count }),
+      ...(weight === undefined ? {} : { weight }),
+      ...(level === undefined ? {} : { band: level }),
+    }
+    const day = await today($)
+    await offerBand($, bonusBand(await coachLine($, 'bonus-ask', { day }), bonus, describeAmount(exercise, count, weight, level)), 'keypress')
+  }
+  return true
+}
+
+/** `/workout now`, `start` and `today`: ignores the training day and the gap, never a second workout in a day. */
+async function startFromCommand($: EngineInterface, arg: 'now' | 'start' | 'today'): Promise<string> {
+  const plan = await loadPlan($)
+  const day = await today($)
+  if (plan === null) return noPlanReply($)
+  let progress = await load($, 'progress', START)
+  if (progress.workout >= plan.workouts.length) return line('reply-plan-finished', { day })
+  if (progress.lastCompletedOn === day) {
+    const next = nextTrainingDay(plan, progress, day)
+    return line('reply-done-today', { day, nextDay: next === null ? 'soon' : longDayName(next) })
+  }
+  if (arg === 'today') {
+    progress = { ...progress, extraDay: day }
+    await save($, 'progress', progress)
+  }
+  const shown = await read($, band)
+  const cue = await startWorkout($, shown?.kind === 'ask' ? shown.reason : undefined)
+  if (cue === null) return line('reply-plan-finished', { day })
+  return line('reply-up-next', { day, exercise: cue.exercise.name, amount: describeAmount(cue.exercise, cue.count, cue.weight, cue.band) })
+}
+
+/**
+ * The half version of today's workout (`/workout half`, or Just half on the ask band): each exercise's sets
+ * halved. Showing up beats doing nothing; it counts as the workout done, and moves no targets.
+ */
+async function chooseHalf($: EngineInterface): Promise<string> {
+  const plan = await loadPlan($)
+  const day = await today($)
+  if (plan === null) return noPlanReply($)
+  const progress = await load($, 'progress', START)
+  const workout = plan.workouts[progress.workout]
+  if (workout === undefined) return line('reply-plan-finished', { day })
+  if (progress.lastCompletedOn === day) {
+    const next = nextTrainingDay(plan, progress, day)
+    return line('reply-done-today', { day, nextDay: next === null ? 'soon' : longDayName(next) })
+  }
+  const halfSets = stepsOf(workout, { half: true }).length
+  if (progress.half !== true && progress.done >= halfSets) return line('reply-past-half', { day, n: stepsOf(workout).length - progress.done })
+  await startWorkout($, undefined, { half: true })
+  return line('reply-half', { day, n: halfSets })
+}
+
+/** The person's last workout was a while ago, or the last one was Tough: the ask says half is fine. */
+async function softerAskLine($: EngineInterface, cue: Cue, day: number): Promise<LineId | null> {
+  if (cue.canHalve !== true) return null
+  const history = await load<HistoryEntry[]>($, 'history', [])
+  const lastSet = history.findLast(e => e.kind === 'set' && e.result === 'done')
+  if (lastSet !== undefined && day - lastSet.d >= COMEBACK_DAYS) return 'comeback'
+  const lastRating = history.findLast(e => e.kind === 'rating')
+  if (lastRating?.kind === 'rating' && lastRating.rating === 'tough' && lastRating.d < day) return 'after-tough'
+  return null
+}
+
+/** One bonus set, done: in the history and the totals, outside the plan's progress. */
+async function recordBonus($: EngineInterface) {
+  const shown = await read($, band)
+  if (shown?.bonus === undefined) return
+  const { workout: w, ...bonus } = shown.bonus
+  const day = await today($)
+  const entry: HistoryEntry = { kind: 'set', t: await now($), d: day, w, set: 0, result: 'done', ...bonus }
+  await writePatch($, { set: { totalDoneSets: (await load($, 'totalDoneSets', 0)) + 1 }, append: [entry] })
+  if (coach.isTurnRunning) coach.turnSets += 1
+  await clearBand($)
+  $.ui.toast(line('bonus-done', { day }))
+  await refreshStatus($)
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// The end of a block, the person's data, and sharing the week (§1.9, §1.12 items 4 and 5).
+
+/** The block is done: what it came to, once a day until answered (once-ledger `program-end-ask`). */
+async function offerProgramEnd($: EngineInterface, cause: Message['cause']) {
+  const plan = await loadPlan($)
+  if (plan === null || (await load($, 'progress', START)).workout < plan.workouts.length) return
+  const since = await planStartedOn($)
+  const history = await load<HistoryEntry[]>($, 'history', [])
+  const sets = history.filter(e => e.kind === 'set' && e.result === 'done' && e.d >= since).length
+  const stronger = gainsOf({ plan, targets: await load<Targets>($, 'targets', {}), history }).length
+  await markSeen($, 'program-end-ask')
+  await offerBand($, programEndBand(await today($), { workouts: plan.workouts.length, sets, stronger }), cause)
+}
+
+/**
+ * Next block: the plan again from workout 1, regenerated from its answers when it has them, with every
+ * target kept, so weights, reps and harder variants carry on where they were.
+ */
+async function nextBlock($: EngineInterface): Promise<string> {
+  const plan = await loadPlan($)
+  const day = await today($)
+  if (plan === null) return noPlanReply($)
+  const progress = await load($, 'progress', START)
+  if (progress.workout < plan.workouts.length) return line('reply-not-finished', { day, n: plan.workouts.length - progress.workout })
+  const next = plan.answers === undefined ? plan : generateProgram(plan.answers)
+  await $.fs.write(planPath(), `${JSON.stringify(next, null, 2)}\n`)
+  coach.planCache = null
+  await save($, 'progress', { ...START, lastCompletedOn: progress.lastCompletedOn })
+  await save($, 'undo', undefined)
+  await save($, 'planStartedOn', day)
+  if ((await read($, band))?.kind === 'programEnd') await clearBand($)
+  const text = line('next-block', { day })
+  $.ui.toast(text)
+  await refreshStatus($)
+  return text
+}
+
+/** `/workout export`: the history as CSV, and the backup restore reads. */
+async function exportData($: EngineInterface): Promise<string> {
+  const values: Partial<Record<StoreKey, unknown>> = {}
+  for (const key of BACKUP_KEYS) values[key] = await $.store.get(key)
+  const history = (values.history as HistoryEntry[] | undefined) ?? []
+  const csvPath = csvPathOf(coach.home)
+  const backupPath = backupPathOf(coach.home)
+  await $.fs.write(csvPath, historyCsv(history, await loadPlan($)))
+  await $.fs.write(backupPath, `${JSON.stringify(backupOf(values, CURRENT_SCHEMA, await now($)))}\n`)
+  return line('reply-exported', { day: await today($), n: history.filter(e => e.kind === 'set').length, path: csvPath, backup: backupPath })
+}
+
+/** The backup file, read and checked, or why it cannot be used. */
+async function readBackup($: EngineInterface): Promise<ReturnType<typeof parseBackup>> {
+  const path = backupPathOf(coach.home)
+  if (!(await $.fs.exists(path))) return { error: 'does not exist' }
+  try {
+    return parseBackup(await $.fs.read(path))
+  } catch {
+    return { error: 'could not be read' }
+  }
+}
+
+const backupDate = (ms: number) => new Date(ms).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+
+/** `/workout restore`: asks first (D20), naming the backup's date; a missing or bad file changes nothing. */
+async function askRestore($: EngineInterface): Promise<string | null> {
+  const day = await today($)
+  const read = await readBackup($)
+  if ('error' in read) return line('reply-restore-missing', { day, path: backupPathOf(coach.home), reason: read.error })
+  await placeBand($, restoreBand(day, backupDate(read.backup.exportedAt)))
+  return null
+}
+
+/** Restore, confirmed: every backed-up key written, those the backup lacks deleted, then migrations. */
+async function restoreBackup($: EngineInterface) {
+  const day = await today($)
+  const read = await readBackup($)
+  await clearBand($)
+  if ('error' in read) {
+    $.ui.toast(line('reply-restore-missing', { day, path: backupPathOf(coach.home), reason: read.error }))
+    return
+  }
+  for (const key of BACKUP_KEYS) await save($, key, read.backup.store[key])
+  await save($, 'undo', undefined)
+  await migrate($)
+  $.ui.toast(line('reply-restored', { day, date: backupDate(read.backup.exportedAt) }))
+  await refreshStatus($)
+}
+
+/** Erase, confirmed: every stored key. The plan file stays. */
+async function eraseAll($: EngineInterface) {
+  const day = await today($)
+  stopCue()
+  await clearBand($)
+  for (const info of STORE_KEYS) await save($, info.key, undefined)
+  $.ui.toast(line('reply-erased', { day }))
+  await refreshStatus($)
+}
+
+/** The turn's wall-clock time, merged into the shared record of when the agent was working. */
+async function recordWorkTime($: EngineInterface) {
+  const intervals = await load<WorkIntervals>($, 'workIntervals', {})
+  await save($, 'workIntervals', addInterval(intervals, coach.turnStartedAt, await now($), dayNumberOf, startOfDayMs))
+}
+
+/** `/workout share` and Share week (§1.9): the line copied, and said so; it is the person's to post. */
+async function shareWeek($: EngineInterface, surface: string | undefined): Promise<string> {
+  const day = await today($)
+  const history = await load<HistoryEntry[]>($, 'history', [])
+  const sets = setsThisWeek(history, day)
+  if (sets === 0) return line('reply-share-empty', { day })
+  let intervals = await load<WorkIntervals>($, 'workIntervals', {})
+  if (coach.isTurnRunning) intervals = addInterval(intervals, coach.turnStartedAt, await now($), dayNumberOf, startOfDayMs)
+  const text = shareLine(workedMs(intervals, mondayOf(day), day), sets, rankFor(await load($, 'totalDoneSets', 0)).name)
+  try {
+    const copied = await $.ui.copy({ text, ...(surface === undefined ? {} : { surface: surface as Parameters<EngineInterface['ui']['copy']>[0]['surface'] }) })
+    return copied.isCopied ? line('reply-shared', { day, text }) : text
+  } catch {
+    return text
+  }
+}
+
+async function noPlanReply($: EngineInterface): Promise<string> {
+  const day = await today($)
+  const file = await planFile($)
+  return file.error === null ? line('reply-no-plan', { day }) : line('reply-fix-plan', { day, path: planPath(), reason: file.error })
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// First run and setup (§1.2, §1.5).
+
+async function isSafetyAcknowledged($: EngineInterface) {
+  return !(await isDue($, 'safety', 'ever'))
+}
+
+/**
+ * Quick start (§1.5): the starter plan, after the safety step. The whole first run stays in the band where
+ * the person already is: the introduction, the safety step, then today's first set (or a taste of one).
+ */
+async function quickStart($: EngineInterface, setting?: 'office' | 'home') {
+  if (!(await isSafetyAcknowledged($))) {
+    await replaceBand($, safetyBand(await today($)))
+    return
+  }
+  // One question, so the first set fits where the person is: a desk plan never asks for the floor.
+  if (setting === undefined) {
+    await replaceBand($, whereBand(await today($)))
+    return
+  }
+  const plan = generateProgram({ ...STARTER_ANSWERS, setting })
+  await writePlan($, plan)
+  const showing = await read($, band)
+  if (showing?.kind === 'intro' || showing?.kind === 'safety' || showing?.kind === 'where') await clearBand($)
+  $.ui.toast(line(setting === 'office' ? 'quick-start' : 'quick-start-home', { day: await today($) }))
+  await offerToday($, plan)
+}
+
+/**
+ * Right after a new plan, the first set is offered at once (§1.7 ease 7: first value fast). On a training
+ * day it is today's workout, on the ask band with Swolomon's plan-ready line and how the rest will come;
+ * on a rest day, the first workout's day and a set now for a taste. Which band it offered, if any.
+ */
+async function offerToday($: EngineInterface, plan: Plan): Promise<'ask' | 'ready' | null> {
+  const ctx = await cueContextOf($, plan)
+  const cue = cueFor(plan, ctx.progress, await load<Targets>($, 'targets', {}))
+  if (cue === null) return null
+  if (cueAllowed(ctx, { ignoreTrainingDay: false, ignoreGap: true })) {
+    const text = await coachLine($, 'plan-ready-ask', cueLineContext(cue, ctx.today, ''))
+    await offerBand($, askBand(cue, text, ctx.today, undefined, { isNewPlan: true }), 'keypress')
+    return (await read($, band))?.kind === 'ask' ? 'ask' : null
+  }
+  if (!cueAllowed(ctx, { ignoreTrainingDay: true, ignoreGap: true })) return null
+  const first = nextTrainingDay(plan, ctx.progress, ctx.today)
+  const text = await coachLine($, 'plan-ready-later-ask', { day: ctx.today, when: first === null ? 'soon' : longDayName(first) })
+  await offerBand($, readyBand(text, ctx.today), 'keypress')
+  return (await read($, band))?.kind === 'ready' ? 'ready' : null
+}
+
+async function openSetup($: EngineInterface, opts: { isQuickStart: boolean }) {
+  const plan = await loadPlan($)
+  const state = newSetup({
+    isSafetyAcknowledged: await isSafetyAcknowledged($),
+    isQuickStart: opts.isQuickStart,
+    ...(plan?.answers === undefined ? {} : { answers: plan.answers }),
+    cueEvery: coach.options.cueEvery,
+    idleReminder: coach.options.idleReminder,
+  })
+  await update($, setup, () => state)
+  await $.ui.open({ id: SETUP_PANE, title: 'Set up IdleReps', focus: true, closeOnEscape: true })
+}
+
+async function closeSetup($: EngineInterface) {
+  await update($, setup, () => null)
+  await $.ui.close({ id: SETUP_PANE })
+}
+
+/** The safety step's I understand: marked once ever; Quick start then writes its plan. */
+async function acknowledgeSafety($: EngineInterface) {
+  await markSeen($, 'safety')
+  const state = await read($, setup)
+  if (state?.isQuickStart === true) {
+    await closeSetup($)
+    await quickStart($)
+    return
+  }
+  await update($, setup, s => (s === null ? s : { ...s, screen: 'start' as const }))
+}
+
+async function setupChoose($: EngineInterface, index: number) {
+  const state = await read($, setup)
+  if (state === null) return
+  const choice = screenOf(state, planPath()).choices?.[index]
+  if (choice === undefined) return
+  await update($, setup, () => choice.apply(state))
+}
+
+async function setupChange($: EngineInterface, change: (state: SetupState) => SetupState) {
+  await update($, setup, s => (s === null ? s : change(s)))
+}
+
+/** Start plan: writes the plan, saves the cadence answers to /config, closes the dialog. */
+async function startPlan($: EngineInterface) {
+  const state = await read($, setup)
+  if (state === null || !(await isSafetyAcknowledged($))) return
+  const plan = planOf(state)
+  await writePlan($, plan)
+  for (const [field, value] of [
+    ['cueEvery', state.cueEvery],
+    ['idleReminder', state.idleReminder],
+  ] as const) {
+    if (coach.options[field] === value) continue
+    const written = await $.config.set({ key: `idlereps.${field}`, value }).catch(() => ({ deny: 'failed' }))
+    if ('deny' in written) {
+      $.ui.toast(line('config-failed', { day: await today($) }))
+      break
+    }
+  }
+  await closeSetup($)
+  const showing = await read($, band)
+  if (showing?.kind === 'intro') await clearBand($)
+  const day = await today($)
+  const offered = await offerToday($, plan)
+  if (offered !== null) {
+    $.ui.toast(line('plan-ready', { day, name: plan.name }))
+    return
+  }
+  const first = isTrainingDay(plan, START, day) ? day : nextTrainingDay(plan, START, day)
+  const when = first === null ? 'soon' : first === day ? 'today' : longDayName(first)
+  $.ui.toast(line('plan-ready-later', { day, when }))
+}
+
+async function copyExample($: EngineInterface, surface: string) {
+  await $.ui.copy({ text: EXAMPLE_PLAN, surface: surface as Parameters<EngineInterface['ui']['copy']>[0]['surface'] })
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Status (§1.4).
+
+async function statusFacts($: EngineInterface, plan: Plan): Promise<StatusFacts> {
+  return {
+    plan,
+    progress: await load($, 'progress', START),
+    history: await load<HistoryEntry[]>($, 'history', []),
+    targets: await load<Targets>($, 'targets', {}),
+    today: await today($),
+    declinedOn: await load<number | undefined>($, 'declinedOn', undefined),
+    paused: await load($, 'paused', false),
+    totalDoneSets: await load($, 'totalDoneSets', 0),
+    since: await planStartedOn($),
+    memory: await load($, 'lastByExercise', {}),
+  }
+}
+
+/** The plan's first day; for a plan from before it was recorded, the first day in the log, else today. */
+async function planStartedOn($: EngineInterface): Promise<number> {
+  const stored = await load<number | undefined>($, 'planStartedOn', undefined)
+  if (stored !== undefined) return stored
+  const first = (await load<HistoryEntry[]>($, 'history', []))[0]
+  return first?.d ?? (await today($))
+}
+
+/**
+ * Today's tally in the prompt footer, and the status pane's facts while it is open. The tally is one of the
+ * footer's dim mode labels (`SessionMode`), not a pinned status line: those carry the engine's warning mark.
+ */
+async function refreshStatus($: EngineInterface) {
+  const plan = await loadPlan($)
+  const facts = plan === null ? null : await statusFacts($, plan)
+  const tally = facts === null ? undefined : statusLineOf(facts)
+  coach.isMidWorkout = /^💪 [1-9]\d*\//.test(tally ?? '')
+  setTally($, coach.options.statusLine ? tally : undefined)
+  if (facts !== null && coach.isStatusOpen) await update($, statusView, () => statusViewOf(facts))
+}
+
+function setTally($: EngineInterface, tally: string | undefined) {
+  if (tally === coach.tally) return
+  coach.tally = tally
+  $.ui.invalidate('ui.render')
+}
+
+/** The spinner's words while today's workout is under way, one per engine word so a turn keeps its own. */
+const GYM_WORDS = ['Repping', 'Spotting', 'Benching', 'Curling', 'Squatting', 'Pressing', 'Flexing', 'Chalking up', 'Racking', 'Pumping']
+const gymWord = (word: string) => GYM_WORDS[[...word].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 9973, 7) % GYM_WORDS.length] ?? 'Repping'
+
+
+
+// ---------------------------------------------------------------------------------------------------------
+// Session-wide one-shots: the idle reminder and the midnight rollover (§4.3 item 3).
+
+async function armIdle($: EngineInterface) {
+  coach.idleTimer?.cancel()
+  coach.idleTimer = null
+  const minutes = Number(coach.options.idleReminder)
+  if (!(minutes > 0) || coach.isTurnRunning) return
+  const plan = await loadPlan($)
+  if (plan === null || (await load($, 'paused', false))) return
+  if (!cueAllowed(await cueContextOf($, plan), { ignoreTrainingDay: false, ignoreGap: true })) return
+  coach.idleTimer = timer($, 'session', minutes * 60_000, () => void remindIdle($))
+}
+
+async function remindIdle($: EngineInterface) {
+  coach.idleTimer = null
+  const minutes = Number(coach.options.idleReminder)
+  const plan = await loadPlan($)
+  if (plan === null || coach.isTurnRunning) return
+  const ctx = await cueContextOf($, plan)
+  const cue = cueFor(plan, ctx.progress, await load<Targets>($, 'targets', {}))
+  if (cue !== null && cueAllowed(ctx, { ignoreTrainingDay: false, ignoreGap: true }) && (await isDue($, 'idle-reminder', { everyMs: minutes * 60_000 }))) {
+    if ((await decide($, { channel: 'toast', cause: 'timer' })) === 'show') {
+      $.ui.toast(line('idle-reminder', { day: ctx.today, workout: shortWorkoutName(cue.workoutName), n: cue.stepCount - cue.step + 1 }))
+      await markSeen($, 'idle-reminder')
+    }
+  }
+  await armIdle($)
+}
+
+async function armMidnight($: EngineInterface) {
+  coach.midnightTimer?.cancel()
+  const at = await now($)
+  const midnight = new Date(at)
+  midnight.setHours(24, 0, 0, 0)
+  coach.midnightTimer = timer($, 'session', midnight.getTime() - at, () => void rollOver($))
+}
+
+async function rollOver($: EngineInterface) {
+  await refreshStatus($)
+  await armIdle($)
+  await armMidnight($)
+}
+
+/** After an update, the release's For you lines, once (§1.12 item 8); never on a first install. */
+async function whatsNew($: EngineInterface, isFresh: boolean) {
+  const id = `whats-new:${PLUGIN_VERSION}`
+  if (!(await isDue($, id, 'ever'))) return
+  const text = whatsNewLine(PLUGIN_VERSION, await today($))
+  if (isFresh || text === null) {
+    await markSeen($, id)
+    return
+  }
+  if ((await decide($, { channel: 'toast', cause: 'timer' })) !== 'show') return
+  $.ui.toast(text)
+  await markSeen($, id)
+}
+
+/** The first session of a Monday: last week's sets, in place of the day toast (§1.13.4); once a week. */
+async function mondayRecap($: EngineInterface): Promise<boolean> {
+  const day = await today($)
+  if (weekdayName(day) !== 'mon' || !(await isDue($, 'recap', 'week'))) return false
+  if ((await decide($, { channel: 'toast', cause: 'timer' })) !== 'show') return false
+  const monday = mondayOf(day)
+  const history = await load<HistoryEntry[]>($, 'history', [])
+  const sets = history.filter(e => e.kind === 'set' && e.result === 'done' && e.d >= monday - 7 && e.d < monday).length
+  const minutes = minutesWords(movedSeconds(history, monday - 7, monday - 1))
+  $.ui.toast(sets > 0 ? line('recap', { day, sets, minutes }) : line('recap-zero', { day }))
+  await markSeen($, 'recap')
+  // The recap takes the day toast's place, so it uses up the day toast too.
+  await markSeen($, 'day-toast')
+  return true
+}
+
+/** Once per calendar day, at the first session start on a training day: Swolomon's day toast (§1.10c). */
+async function dayToast($: EngineInterface, plan: Plan) {
+  const ctx = await cueContextOf($, plan)
+  if (!cueAllowed(ctx, { ignoreTrainingDay: false, ignoreGap: true })) return
+  if (!(await isDue($, 'day-toast', 'day'))) return
+  const cue = cueFor(plan, ctx.progress, await load<Targets>($, 'targets', {}))
+  if (cue === null) return
+  if ((await decide($, { channel: 'toast', cause: 'timer' })) !== 'show') return
+  $.ui.toast(await coachLine($, 'day-toast', cueLineContext(cue, ctx.today, '')))
+  await markSeen($, 'day-toast')
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Buttons: every press goes through the action's id, so a button and `/workout <id>` do the same thing.
+
+async function runAction($: EngineInterface, kind: ActionKind, id: string, surface: string): Promise<void> {
+  if (kind === 'intro') {
+    if (id === 'quickstart') await quickStart($)
+    else if (id === 'setup') await openSetup($, { isQuickStart: false })
+    else if (id === 'notnow') {
+      coach.isIntroDismissed = true
+      await clearBand($)
+    } else if (id === 'dontask') {
+      await markSeen($, 'setup-prompt')
+      await clearBand($)
+    }
+    return
+  }
+  if (kind === 'warmup') {
+    // Either answer: the first set at once, with the word it would have had.
+    const shown = await read($, band)
+    if (shown?.cue !== undefined) await placeBand($, await setBandFor($, shown.cue, shown.thenCoach))
+    else await clearBand($)
+    return
+  }
+  if (kind === 'programEnd') {
+    if (id === 'nextblock') await nextBlock($)
+    else if (id === 'changeplan') {
+      await clearBand($)
+      await openSetup($, { isQuickStart: false })
+    } else await clearBand($)
+    return
+  }
+  if (kind === 'restore' || kind === 'erase') {
+    if (id === 'restore') await restoreBackup($)
+    else if (id === 'erase') await eraseAll($)
+    else {
+      await clearBand($)
+      $.ui.toast(line('reply-cancelled', { day: await today($) }))
+    }
+    return
+  }
+  if (kind === 'bonus') {
+    if (id === 'bonus') await recordBonus($)
+    else await clearBand($)
+    return
+  }
+  if (kind === 'where') {
+    await quickStart($, id === 'home' ? 'home' : 'office')
+    return
+  }
+  if (kind === 'stretch') {
+    if (id === 'stretched') await recordStretch($)
+    else await clearBand($)
+    return
+  }
+  if (kind === 'reschedule') {
+    const shown = await read($, band)
+    if (shown?.move !== undefined) {
+      await markSeen($, `reschedule:${shown.move.from}`)
+      if (id === 'move') await moveTrainingDay($, shown.move)
+    }
+    await clearBand($)
+    return
+  }
+  if (kind === 'ready') {
+    if (id === 'now') await startFromCommand($, 'now')
+    else await clearBand($)
+    return
+  }
+  if (kind === 'replay' || kind === 'flex' || (kind === 'rankup' && id === 'letsgo')) {
+    await clearBand($)
+    return
+  }
+  if (kind === 'status') {
+    if (id === 'now') await startFromCommand($, 'now')
+    else if (id === 'today') await startFromCommand($, 'today')
+    else if (id === 'share') $.ui.toast(await shareWeek($, surface))
+    else if (id === 'setup') await openSetup($, { isQuickStart: false })
+    else if (id === 'close') {
+      coach.isStatusOpen = false
+      await $.ui.close({ id: STATUS_PANE })
+    }
+    return
+  }
+  if (kind === 'safety' && (await read($, setup)) === null) {
+    // The band's safety step (Quick start).
+    if (id === 'understand') {
+      await markSeen($, 'safety')
+      await quickStart($)
+    } else await replaceBand($, introBand(await today($), { entrance: false }))
+    return
+  }
+  if (kind === 'safety') {
+    if (id === 'understand') await acknowledgeSafety($)
+    else await closeSetup($)
+    return
+  }
+  if (kind === 'byo') {
+    if (id === 'copy') await copyExample($, surface)
+    else if (id === 'back') await setupChange($, back)
+    else await closeSetup($)
+    return
+  }
+  const shown = await read($, band)
+  switch (id) {
+    case 'start':
+      await startWorkout($, shown?.reason)
+      return
+    case 'half':
+      await chooseHalf($)
+      return
+    case 'later':
+      await snooze($)
+      return
+    case 'no':
+      await declineToday($)
+      return
+    case 'done':
+      await pressDone($)
+      return
+    case 'edit':
+      await pressEdit($)
+      return
+    case 'skip':
+      await recordSet($, { result: 'skip' })
+      return
+    case 'save':
+      await saveDraft($)
+      return
+    case 'timer':
+      await startHold($, 1)
+      return
+    case 'side2':
+      await startHold($, 2)
+      return
+    case 'stop':
+      if (shown?.cue !== undefined) await replaceBand($, await setBandFor($, shown.cue, undefined))
+      return
+    case 'fewer':
+    case 'more':
+    case 'lighter':
+    case 'heavier':
+      await nudge($, id)
+      return
+    case 'undo':
+      await undoLast($, shown?.undoId)
+      return
+    case 'easy':
+    case 'good':
+    case 'tough':
+      await rate($, id)
+      return
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// `/workout`.
+
+async function workoutCommand($: EngineInterface, args: string): Promise<string | null> {
+  const [arg = '', ...rest] = args.trim().split(/\s+/)
+  const day = await today($)
+  const shown = await read($, band)
+
+  if (arg === '') {
+    const plan = await loadPlan($)
+    if (plan === null) return noPlanReply($)
+    const facts = await statusFacts($, plan)
+    await update($, statusView, () => statusViewOf(facts))
+    coach.isStatusOpen = true
+    const view = statusViewOf(facts)
+    // Inline, it opens tall enough for everything: the portrait's rows or the head's with Swolomon's line,
+    // a blank and the buttons; a blank; the rest.
+    const rows = Math.max(PORTRAIT_ROWS, view.head.length + 3) + 1 + view.more.length
+    const opened = await $.ui.open({ id: STATUS_PANE, title: 'IdleReps', rows })
+    return opened.isPlaced ? null : statusTextOf(facts)
+  }
+  if (arg === 'status') {
+    const plan = await loadPlan($)
+    return plan === null ? noPlanReply($) : statusTextOf(await statusFacts($, plan))
+  }
+  if (arg === 'setup') {
+    await openSetup($, { isQuickStart: false })
+    return line('reply-setup-opened', { day })
+  }
+  if (arg === 'plan') return planFromText($, rest.join(' '))
+  if (arg === 'pause') {
+    if (await load($, 'paused', false)) return line('reply-already-paused', { day })
+    await save($, 'paused', true)
+    stopCue()
+    await refreshStatus($)
+    return line('reply-pause', { day })
+  }
+  if (arg === 'resume') {
+    if (!(await load($, 'paused', false))) return line('reply-not-paused', { day })
+    await save($, 'paused', undefined)
+    await armIdle($)
+    await refreshStatus($)
+    return line('reply-resume', { day })
+  }
+  // Your data (§1.12 item 5): these work with or without a plan.
+  if (arg === 'export') return exportData($)
+  if (arg === 'share') return shareWeek($, undefined)
+  if (arg === 'restore' && shown?.kind !== 'restore') return askRestore($)
+  if (arg === 'erase' && shown?.kind !== 'erase') {
+    await placeBand($, eraseBand(day))
+    return null
+  }
+  // Asked-for bands (the replay, the flex) show now or not at all: never queued behind a set to pop up later.
+  if (arg === 'swolomon') {
+    const isShown = await placeIfFree($, (await loadPlan($)) === null ? introBand(day) : replayBand(day))
+    return isShown ? null : line('reply-swolomon-busy', { day })
+  }
+  // Easter eggs (§1.13.5): the only replies in Swolomon's voice.
+  if (arg === 'flex') {
+    if (await placeIfFree($, flexBand(day))) return null
+    return `${COACH_NAME}: ${line('flex', { day })}`
+  }
+  if (arg === 'protein' || arg === 'wisdom') return `${COACH_NAME}: ${line(arg, { day })}`
+
+  const plan = await loadPlan($)
+  if (plan === null && !['restore', 'erase', 'cancel', 'quickstart', 'notnow', 'dontask', 'desk', 'home', 'understand', 'copy', 'back', 'close'].includes(arg)) {
+    return noPlanReply($)
+  }
+  switch (arg) {
+    case 'reset':
+      await save($, 'progress', START)
+      if (shown?.kind === 'ask' || shown?.kind === 'set' || shown?.kind === 'edit') await clearBand($)
+      await refreshStatus($)
+      return line('reply-reset', { day })
+    case 'now':
+    case 'start':
+    case 'today':
+      return startFromCommand($, arg)
+    case 'no':
+      await declineToday($)
+      return line('reply-not-today', { day, nextDay: await nextDayName($, plan) })
+    case 'half':
+      return chooseHalf($)
+    case 'next-block':
+      return nextBlock($)
+    case 'later':
+      await snooze($)
+      return line('reply-hidden', { day, n: Math.round((await gapMs($)) / 60_000) })
+    case 'undo':
+      return line((await undoLast($, undefined)) ? 'reply-undone' : 'reply-nothing-to-undo', { day })
+    case 'easy':
+    case 'good':
+    case 'tough':
+      return line((await rate($, arg)) ? 'reply-rated' : 'reply-nothing-to-rate', { day })
+    case 'skip':
+    case 'done':
+      return doneCommand($, arg, rest)
+  }
+  for (const kind of ['warmup', 'programEnd', 'restore', 'erase', 'intro', 'where', 'stretch', 'bonus', 'safety', 'ready', 'reschedule', 'timer', 'switch', 'time', 'ask', 'set', 'edit', 'logged', 'rating'] as const) {
+    if (shown?.kind === kind && shown.actions.includes(arg)) {
+      await runAction($, kind, arg, 'terminal')
+      return null
+    }
+  }
+  const pane = await read($, setup)
+  if (pane !== null && ['understand', 'copy', 'back', 'close'].includes(arg)) {
+    await runAction($, pane.screen === 'safety' ? 'safety' : 'byo', arg, 'terminal')
+    return null
+  }
+  if (['quickstart', 'notnow', 'dontask', 'desk', 'home', 'stretched', 'bonus', 'enough', 'warmed', 'skipwarmup', 'nextblock', 'changeplan', 'endlater', 'restore', 'erase', 'cancel', 'save', 'edit', 'fewer', 'more', 'lighter', 'heavier', 'understand', 'copy', 'back', 'close'].includes(arg)) {
+    return line('reply-nothing-showing', { day, id: arg })
+  }
+  return line('reply-usage', { day })
+}
+
+async function nextDayName($: EngineInterface, plan: Plan | null): Promise<string> {
+  if (plan === null) return 'soon'
+  const next = nextTrainingDay(plan, await load($, 'progress', START), await today($))
+  return next === null ? 'soon' : longDayName(next)
+}
+
+/** `/workout done [reps] [weight]` and `/workout skip`, for the set showing. */
+async function doneCommand($: EngineInterface, arg: 'done' | 'skip', rest: string[]): Promise<string> {
+  const day = await today($)
+  const shown = await read($, band)
+  const cue = shown?.cue
+  if (cue === undefined || (shown?.kind !== 'set' && shown?.kind !== 'edit')) return line('reply-no-set', { day })
+  if (arg === 'skip') {
+    await recordSet($, { result: 'skip' })
+    return line('reply-set-skipped', { day })
+  }
+  const [amount, heavy] = rest
+  const count = amount === undefined ? (cue.count ?? undefined) : Number(amount)
+  const isBand = cue.exercise.band !== undefined
+  const weight = heavy === undefined || isBand ? (cue.weight ?? undefined) : Number(heavy)
+  if (count !== undefined && !(Number.isInteger(count) && count > 0 && count <= 999)) return line('reply-done-usage', { day })
+  if (weight !== undefined && !(weight >= 0 && weight <= 999)) return line('reply-done-usage', { day })
+  const outcome = {
+    result: 'done' as const,
+    ...(count === undefined || cue.count === null ? {} : { count }),
+    ...(weight === undefined ? {} : { weight }),
+    ...(cue.band === null ? {} : { band: cue.band }),
+  }
+  await recordSet($, outcome)
+  if (outcome.count === undefined && outcome.weight === undefined) return line('reply-set-done', { day })
+  return line('reply-set-done-amount', { day, amount: describeAmount(cue.exercise, outcome.count ?? null, outcome.weight ?? null, outcome.band ?? null).replace(' @ ', ' at ') })
+}
+
+/** `/workout plan <text>` (§1.2, D8): the model turns a description into a plan; nothing changes on failure. */
+async function planFromText($: EngineInterface, text: string): Promise<string> {
+  const day = await today($)
+  if (!(await isSafetyAcknowledged($))) return line('reply-safety-first', { day, safety: SAFETY_TEXT })
+  if (text.trim() === '') return line('reply-plan-usage', { day })
+  const answer = await $.model.complete({ model: PLAN_MODEL, system: PLAN_PROMPT, prompt: text, maxTokens: 4000 })
+  if (!answer.isAnswered) return line('reply-plan-unreachable', { day, reason: answer.reason })
+  let plan: Plan
+  try {
+    plan = parsePlan(stripFence(answer.text))
+  } catch (error) {
+    return line('reply-plan-failed', { day, reason: (error as Error).message })
+  }
+  await writePlan($, plan)
+  return line('reply-plan-written', {
+    day,
+    name: plan.name,
+    workouts: plan.workouts.length,
+    schedule: scheduleLabel(plan.schedule),
+    path: planPath(),
+  })
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Drawing: one row is one Text, its pieces nested inside so the row wraps (or is cut) as a whole.
+
+type TextElement = (props: Record<string, unknown> & { children?: unknown }) => JSX.Element
+
+/** A row as one Text: plain, or styled pieces; a row with a piece that may be cut is cut at the edge, never wrapped. */
+function rowText(Text: unknown, row: string | readonly BandPart[], key: string, opts: { truncate?: boolean } = {}) {
+  const T = Text as TextElement
+  if (typeof row === 'string') return <T key={key} {...(opts.truncate === true ? { wrap: 'truncate-end' } : {})}>{row}</T>
+  const isCut = opts.truncate === true || row.some(part => part.truncate === true)
+  return (
+    <T key={key} {...(isCut ? { wrap: 'truncate-end' } : {})}>
+      {row.map((part, j) => (
+        <T
+          key={`${key}-${j}`}
+          {...(part.bold === true ? { bold: true } : {})}
+          {...(part.italic === true ? { italic: true } : {})}
+          {...(part.tone === 'muted' || part.dim === true ? { dimColor: true } : part.tone === undefined ? {} : { color: TONE_COLOUR[part.tone] })}
+        >
+          {part.text}
+        </T>
+      ))}
+    </T>
+  )
+}
+
+// ---------------------------------------------------------------------------------------------------------
+
+/** Where a band is drawn: above the prompt, or (where no surface draws that) in its own pane. */
+type BandSite = { surface: RenderSurface; requestId: string; maxRows: number; bodyColumns: number; isWorking: boolean }
+
+/** The band in the slot, drawn for a site; null when the slot is empty. */
+async function drawBand($: EngineInterface, site: BandSite, elements: ElementTable) {
+  const spec = await read($, band)
+  if (spec === null) return null
+  const said = await read($, talk)
+    const { Box, Button, Text } = elements
+  const surface = site.surface
+  const numbered = (hotkey: string, label: string) =>
+    surface === 'terminal' ? ({ hotkey, label, plain: true } as const) : ({ hotkey, label: `${hotkey} · ${label}` } as const)
+  const gap = <Text>   </Text>
+  const isTimed = spec.cue === undefined ? false : (targetOf(spec.cue.exercise.reps)?.isTimed ?? false)
+  const isBand = spec.cue?.exercise.band !== undefined
+  const labelOf = (id: string) => {
+    if (spec.kind === 'edit' && (id === 'fewer' || id === 'more')) return stepperLabel(id, isTimed)
+    if (spec.kind === 'edit' && (id === 'lighter' || id === 'heavier')) return loadLabel(id, isBand)
+    if (spec.kind === 'reschedule' && spec.move !== undefined) return id === 'move' ? `Move to ${weekdayShortName(spec.move.to)}` : `Keep ${weekdayShortName(spec.move.from)}`
+    return actionOf(spec.kind, id).label
+  }
+  const buttons = spec.actions.map((id, i) => {
+    const action = actionOf(spec.kind, id)
+    return (
+      <Box key={`b-${id}`}>
+        {i > 0 && gap}
+        <Button
+          key={id}
+          {...numbered(action.hotkey, labelOf(id))}
+          {...(action.isPrimary === true ? { variant: 'primary' as const } : {})}
+          onPress={() => runAction($, spec.kind, id, surface)}
+        />
+      </Box>
+    )
+  })
+
+  // The header: its lead, then the workout's sets as dots (when they fit on a row) and in words.
+  const lead = spec.headerLead === true ? `${line(site.isWorking ? 'lead-working' : 'lead-idle', { day: 0 })} · ` : ''
+  const dots = spec.progress === undefined ? null : progressDots(spec.progress.done, spec.progress.total)
+  const headerParts: BandPart[] =
+    spec.header === undefined
+      ? []
+      : [
+          { text: `${lead}${spec.header}`, tone: 'muted' },
+          ...(dots === null
+            ? []
+            : [
+                { text: '   ' },
+                ...((spec.progress?.total ?? 0) <= 16
+                  ? [{ text: dots.done, tone: 'good' as const }, { text: dots.current, tone: 'accent' as const }, { text: dots.rest, tone: 'muted' as const }, { text: '  ' }]
+                  : []),
+                { text: dots.words, tone: 'muted' as const },
+              ]),
+        ]
+
+  // How wide the text is, to decide whether the portrait fits beside it (§1.11 Fit).
+  const widthOf = (row: string | BandPart[]) =>
+    typeof row === 'string' ? row.length : row.filter(part => part.truncate !== true).reduce((n, part) => n + part.text.length, 0)
+  const buttonColumns = spec.actions.reduce((n, id, i) => n + (i > 0 ? 3 : 0) + actionOf(spec.kind, id).hotkey.length + 2 + labelOf(id).length, 0)
+  const textColumns = Math.max(
+    widthOf(headerParts),
+    ...(spec.coach ?? []).map(text => text.length),
+    ...spec.body.map(widthOf),
+    ...(spec.extras ?? []).map(text => text.length),
+    ...(spec.footer ?? []).map(text => text.length),
+    spec.inline === true ? widthOf(spec.body.at(-1) ?? '') + 3 + buttonColumns : buttonColumns + widthOf(spec.trailing ?? []),
+  )
+  const fit: Fit = fitPortrait({
+    wanted: spec.portrait ?? 'none',
+    surface,
+    approved: SPRITE.approved,
+    maxRows: site.maxRows,
+    bodyColumns: site.bodyColumns,
+    bandRows: bandRows(spec),
+    textColumns,
+    sprite: SPRITE,
+  })
+  coach.portrait = fit === 'none' ? null : { requestId: site.requestId, size: fit }
+  // Where there are no terminal cells, the portrait is an SVG of the same pixels (still: no blits there).
+  const svgSize: PortraitSize | null =
+    site.surface !== 'terminal' && 'Svg' in elements && SPRITE.approved && spec.portrait !== undefined ? spec.portrait : null
+
+  const header = headerParts.length === 0 ? null : rowText(Text, headerParts, 'header')
+  // While typing, each line shows what is out so far; rows keep their place so the band never jumps.
+  const isTalking = said !== null && said.key === spec.talkKey
+  const coachRows = (spec.coach ?? []).map((text, i) => {
+    const shown = isTalking ? text.slice(0, said.shown[i] ?? text.length) : text
+    const tag: BandPart[] = fit === 'none' && svgSize === null && i === 0 ? [{ text: `${COACH_NAME}:`, bold: true, tone: 'accent' }, { text: ' ' }] : []
+    return rowText(Text, [...tag, { text: shown === '' ? ' ' : shown }], `coach-${i}`)
+  })
+  const bodyRows = spec.body.map((row, i) => {
+    const isLast = i === spec.body.length - 1
+    if (!(isLast && spec.inline === true)) return rowText(Text, row, `body-${i}`)
+    return (
+      <Box key={`body-${i}`}>
+        {rowText(Text, row, `body-${i}-text`)}
+        {gap}
+        {buttons}
+      </Box>
+    )
+  })
+  const rows = [
+    spec.headerFirst === true ? header : null,
+    ...coachRows,
+    spec.headerFirst !== true ? header : null,
+    ...bodyRows,
+    ...(spec.extras ?? []).map((text, i) => (
+      <Text key={`extra-${i}`} dimColor italic>
+        {text}
+      </Text>
+    )),
+    spec.inline !== true && buttons.length > 0 ? (
+      <Box key="buttons">
+        {buttons}
+        {spec.trailing !== undefined && rowText(Text, spec.trailing, 'trailing')}
+      </Box>
+    ) : null,
+    ...(spec.footer ?? []).map((text, i) => (
+      <Text key={`footer-${i}`} dimColor>
+        {text}
+      </Text>
+    )),
+  ].filter(row => row !== null)
+  // The entrance: the stage over the buttons, the band's full height and no more, until Swolomon is in place.
+  if (isTalking && said.isEntering === true) {
+    if (fit === 'full' && 'Raster' in elements && site.bodyColumns >= STAGE_COLUMNS) {
+      const { Raster } = elements
+      coach.portrait = null
+      coach.stage = { requestId: site.requestId }
+      const at = (await now($)) - coach.entranceStartedAt
+      return (
+        <Box flexDirection="column">
+          <Raster key="stage" columns={STAGE_COLUMNS} rows={STAGE_ROWS} cells={stageCells(SPRITE, at)} />
+          <Box key="buttons">{buttons}</Box>
+        </Box>
+      )
+    }
+    coach.stage = 'declined'
+  }
+  if (svgSize !== null && 'Svg' in elements) {
+    const { Svg } = elements
+    const pose: Pose = isTalking ? said.pose : spec.isWin === true ? 'flex' : 'idle'
+    const pixels = svgSize === 'full' ? SVG_PIXELS.full * SPRITE.width : SVG_PIXELS.mini * SPRITE.miniSize
+    return (
+      <Box flexDirection="row" alignItems={svgSize === 'full' ? 'center' : 'flex-start'}>
+        <Svg key="swolomon" source={SVGS[frameFor(svgSize, pose)]} alt={COACH_NAME} width={pixels} height={pixels} />
+        <Box key="portrait-gap" width={PORTRAIT_GAP} />
+        <Box key="text" flexDirection="column">
+          {rows}
+        </Box>
+      </Box>
+    )
+  }
+  if (fit === 'none' || !('Raster' in elements)) return <Box flexDirection="column">{rows}</Box>
+
+  const { Raster } = elements
+  const pose: Pose = isTalking ? said.pose : spec.isWin === true ? 'flex' : 'idle'
+  const { columns, rows: height } = portraitCells(SPRITE, fit)
+  // Beside the full portrait the text sits in the middle; beside the mini head it starts level with his line.
+  return (
+    <Box flexDirection="row" alignItems={fit === 'full' ? 'center' : 'flex-start'}>
+      <Raster key="swolomon" columns={columns} rows={height} cells={FRAMES[frameFor(fit, pose)]} />
+      <Box key="portrait-gap" width={PORTRAIT_GAP} />
+      <Box key="text" flexDirection="column">
+        {rows}
+      </Box>
+    </Box>
+  )
+}
+
+/** A Bash result's git reading (the engine's), as far as the turn-end line needs it. */
+type GitOperation = { commit?: unknown; pr?: { action: string } }
+
+/** The sign a tool call gives of a long task, once per turn and only on a turn that could cue. */
+async function watchCall<R>($: EngineInterface, tool: string, input: Record<string, unknown>, run: () => Promise<R>): Promise<R> {
+  if (!(coach.turnCanCue || coach.turnCanStretch || coach.turnCanNudge) || coach.hasStrongSign) return run()
+  coach.toolCalls += 1
+  if (tool === 'TaskCreate') coach.tasksThisTurn += 1
+  const sign = toolSign(factsOf(tool, input, coach.tasksThisTurn), coach.toolCalls)
+  if (sign !== null) {
+    await noticeLongTask($, sign)
+    return run()
+  }
+  const slow = timer($, 'turn', SLOW_STEP_MS, () => void noticeLongTask($, { reason: 'slow-step' }))
+  try {
+    return await run()
+  } finally {
+    slow.cancel()
+  }
+}
+
+/** A week or more since the last set: the ask welcomes the person back, and offers half. */
+const COMEBACK_DAYS = 7
+
+/** Swolomon's talk blip (§1.11 Sound): original, generated by scripts/make-blip-wav.mjs. */
+const BLIP_ASSET = 'assets/blip.wav'
+
+const REACTION: Record<Outcome, LineId> = { 'tests-pass': 'react-tests-pass', 'tests-fail': 'react-tests-fail', commit: 'react-commit', pr: 'react-pr' }
+
+export const register: Register = (on, options) => {
+  coach.options = readOptions(options)
+
+  on('session.start', async ($, e, next) => {
+    coach.home = (await $.env.get('HOME')) ?? ''
+    await $.command.register({
+      name: 'workout',
+      description: 'IdleReps: your workout, one set at a time while your agent works',
+      argumentHint: '[status | now | done [reps] [weight] | skip | later | undo | setup | plan <text> | pause]',
+    })
+    const migrated = await migrate($)
+    const day = await today($)
+    if (migrated === 'newer') {
+      $.ui.toast(line('newer-store', { day }))
+      return next(e)
+    }
+    // D3: the prototype's plan file becomes the first plan.
+    if (!(await $.fs.exists(planPath()))) {
+      const legacy = legacyPathOf(coach.home)
+      if (await $.fs.exists(legacy)) {
+        try {
+          await $.fs.write(planPath(), `${JSON.stringify(parseLegacyPlan(await $.fs.read(legacy)), null, 2)}\n`)
+        } catch {
+          // Not a prototype plan: leave both files alone.
+        }
+      }
+    }
+    const file = await planFile($)
+    // The first session after install: the introduction, and a toast pointing at it in case it is missed.
+    // Later sessions without a plan open quietly; the nudge comes while the agent works (offerNudge).
+    if (file.isMissing && e.isInteractive && (await mayAskToStart($)) && (await isDue($, 'intro', 'ever'))) {
+      await markSeen($, 'intro')
+      await markSeen($, 'intro-day')
+      await offerBand($, introBand(day), 'timer')
+      await toast($, line('installed', { day }), 'timer')
+    } else if (file.plan !== null && (await read($, band))?.kind === 'intro') {
+      await clearBand($)
+    }
+    // §1.10c: what's-new, plus the day toast.
+    await whatsNew($, migrated === 'fresh')
+    if (file.plan !== null && !(await mondayRecap($))) await dayToast($, file.plan)
+    // A block finished but not answered (Later, or the rating dismissed): asked again on a training day, once.
+    if (file.plan !== null && e.isInteractive && (await isDue($, 'program-end-ask', 'day'))) {
+      const progress = await load($, 'progress', START)
+      if (progress.workout >= file.plan.workouts.length && isTrainingDay(file.plan, progress, day)) await offerProgramEnd($, 'timer')
+    }
+    await refreshStatus($)
+    await armIdle($)
+    await armMidnight($)
+    return next(e)
+  })
+
+  on('turn.start', async ($, e, next) => {
+    coach.isTurnRunning = true
+    coach.turnStartedAt = await now($)
+    coach.toolCalls = 0
+    coach.turnSets = 0
+    coach.turnOutcome = undefined
+    coach.tasksThisTurn = 0
+    coach.waitMs = undefined
+    coach.hasStrongSign = false
+    coach.idleTimer?.cancel()
+    coach.idleTimer = null
+    // The next prompt ends the chance to undo from the band, and dismisses an unanswered rating or a replay.
+    // The first-run band goes once a plan exists, however it got there (by hand, another session).
+    const shown = await read($, band)
+    const isIntroDone = shown?.kind === 'intro' && (await loadPlan($)) !== null
+    const isDismissedByPrompt = ['logged', 'rating', 'bonus', 'rankup', 'replay', 'flex', 'ready'].includes(shown?.kind ?? '') || shown?.isNudge === true
+    if (isDismissedByPrompt || isIntroDone) await clearBand($)
+    const isBig = isBigAsk(e.text)
+    coach.reason = isBig ? 'big-ask' : undefined
+    coach.turnCanCue = await couldCueThisTurn($)
+    coach.turnCanStretch = !coach.turnCanCue && (await couldStretchThisTurn($))
+    coach.turnCanNudge = await couldNudgeThisTurn($)
+    const showing = await read($, band)
+    if ((coach.turnCanCue || coach.turnCanStretch || coach.turnCanNudge) && (showing === null || showing.kind === 'logged')) {
+      scheduleCue($, cueDelayMs(turnWaitMs(isBig), await load<number | undefined>($, 'nextCueAt', undefined), coach.turnStartedAt))
+    }
+    return next(e)
+  })
+
+  on('tool.call', async ($, e, next) => {
+    // D21: the tool hook only counts and observes: the turn's sign, then what the call achieved (tests, a
+    // commit, a PR) for the line that ends the turn. It never changes a call or its result.
+    if (!coach.isTurnRunning) return next(e)
+    const tool = String(e.tool)
+    const input = e as unknown as Record<string, unknown>
+    const result = await watchCall($, tool, input, () => next(e))
+    // A denied call ran nothing, so it achieved nothing.
+    if (tool === 'Bash' && result.deny === undefined) {
+      const op = result.isError === undefined ? (result.result as { gitOperation?: GitOperation }).gitOperation : undefined
+      const outcome = outcomeOf(factsOf(tool, input, 0), { isError: result.isError === true, commit: op?.commit !== undefined, pr: op?.pr?.action === 'created' })
+      if (outcome !== null) coach.turnOutcome = turnOutcome(coach.turnOutcome, outcome)
+    }
+    return result
+  })
+
+  on('turn.complete', async ($, e, next) => {
+    coach.isTurnRunning = false
+    // The line that closes the turn says what the person did meanwhile; it is found by the turn's length.
+    if (e.agentId === undefined && coach.turnSets > 0) {
+      coach.setsByTurnLength.set(e.durationMs, { sets: coach.turnSets, ...(coach.turnOutcome === undefined ? {} : { outcome: coach.turnOutcome }) })
+    }
+    coach.turnSets = 0
+    coach.turnOutcome = undefined
+    if (e.agentId === undefined) await recordWorkTime($)
+    // A band already up stays until answered; a cue not yet due, or waiting on the prompt, is dropped.
+    stopCue()
+    cancelTimers('turn')
+    coach.deferred = null
+    await armIdle($)
+    return next(e)
+  })
+
+  on('prompt.edit', async ($, e, next) => {
+    const box = await next(e)
+    if (coach.deferred !== null && box.text === '') void deliverDeferred($)
+    return box
+  })
+
+  on('command.run', { command: 'workout' }, async ($, e) => {
+    const text = await workoutCommand($, e.args)
+    if (text === null) return {}
+    const isPauseReply = /^\s*(pause|resume)\b/.test(e.args)
+    return { text: !isPauseReply && (await load($, 'paused', false)) ? `${line('reply-paused-prefix', { day: await today($) })} ${text}` : text }
+  })
+
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (e.props.hasSurvey) return next(e)
+    const site = { surface: e.surface, requestId: e.requestId, maxRows: e.props.maxRows, bodyColumns: e.props.bodyColumns, isWorking: e.props.isWorking }
+    return (await drawBand($, site, $.ui.resolve(e))) ?? next(e)
+  })
+
+  // Where no attached surface draws the band above the prompt (VS Code), the band is this pane.
+  on('ui.render', { component: 'Pane', requestId: BAND_PANE }, async ($, e) => {
+    const elements = $.ui.resolve(e)
+    const site = { surface: e.surface, requestId: e.requestId, maxRows: 12, bodyColumns: e.props.bodyColumns, isWorking: coach.isTurnRunning }
+    const { Text } = elements
+    return (await drawBand($, site, elements)) ?? <Text dimColor>Nothing to do right now. /workout shows your week.</Text>
+  })
+
+  // Today's tally, as a dim label at the right of the prompt footer.
+  on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
+    const tally = coach.tally
+    if (tally === undefined) return next(e)
+    return next({ ...e, props: { ...e.props, modes: [...e.props.modes, tally] } })
+  })
+
+  // While today's workout is under way, the spinner lifts too: a gym word in place of the engine's.
+  on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
+    if (!coach.isMidWorkout || e.props.message !== null) return next(e)
+    return next({ ...e, props: { ...e.props, word: gymWord(e.props.word) } })
+  })
+
+  // The line that closes a turn: how long the agent took, and what the person did meanwhile.
+  on('ui.render', { component: 'TurnDuration' }, async ($, e, next) => {
+    const turn = coach.setsByTurnLength.get(e.props.durationMs)
+    if (turn === undefined) return next(e)
+    const { Box, Text } = $.ui.resolve(e)
+    const drawn = await next(e)
+    const day = await today($)
+    const sets = (
+      <Box key="line" flexDirection="row">
+        {drawn}
+        <Text key="sets" dimColor>
+          {` · ${line('turn-sets', { day, sets: turn.sets === 1 ? '1 set' : `${turn.sets} sets` })} 💪`}
+        </Text>
+      </Box>
+    )
+    if (turn.outcome === undefined) return sets
+    // The person trained through it, and the agent got something done: Swolomon notices both.
+    const said = line(REACTION[turn.outcome], { day })
+    return (
+      <Box flexDirection="column">
+        {sets}
+        {rowText(Text, [{ text: `${COACH_NAME}: `, tone: 'accent', bold: true }, { text: said }], 'react', { truncate: true })}
+      </Box>
+    )
+  })
+
+  on('ui.render', { component: 'Pane', requestId: STATUS_PANE }, async ($, e) => {
+    const { Box, Button, Text } = $.ui.resolve(e)
+    const surface = e.surface
+    const numbered = (hotkey: string, label: string) =>
+      surface === 'terminal' ? ({ hotkey, label, plain: true } as const) : ({ hotkey, label: `${hotkey} · ${label}` } as const)
+    const view = await read($, statusView)
+    if (view === null) return <Text dimColor>No plan yet. Run /workout setup.</Text>
+    const rowOf = (row: string | BandPart[], key: string) => rowText(Text, row === '' ? ' ' : row, key, { truncate: true })
+    const ids = ['now', ...(view.isRestDay ? ['today'] : []), ...(view.canShare ? ['share'] : []), 'setup', 'close']
+    const buttons = (
+      <Box key="buttons">
+        {ids.map((id, i) => {
+          const action = actionOf('status', id)
+          return (
+            <Box key={`b-${id}`}>
+              {i > 0 && <Text>   </Text>}
+              <Button key={id} {...numbered(action.hotkey, action.label)} onPress={() => runAction($, 'status', id, surface)} />
+            </Box>
+          )
+        })}
+      </Box>
+    )
+    // Most important first: Swolomon's line and the head, then the buttons, then the rest. A pane above the
+    // prompt sizes itself to its content up to a cap, so what it cuts is only ever the least important rows.
+    const elements = $.ui.resolve(e)
+    const widest = Math.max(view.coach.length, ...view.head.map(row => (typeof row === 'string' ? row.length : row.filter(p => p.truncate !== true).reduce((n, p) => n + p.text.length, 0))))
+    const hasPortrait = surface === 'terminal' && SPRITE.approved && 'Raster' in elements && e.props.bodyColumns >= SPRITE.width + PORTRAIT_GAP + widest
+    const hasSvg = surface !== 'terminal' && SPRITE.approved && 'Svg' in elements
+    const said = rowText(Text, hasPortrait || hasSvg ? [{ text: view.coach, italic: true }] : [{ text: `${COACH_NAME}:`, bold: true, tone: 'accent' }, { text: ` ${view.coach}` }], 'coach', { truncate: true })
+    const top = (
+      <Box key="top" flexDirection="column">
+        {view.head.slice(0, 1).map((row, i) => rowOf(row, `head-${i}`))}
+        {said}
+        {view.head.slice(1).map((row, i) => rowOf(row, `head-${i + 1}`))}
+        <Text key="before-buttons"> </Text>
+        {buttons}
+      </Box>
+    )
+    const rest = view.more.map((row, i) => rowOf(row, `more-${i}`))
+    if (hasSvg && 'Svg' in elements) {
+      const { Svg } = elements
+      const pixels = SVG_PIXELS.full * SPRITE.width
+      return (
+        <Box flexDirection="column">
+          <Box key="portrait-row" flexDirection="row">
+            <Svg key="swolomon" source={SVGS[view.isWin ? 'flex' : 'idle']} alt={COACH_NAME} width={pixels} height={pixels} />
+            <Box key="portrait-gap" width={PORTRAIT_GAP} />
+            {top}
+          </Box>
+          <Text key="gap"> </Text>
+          {rest}
+        </Box>
+      )
+    }
+    if (!hasPortrait || !('Raster' in elements)) {
+      return (
+        <Box flexDirection="column">
+          {top}
+          <Text key="gap"> </Text>
+          {rest}
+        </Box>
+      )
+    }
+    const { Raster } = elements
+    return (
+      <Box flexDirection="column">
+        <Box key="portrait-row" flexDirection="row">
+          <Raster key="swolomon" columns={SPRITE.width} rows={PORTRAIT_ROWS} cells={FRAMES[view.isWin ? 'flex' : 'idle']} />
+          <Box key="portrait-gap" width={PORTRAIT_GAP} />
+          {top}
+        </Box>
+        <Text key="gap"> </Text>
+        {rest}
+      </Box>
+    )
+  })
+
+  on('ui.render', { component: 'Pane', requestId: SETUP_PANE }, async ($, e) => {
+    const { Box, Button, Text } = $.ui.resolve(e)
+    const surface = e.surface
+    const numbered = (hotkey: string, label: string) =>
+      surface === 'terminal' ? ({ hotkey, label, plain: true } as const) : ({ hotkey, label: `${hotkey} · ${label}` } as const)
+    const state = await read($, setup)
+    if (state === null) return <Text dimColor>Setup is closed. /workout setup opens it again.</Text>
+    const screen = screenOf(state, planPath())
+    const row = (items: { key: string; hotkey: string; label: string; isPrimary?: boolean; onPress: () => unknown }[]) => (
+      <Box key={`row-${items[0]?.key ?? 'none'}`}>
+        {items.map((item, i) => (
+          <Box key={`b-${item.key}`}>
+            {i > 0 && <Text>   </Text>}
+            <Button
+              key={item.key}
+              {...numbered(item.hotkey, item.label)}
+              {...(item.isPrimary === true ? { variant: 'primary' as const } : {})}
+              onPress={item.onPress}
+            />
+          </Box>
+        ))}
+      </Box>
+    )
+    const backButton = { key: 'back', hotkey: 'b', label: 'Back', onPress: () => setupChange($, back) }
+    const hasBack = state.trail.length > 0
+    let controls: ReturnType<typeof row>[] = []
+    if (state.screen === 'safety') {
+      controls = [
+        row(
+          (['understand', 'close'] as const).map(id => {
+            const action = actionOf('safety', id)
+            return { key: id, hotkey: action.hotkey, label: action.label, isPrimary: id === 'understand', onPress: () => runAction($, 'safety', id, surface) }
+          }),
+        ),
+      ]
+    } else if (state.screen === 'byo') {
+      controls = [
+        row(
+          (['copy', 'back', 'close'] as const).map(id => {
+            const action = actionOf('byo', id)
+            return { key: id, hotkey: action.hotkey, label: action.label, isPrimary: id === 'copy', onPress: () => runAction($, 'byo', id, surface) }
+          }),
+        ),
+      ]
+    } else if (state.screen === 'equipment') {
+      const have = state.answers.equipment ?? { dumbbells: false, bar: false, bands: false }
+      const toggles = (
+        [
+          ['dumbbells', 'Dumbbells'],
+          ['bar', 'Pull-up bar'],
+          ['bands', 'Resistance bands'],
+        ] as const
+      ).map(([key, label], i) => ({
+        key: `toggle-${key}`,
+        hotkey: String(i + 1),
+        label: `${have[key] ? '✓' : ' '} ${label}`,
+        onPress: () => setupChange($, s => toggleEquipment(s, key)),
+      }))
+      const unit = state.answers.weightUnit ?? 'kg'
+      controls = [
+        row(toggles),
+        ...(have.dumbbells
+          ? [
+              row([
+                { key: 'unit-kg', hotkey: 'k', label: `${unit === 'kg' ? '✓' : ' '} kg`, onPress: () => setupChange($, s => setUnit(s, 'kg')) },
+                { key: 'unit-lb', hotkey: 'l', label: `${unit === 'lb' ? '✓' : ' '} lb`, onPress: () => setupChange($, s => setUnit(s, 'lb')) },
+              ]),
+            ]
+          : []),
+        row([{ key: 'continue', hotkey: 'c', label: 'Continue', isPrimary: true, onPress: () => setupChange($, continueEquipment) }, ...(hasBack ? [backButton] : [])]),
+      ]
+    } else if (state.screen === 'summary') {
+      controls = [row([{ key: 'start-plan', hotkey: '1', label: 'Start plan', isPrimary: true, onPress: () => startPlan($) }, backButton])]
+    } else {
+      const choices = (screen.choices ?? []).map((choice, i) => ({
+        key: `choice-${i + 1}`,
+        hotkey: String(i + 1),
+        label: choice.label,
+        isPrimary: i === (screen.primary ?? -1),
+        onPress: () => setupChoose($, i),
+      }))
+      controls = [row(choices), ...(hasBack ? [row([backButton])] : [])]
+    }
+    return (
+      <Box flexDirection="column">
+        <Text key="title" bold>
+          {screen.title}
+        </Text>
+        {(screen.copy ?? []).map((text, i) => (
+          <Text key={`copy-${i}`}>{text}</Text>
+        ))}
+        <Text key="space"> </Text>
+        {controls}
+      </Box>
+    )
+  })
+}
+

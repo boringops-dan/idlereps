@@ -1,0 +1,15 @@
+IdleReps
+Copyright 2026 zrobok
+
+The source code in this repository is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Not covered by that license, and all rights reserved:
+
+- The names "IdleReps" and "Swolomon", and Swolomon's character and likeness.
+- Swolomon's art: plugins/idlereps/hooks/swolomon-sprite.ts (the pixel portraits and every frame of
+  them) and any image made from it.
+- Swolomon's talk sound: plugins/idlereps/assets/blip.wav.
+
+As the Apache License (section 6) says, it grants no permission to use these names or marks. A fork may
+use the code, under a different name, with its own coach: set `approved: false` in the sprite file (the
+plugin then draws no portrait) or replace the file with your own art.

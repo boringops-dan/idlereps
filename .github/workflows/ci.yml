@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  plugin:
+    runs-on: ubuntu-latest
+    env:
+      # The Claude Code version the plugin was built and tested against.
+      CLAUDE_CODE: '@anthropic-ai/claude-code@2.1.287'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate the plugin
+        run: npx -y "$CLAUDE_CODE" plugin validate plugins/idlereps
+      - name: Validate the marketplace
+        run: npx -y "$CLAUDE_CODE" plugin validate .
+      - name: Test the plugin
+        run: npx -y "$CLAUDE_CODE" plugin test plugins/idlereps
