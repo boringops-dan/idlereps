@@ -198,6 +198,12 @@ export const LINES = [
     voice: 'swolomon',
     variants: ['New move unlocked, {mate}. Watch closely.', 'You earned this one, {mate}. Behold.', 'Showing up pays, {mate}. Witness this.', 'A gift, {mate}. Do not tell the others.'],
   },
+  // Asides while a band waits (hooks/asides.ts), more impatient each time.
+  { id: 'aside-nudge', voice: 'swolomon', variants: ['So... we doing this or what, {mate}?', 'No rush, {mate}. Some rush.', "I'll just stand here then, {mate}."] },
+  { id: 'aside-hello', voice: 'swolomon', variants: ['Hello? You in there, {mate}?', 'Psst. Over here, {mate}.', 'Is this thing on, {mate}?'] },
+  { id: 'aside-bored', voice: 'swolomon', variants: ["I'm bored, {mate}.", 'Counting ceiling tiles, {mate}. Eleven.', 'This is my waiting face, {mate}.'] },
+  { id: 'aside-antics', voice: 'swolomon', variants: ['Did a few reps without you, {mate}. Your turn.', 'My pump is fading, {mate}.', 'Warmed up twice now, {mate}.'] },
+  { id: 'aside-done', voice: 'swolomon', variants: ["Fine. I'm good at waiting, {mate}.", "I'll be right here, {mate}. Always am.", "Wake me when you're ready, {mate}."] },
   { id: 'program-ask', voice: 'swolomon', variants: ["A program! Now we're talking, {mate}. How do we build it?"] },
   { id: 'byoplan-ask', voice: 'swolomon', variants: ['Got your own program, {mate}? Show me.'] },
   { id: 'pane-finished', voice: 'swolomon', variants: ['The whole program, {mate}. Legends are made like this.', 'Program complete, {mate}. They will write songs about this.'] },
@@ -525,8 +531,8 @@ export const REASON_LINE: Record<LongTaskReason, LineId> = {
 
 /** §1.10a: the introduction, verbatim; the address term only in the last line. */
 const INTRO = [
-  "Hi! I'm {coach}, your IdleReps trainer. Welcome to my... your CLI.",
-  'Cardio, Lifts and Iron. Finest gym around. Bit cramped.',
+  "Hi! I'm {coach}, your IdleReps trainer.",
+  'Welcome to my... your CLI. Cardio, Lifts and Iron. Bit cramped.',
   "You hand your agent work? Cute. While it's out, I hand YOU work.",
   'Quick start, or just a nudge to move, {mate}?',
 ] as const

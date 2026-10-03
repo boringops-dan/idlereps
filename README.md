@@ -171,6 +171,10 @@ stares straight out of the screen at you, deadpan, and winks. Where his portrait
 introduction and the `/workout` pane), he also turns side to side, strolls out of his square and back, and
 knocks out a few reps of the moves you've collected. On a win, his sparkles twinkle.
 
+**He gets impatient.** Leave a band waiting on a choice and now and then he pipes up, for a moment, after
+a `/` in its own colour: under the title where the band has one, else after his line. "So... we doing
+this or what?" Then "Hello?", then boredom. After five he leaves it. Never during a set.
+
 **Beside every set**, a tiny Swolomon does the exercise with you, a few reps, then holds still.
 
 **What your agent is up to.** Swolomon has never heard of coding, so he reads everything your agent does

@@ -175,7 +175,7 @@ export type SetResult = { result: 'done' | 'skip'; count?: number }
 export type BandKind = 'unlock' | 'remind' | 'program' | 'byoplan' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'safety' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex'
 
 /** How a piece of text is coloured: the theme's own colours, so light and dark themes both read. */
-export type Tone = 'accent' | 'good' | 'muted'
+export type Tone = 'accent' | 'good' | 'muted' | 'aside'
 
 /** One piece of a band row: its text, and how it is drawn. */
 export type BandPart = {
@@ -257,6 +257,8 @@ export type Talk = {
   pose: 'idle' | 'talkA' | 'talkB' | 'blink' | 'flex'
   /** Still walking on (§1.11 Entrance): the band draws the stage instead of the portrait and lines. */
   isEntering?: true
+  /** A quick word of his own while the band waits, for a moment (hooks/asides.ts). */
+  aside?: string
 }
 
 export type SetupScreen =

@@ -44,6 +44,7 @@ import { agentDoing, COACH_NAME, fill, pickAddress, COMMUNITY_URL, FEEDBACK_URL,
 import type { LineContext, LineId } from './copy'
 import { appendHistory, movedSeconds, rankFor, RANKS, setsThisWeek } from './history'
 import { ideasFor, isMoved, MOVED, movedOn } from './remind'
+import { ASIDE_GAP, ASIDE_MS, ASIDES, asideSpot, asideText, hasAsides } from './asides'
 import { collected, dueUnlock, setsToNext, STARTER_MOVES, UNLOCK_ORDER } from './collection'
 import { due, mark, mondayOf } from './ledger'
 import type { Scope } from './ledger'
@@ -207,7 +208,7 @@ function microMoveOf(spec: BandSpec): Move | undefined {
 }
 
 /** The theme's own colours for each tone, so light and dark themes both read (muted is the dim style). */
-const TONE_COLOUR: Record<Exclude<Tone, 'muted'>, string> = { accent: 'warning', good: 'success' }
+const TONE_COLOUR: Record<Exclude<Tone, 'muted'>, string> = { accent: 'warning', good: 'success', aside: 'suggestion' }
 
 type Owner = 'band' | 'turn' | 'session' | 'pane'
 
@@ -641,6 +642,8 @@ async function tick($: EngineInterface, key: number, isWin: boolean, stop: () =>
     stop()
     coach.pose = frame.pose
     await update($, talk, () => ({ key, shown: frame.shown, pose: frame.pose }))
+    const shown = await read($, band)
+    if (shown !== null && shown.talkKey === key && hasAsides(shown)) asidesWhileShowing($, key)
     const move = coach.talkMove === undefined ? undefined : moveById(coach.talkMove)
     if (move !== undefined && coach.portrait?.size === 'full') await playMove($, move, key, isWin)
     else idleWhileShowing($, key, 0, isWin)
@@ -746,6 +749,20 @@ async function showStage($: EngineInterface, t: number) {
   if (frame === coach.stageFrame) return
   coach.stageFrame = frame
   await $.ui.blit({ requestId: stage.requestId, key: 'stage', cells: stageCells(SPRITE, t), columns: STAGE_COLUMNS, rows: STAGE_ROWS }).catch(() => undefined)
+}
+
+/** His asides while the band waits on a choice (hooks/asides.ts); the band's timers end them when it goes. */
+function asidesWhileShowing($: EngineInterface, key: number) {
+  for (const aside of ASIDES) {
+    timer($, 'band', aside.at, () => void (async () => setAside($, key, line(aside.id, { day: (await today($)) + key })))())
+    timer($, 'band', aside.at + ASIDE_MS, () => void setAside($, key, undefined))
+  }
+}
+
+async function setAside($: EngineInterface, key: number, aside: string | undefined) {
+  const said = await read($, talk)
+  if (said === null || said.key !== key || said.isEntering === true) return
+  await update($, talk, () => ({ key, shown: said.shown, pose: said.pose, ...(aside === undefined ? {} : { aside }) }))
 }
 
 /**
@@ -2671,12 +2688,22 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
     site.surface !== 'terminal' && 'Svg' in elements && SPRITE.approved && spec.portrait !== undefined ? spec.portrait : null
 
   const header = headerParts.length === 0 ? null : rowText(Text, headerParts, 'header')
+  // His aside, while the band waits: under the title, or after his line; never moving a thing.
+  const nameColumns = fit === 'none' && svgSize === null ? `${COACH_NAME}: `.length : 0
+  const besideColumns =
+    fit !== 'none' ? portraitCells(SPRITE, fit).columns + PORTRAIT_GAP : svgSize !== null ? PORTRAIT_GAP + (svgSize === 'full' ? SPRITE.width : SPRITE.miniSize) : 0
+  const aside = said !== null && said.key === spec.talkKey ? said.aside : undefined
+  const spot =
+    aside === undefined
+      ? 'none'
+      : asideSpot(spec, aside, { columns: site.bodyColumns - besideColumns, lineColumns: nameColumns + (spec.coach?.[0]?.length ?? 0) })
   // While typing, each line shows what is out so far; rows keep their place so the band never jumps.
   const isTalking = said !== null && said.key === spec.talkKey
   const coachRows = (spec.coach ?? []).map((text, i) => {
     const shown = isTalking ? text.slice(0, said.shown[i] ?? text.length) : text
     const tag: BandPart[] = fit === 'none' && svgSize === null && i === 0 ? [{ text: `${COACH_NAME}:`, bold: true, tone: 'accent' }, { text: ' ' }] : []
-    return rowText(Text, [...tag, { text: shown === '' ? ' ' : shown }], `coach-${i}`)
+    const after: BandPart[] = i === 0 && spot === 'after-line' && aside !== undefined ? [{ text: ' '.repeat(ASIDE_GAP) }, { text: asideText(aside), tone: 'aside' }] : []
+    return rowText(Text, [...tag, { text: shown === '' ? ' ' : shown }, ...after], `coach-${i}`)
   })
   const bodyRows = spec.body.map((row, i) => {
     const isLast = i === spec.body.length - 1
@@ -2692,7 +2719,11 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
   const rows = [
     spec.headerFirst === true ? header : null,
     // A title on top gets a blank row under it, before Swolomon speaks (owner, 2026-10-03).
-    spec.headerFirst === true && header !== null ? <Text key="after-header"> </Text> : null,
+    spec.headerFirst === true && header !== null
+      ? spot === 'under-title' && aside !== undefined
+        ? rowText(Text, [{ text: asideText(aside), tone: 'aside' }], 'after-header')
+        : <Text key="after-header"> </Text>
+      : null,
     ...coachRows,
     spec.headerFirst !== true ? header : null,
     ...bodyRows,
