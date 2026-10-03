@@ -203,6 +203,8 @@ export const LINES = [
   },
   { id: 'greet-yesterday-moved', voice: 'swolomon', variants: ['{n} moves yesterday, {mate}. Same again? Or one more?', 'You moved {n} times yesterday, {mate}. I wrote it on my arm.'] },
   { id: 'greet-yesterday-agent', voice: 'swolomon', variants: ['Your agent worked {worked} yesterday, {mate}. Today you get a turn too.', '{worked} of work for your agent yesterday, {mate}. Your turn today.'] },
+  // The punch card full: a free shake, which he drinks for you.
+  { id: 'card-full', voice: 'swolomon', variants: ["Card's full, {mate}! Free shake. I'll drink it for you.", 'Ten stamps, {mate}. Your reward: watching me enjoy this.'] },
   // Spot me: he is stuck on his last rep; you cheer him through.
   { id: 'spot-me', voice: 'swolomon', variants: ['Little help, {mate}? Last rep. Just say the words.', "Spot me, {mate}! It's not heavy. It's... personal.", 'One more rep, {mate}. I need a cheer. Anything.'] },
   { id: 'spotted', voice: 'swolomon', variants: ['WE did that, {mate}. You and me.', 'Got it up! Your cheering, {mate}. Pure science.', 'Best spotter in the gym, {mate}. Do not tell the others.'] },

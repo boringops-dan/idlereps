@@ -11,6 +11,8 @@ import type { LineId } from './copy'
 import { daysShowedUp, movedSeconds, nextRank, rankFor, setsThisWeek, sparkline, streak, trendOf, weekMarks } from './history'
 import type { WeekMark } from './history'
 import { competitionOf, PREP_SETS, prepSets } from './prep'
+import { PUNCHES } from './punch'
+import type { PunchCard } from './punch'
 import type { Prep } from './prep'
 import { dailyTarget, lastMovedText, movedOn, movedThisWeek, movesOn, remindWeekMarks } from './remind'
 import { collected, setsToNext, STARTER_MOVES, UNLOCK_ORDER } from './collection'
@@ -39,6 +41,8 @@ export type StatusFacts = {
   prep?: Prep | undefined
   /** Shiny Swolomons seen (shiny.ts). */
   shinies?: number
+  /** The punch card (punch.ts). */
+  punchCard?: PunchCard
 }
 
 type Day = 'training' | 'rest' | 'done' | 'declined' | 'finished'
@@ -286,6 +290,7 @@ export function statusViewOf(facts: StatusFacts): StatusView {
   more.push(rankBar(facts.totalDoneSets))
   more.push(movesRow(facts.totalDoneSets, facts.moves))
   if (facts.prep !== undefined) more.push(prepRow(facts.prep, facts.totalDoneSets))
+  if (facts.punchCard !== undefined && (facts.punchCard.days.length > 0 || facts.punchCard.shakes > 0)) more.push(punchRow(facts.punchCard))
   if ((facts.shinies ?? 0) > 0) more.push(shinyRow(facts.shinies ?? 0))
   const bests = plan.workouts
     .flatMap(w => w.exercises)
@@ -331,6 +336,18 @@ export function movesRow(totalSets: number, unlocked: readonly string[]): BandPa
     { text: '  ' },
     ...bar(Math.floor((have / total) * 10), 10),
     { text: toGo === null ? '  all of them' : `  next in ${plural(toGo, 'set')} · /workout moves`, tone: 'muted' },
+  ]
+}
+
+/** The punch card: `Punch card ●●●○○○○○○○ 3/10 · a free shake at 10 · 🥤 2`. */
+export function punchRow(card: PunchCard): BandPart[] {
+  const n = card.days.length
+  return [
+    { text: 'Punch card ', bold: true },
+    { text: '●'.repeat(n), tone: 'good' },
+    { text: '○'.repeat(PUNCHES - n), tone: 'muted' },
+    { text: `  ${n}/${PUNCHES} · a day you move, a stamp · a free shake at ${PUNCHES}`, tone: 'muted', truncate: true },
+    ...(card.shakes > 0 ? [{ text: `  🥤 ${card.shakes}` }] : []),
   ]
 }
 
@@ -409,6 +426,7 @@ export type RemindFacts = {
   moves: readonly string[]
   prep?: Prep | undefined
   shinies?: number
+  punchCard?: PunchCard
 }
 
 /** The pane in Just remind me: Swolomon's line, today and the week, the rank, the last set. */
@@ -433,6 +451,7 @@ export function remindViewOf(facts: RemindFacts): StatusView {
   more.push(rankBar(facts.totalDoneSets))
   more.push(movesRow(facts.totalDoneSets, facts.moves))
   if (facts.prep !== undefined) more.push(prepRow(facts.prep, facts.totalDoneSets))
+  if (facts.punchCard !== undefined && (facts.punchCard.days.length > 0 || facts.punchCard.shakes > 0)) more.push(punchRow(facts.punchCard))
   if ((facts.shinies ?? 0) > 0) more.push(shinyRow(facts.shinies ?? 0))
   const last = lastMovedText(history, today, shortDayName)
   if (last !== null) more.push([{ text: `Last set: ${last}`, tone: 'muted' }])

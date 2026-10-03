@@ -8,6 +8,7 @@ import { ACTIONS, actionOf, loadLabel, stepperLabel } from './actions'
 import type { ActionKind } from './actions'
 import {
   askBand,
+  BAND_PRIORITY,
   askLineId,
   bandRows,
   cueLineContext,
@@ -53,6 +54,8 @@ import { dailyTarget, ideasFor, isMoved, MOVED, movedOn, movesOn } from './remin
 import { sittingMs, STILL_MS } from './still'
 import { expectedWaitMs, keptTurns, waitSize } from './waits'
 import { greetingOf } from './greeting'
+import { EMPTY_CARD, stamp } from './punch'
+import type { PunchCard } from './punch'
 import { isShinyAt, SHINY_COLOURS } from './shiny'
 import { afterSet, compete, competitionOf } from './prep'
 import type { Prep } from './prep'
@@ -1121,6 +1124,7 @@ async function recordStretch($: EngineInterface) {
   await writePatch($, { set: {}, append: [{ kind: 'stretch', t: await now($), d: day, ...shown.stretch }] })
   await clearBand($)
   $.ui.toast(line('stretched', { day, exercise: shown.stretch.exercise }))
+  await punch($)
   await refreshStatus($)
 }
 
@@ -1235,6 +1239,7 @@ async function logStood($: EngineInterface) {
   await writePatch($, { set: {}, append: [{ kind: 'stood', t: await now($), d: day }] })
   await clearBand($)
   $.ui.toast(await movedToast($, day, await coachLine($, 'stood-logged', { day })))
+  await punch($)
   await refreshStatus($)
 }
 
@@ -1280,6 +1285,7 @@ async function logMoved($: EngineInterface, what: Moved) {
   $.ui.toast(await movedToast($, day, await coachLine($, 'moved-logged', { day, what: MOVED[what], n })))
   const rank = rankFor(before + 1).name
   if (!(rank !== rankFor(before).name && (await showRankUp($, rank, undefined)))) await showUnlock($, undefined)
+  await punch($)
   await refreshStatus($)
 }
 
@@ -1477,8 +1483,27 @@ async function recordSet($: EngineInterface, outcome: { result: 'done' | 'skip';
     }
     if (coach.isTurnRunning) scheduleCue($, cueDelayMs(turnWaitMs(false), at + (await gapMs($)), at))
   }
+  if (outcome.result === 'done') await punch($)
   await refreshStatus($)
   return 'recorded'
+}
+
+/** Moved today: a stamp on the card (hooks/punch.ts); a full card, and he drinks the free shake. */
+async function punch($: EngineInterface) {
+  const day = await today($)
+  const { card, isFull } = stamp(await load<PunchCard>($, 'punchCard', EMPTY_CARD), day)
+  await save($, 'punchCard', card)
+  const move = moveById('protein-shake')
+  if (isFull && move !== undefined) await queueBand($, { ...showOffBand(line('card-full', { day }), move), isWin: true })
+}
+
+/** A band that waits its turn: shown when the slot is empty, else after whatever is there now (Undo kept). */
+async function queueBand($: EngineInterface, spec: BandSpec) {
+  if ((await read($, band)) === null) {
+    await offerBand($, spec, 'keypress')
+    return
+  }
+  await update($, pending, list => [...list, spec].sort((a, b) => BAND_PRIORITY[b.kind] - BAND_PRIORITY[a.kind]))
 }
 
 /** High five on the logged line: he slaps one out of the screen; counted. */
@@ -2177,6 +2202,7 @@ async function statusFacts($: EngineInterface, plan: Plan): Promise<StatusFacts>
     moves: await load<string[]>($, 'moves', []),
     prep: await load<Prep | undefined>($, 'prep', undefined),
     shinies: await load($, 'shinies', 0),
+    punchCard: await load<PunchCard>($, 'punchCard', EMPTY_CARD),
   }
 }
 
@@ -2217,6 +2243,7 @@ async function remindFacts($: EngineInterface): Promise<RemindFacts> {
     moves: await load<string[]>($, 'moves', []),
     prep: await load<Prep | undefined>($, 'prep', undefined),
     shinies: await load($, 'shinies', 0),
+    punchCard: await load<PunchCard>($, 'punchCard', EMPTY_CARD),
   }
 }
 
