@@ -176,10 +176,10 @@ test('the introduction, verbatim, its address term only in the last line', () =>
     const lines = introLines(day)
     const mate = pickAddress(day, 'intro-header')
     expect(lines).toEqual([
-      "Hi, I'm Swolomon, your IdleReps trainer. I breathe reps, not air.",
+      "Hi! I'm Swolomon, your IdleReps trainer. Welcome to my gym.",
       'You hand your agent work? Cute. I hand YOU work.',
-      'Your agent grinds, you lift. Press 1 when the set is done. Glory.',
-      `A plan from me, or just a nudge to move, ${mate}?`,
+      "While it's off on its mission: one set. Press 1 when it's done.",
+      `Quick start, or just a nudge to move, ${mate}?`,
     ])
     expect(lines.map(l => words(l, ADDRESS_TERMS).length)).toEqual([0, 0, 0, 1])
     for (const l of lines) expect(fill(l, {}).length).toBeLessThanOrEqual(80)

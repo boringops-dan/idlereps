@@ -2661,6 +2661,8 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
   })
   const rows = [
     spec.headerFirst === true ? header : null,
+    // A title on top gets a blank row under it, before Swolomon speaks (owner, 2026-10-03).
+    spec.headerFirst === true && header !== null ? <Text key="after-header"> </Text> : null,
     ...coachRows,
     spec.headerFirst !== true ? header : null,
     ...bodyRows,

@@ -26,7 +26,7 @@ test('a plan Swolomon never walked in: the first session introduces him, with Ke
   await $.session.start(SESSION)
   const band = await bandOf($)
   expect([band.keep, band.quickstart, band.remind]).toEqual([true, false, true])
-  expect(band.text).toContain('You have a plan already. Keep it, or just get reminders')
+  expect(band.text).toContain('You brought your own plan! Keep it, or just get nudges')
   expect(introLines(TODAY, true).slice(0, 3)).toEqual(introLines(TODAY).slice(0, 3))
   expect(w.toasts).toContain(line('installed', { day: TODAY }))
 })

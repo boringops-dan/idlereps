@@ -37,7 +37,7 @@ export const nextFromPending = (pending: readonly BandSpec[]): { next: BandSpec 
 export function bandRows(spec: BandSpec): number {
   return (
     (spec.coach?.length ?? 0) +
-    (spec.header === undefined ? 0 : 1) +
+    (spec.header === undefined ? 0 : spec.headerFirst === true ? 2 : 1) +
     spec.body.length +
     (spec.extras?.length ?? 0) +
     // The buttons, and the blank row above them.

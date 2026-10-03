@@ -388,8 +388,8 @@ for (const columns of [80, 60]) {
     expect(await ui.find({ key: 'stage' })).toBeUndefined()
     await clock.advance(300)
     const first = introLines(TODAY)[0] ?? ''
-    // Beside the mini head, or after the name tag where even that has no room.
-    const typed = (drawnRows(await ui.drawn())[1] ?? '').replace(`${COACH_NAME}: `, '')
+    // Beside the mini head, or after the name tag where even that has no room; under the title and its blank row.
+    const typed = (drawnRows(await ui.drawn())[2] ?? '').replace(`${COACH_NAME}: `, '')
     expect(typed.length).toBeGreaterThan(0)
     expect(typed.length).toBeLessThan(first.length)
     expect(first.startsWith(typed)).toBe(true)
@@ -855,7 +855,7 @@ test("the replay with a plan: the introduction ending on the plan, and Let's go"
   await $.session.start(SESSION)
   await $.command.run(workout('swolomon'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(drawnRows(await ui.drawn())).toEqual([line('intro-header', { day: TODAY }), ...replayLines(TODAY), '', "1: Let's go"])
+  expect(drawnRows(await ui.drawn())).toEqual([line('intro-header', { day: TODAY }), '', ...replayLines(TODAY), '', "1: Let's go"])
   await ui.press({ key: 'letsgo' })
   expect(await ui.find({ key: 'letsgo' })).toBeUndefined()
   await ui.unmount()

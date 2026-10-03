@@ -525,14 +525,14 @@ export const REASON_LINE: Record<LongTaskReason, LineId> = {
 
 /** §1.10a: the introduction, verbatim; the address term only in the last line. */
 const INTRO = [
-  "Hi, I'm {coach}, your IdleReps trainer. I breathe reps, not air.",
+  "Hi! I'm {coach}, your IdleReps trainer. Welcome to my gym.",
   'You hand your agent work? Cute. I hand YOU work.',
-  'Your agent grinds, you lift. Press 1 when the set is done. Glory.',
-  'A plan from me, or just a nudge to move, {mate}?',
+  "While it's off on its mission: one set. Press 1 when it's done.",
+  'Quick start, or just a nudge to move, {mate}?',
 ] as const
 
 /** The introduction's last line when a plan is already there (made by hand, or brought from before). */
-const INTRO_WITH_PLAN = 'You have a plan already. Keep it, or just get reminders, {mate}?'
+const INTRO_WITH_PLAN = 'You brought your own plan! Keep it, or just get nudges, {mate}?'
 
 export const introLines = (day: number, hasPlan = false): string[] =>
   (hasPlan ? [...INTRO.slice(0, -1), INTRO_WITH_PLAN] : INTRO).map(text => fill(text, { coach: COACH_NAME, mate: pickAddress(day, 'intro-header') }))
