@@ -12,7 +12,7 @@ import { PUSH_NAMES } from './programs'
 import { weekdayName } from './schedule'
 
 /** Which band keeps the slot when two want it (§4.3 item 4). A logged line gives way to anything. */
-export const BAND_PRIORITY: Record<BandKind, number> = { pulse: 0, rankup: 7, rating: 6, bonus: 5, programEnd: 5, restore: 8, erase: 8, warmup: 3, logged: 4, edit: 3, set: 3, ask: 2, ready: 2, stretch: 2, where: 1, reschedule: 2, timer: 3, switch: 3, time: 3, safety: 1, intro: 1, replay: 1, flex: 1 }
+export const BAND_PRIORITY: Record<BandKind, number> = { program: 1, byoplan: 1, days: 1, remind: 2, trained: 2, howto: 1, pulse: 0, rankup: 7, rating: 6, bonus: 5, programEnd: 5, restore: 8, erase: 8, warmup: 3, logged: 4, edit: 3, set: 3, ask: 2, ready: 2, stretch: 2, where: 1, reschedule: 2, timer: 3, switch: 3, time: 3, safety: 1, intro: 1, replay: 1, flex: 1 }
 
 export const LOGGED_MS = 120_000
 
@@ -49,36 +49,92 @@ export function bandRows(spec: BandSpec): number {
  * Before a plan, after the first session: the first-run band again, small, at the moment it makes sense,
  * while the agent works. The last of them says so, and how to start later.
  */
-export function nudgeBand(coachLine: string, day: number, isLast: boolean): BandSpec {
+export function nudgeBand(coachLine: string, day: number, isLast: boolean, hasPlan = false): BandSpec {
   return {
     kind: 'intro',
     coach: [coachLine],
     portrait: 'mini',
     body: [[{ text: line(isLast ? 'nudge-last' : 'nudge-detail', { day }), tone: 'muted' }]],
-    actions: actionIdsOf('intro'),
+    actions: introActions(hasPlan),
     isNudge: true,
   }
 }
 
+/** The first-run band's ways in: Quick start, or with a plan already there, keeping it. */
+export const introActions = (hasPlan: boolean) => [hasPlan ? 'keep' : 'program', 'remind', 'notnow', 'dontask']
+
 /** The first-run band (§1.5, §1.10a): the full portrait, the introduction, and the four ways in. */
-export function introBand(day: number, opts: { entrance: boolean } = { entrance: true }): BandSpec {
+export function introBand(day: number, { entrance = true, hasPlan = false }: { entrance?: boolean; hasPlan?: boolean } = {}): BandSpec {
   return {
     kind: 'intro',
     header: line('intro-header', { day }),
     headerFirst: true,
-    coach: introLines(day),
+    coach: introLines(day, hasPlan),
     portrait: 'full',
-    ...(opts.entrance ? { entrance: true as const } : {}),
+    ...(entrance ? { entrance: true as const } : {}),
     body: [],
-    actions: actionIdsOf('intro'),
+    actions: introActions(hasPlan),
     tall: true,
   }
 }
 
+const HOWTO = {
+  plan: ['howto-sets', 'howto-keys', 'howto-gap', 'howto-more'],
+  remind: ['howto-remind-days', 'howto-remind-keys', 'howto-remind-gap', 'howto-remind-more'],
+} as const
+
+/** Onboarding's last step, before the first set or reminder: how training here works, in four rows. */
+export function howtoBand(coachLine: string, day: number, mode: keyof typeof HOWTO = 'plan'): BandSpec {
+  return {
+    kind: 'howto',
+    header: line('howto-header', { day }),
+    headerFirst: true,
+    coach: [coachLine],
+    portrait: 'full',
+    act: mode === 'plan' ? 'squat' : 'curl',
+    body: HOWTO[mode].map(id => [{ text: line(id, { day }) }]),
+    actions: actionIdsOf('howto'),
+    tall: true,
+  }
+}
+
+/** Give me a plan: Quick start, build it in the setup pane, or bring their own. */
+export function programBand(coachLine: string, day: number): BandSpec {
+  return { kind: 'program', coach: [coachLine], portrait: 'mini', body: [[{ text: line('program-detail', { day }), tone: 'muted' }]], actions: actionIdsOf('program') }
+}
+
+/** I have my own: how to hand it over. */
+export function byoplanBand(coachLine: string, day: number, path: string): BandSpec {
+  return {
+    kind: 'byoplan',
+    coach: [coachLine],
+    portrait: 'mini',
+    body: [[{ text: line('byoplan-paste', { day }) }], [{ text: line('byoplan-file', { day, path }), tone: 'muted', truncate: true }]],
+    actions: actionIdsOf('byoplan'),
+  }
+}
+
+/** Just remind me: which days. */
+export function daysBand(coachLine: string, day: number): BandSpec {
+  return { kind: 'days', coach: [coachLine], portrait: 'mini', body: [[{ text: line('days-detail', { day }), tone: 'muted' }]], actions: actionIdsOf('days') }
+}
+
+/** On one of their days, while the agent works: going today? */
+export function remindBand(coachLine: string, day: number, days: string): BandSpec {
+  return { kind: 'remind', coach: [coachLine], portrait: 'mini', body: [[{ text: line('remind-detail', { day, days }), tone: 'muted' }]], actions: actionIdsOf('remind') }
+}
+
+/** Back from a session: what it was, in one tap. `when` names an earlier day's session. */
+export function trainedBand(coachLine: string, day: number, when?: string): BandSpec {
+  const detail = when === undefined ? line('trained-detail', { day }) : line('trained-detail-late', { day, when })
+  return { kind: 'trained', coach: [coachLine], portrait: 'mini', body: [[{ text: detail, tone: 'muted' }]], actions: actionIdsOf('trained') }
+}
+
 /** Quick start's safety step (§1.2), in the band where the person already is: a sentence a row. */
-export function safetyBand(day: number): BandSpec {
+export function safetyBand(day: number, then?: BandSpec['then']): BandSpec {
   return {
     kind: 'safety',
+    ...(then === undefined ? {} : { then }),
     header: line('safety-header', { day }),
     body: SAFETY_SENTENCES.map(text => [{ text }]),
     actions: ['understand', 'back'],

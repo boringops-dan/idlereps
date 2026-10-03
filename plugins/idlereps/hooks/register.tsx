@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { ElementTable, EngineInterface, PluginOptions, Register, RenderSurface, Timer } from 'claude-code'
 
-import type { BandPart, BandSpec, Cue, Draft, HistoryEntry, LongTaskReason, Plan, Progress, Rating, Seen, SetupState, Targets, Tone, Weekday } from '../types'
+import type { Answers, BandPart, BandSpec, Cue, Draft, HistoryEntry, LongTaskReason, Plan, Progress, Rating, Routine, Seen, SetupState, Targets, Tone, Trained, Weekday } from '../types'
 import { STORE_KEYS } from '../types/store-keys'
 import type { StoreKey } from '../types/store-keys'
 import { ACTIONS, actionOf, loadLabel, stepperLabel } from './actions'
@@ -17,6 +17,12 @@ import {
   introBand,
   readyBand,
   nudgeBand,
+  howtoBand,
+  programBand,
+  byoplanBand,
+  daysBand,
+  remindBand,
+  trainedBand,
   eraseBand,
   programEndBand,
   restoreBand,
@@ -40,6 +46,7 @@ import {
 import { agentDoing, COACH_NAME, fill, pickAddress, COMMUNITY_URL, FEEDBACK_URL, line, progressDots, REASON_LINE, SAFETY_TEXT, TELEMETRY_URL, usesAgent, whatsNewLine } from './copy'
 import type { LineContext, LineId } from './copy'
 import { appendHistory, movedSeconds, rankFor, RANKS, setsThisWeek } from './history'
+import { DAY_PRESETS, daysLabel, isDayPreset, isTrained, parseDays, TRAINED, wantsLog, wantsReminder, weekCount } from './routine'
 import { due, mark, mondayOf } from './ledger'
 import type { Scope } from './ledger'
 import { CURRENT_SCHEMA, STEP_READS, STEPS } from './migrations'
@@ -135,9 +142,9 @@ import { cutFeedback, FEEDBACK_MAX, feedbackPayload } from './feedback'
 import type { PulseAnswer } from './feedback'
 import { ratioOf, setupProperties, TELEMETRY_ENABLED, telemetryPayload } from './telemetry'
 import type { TelemetryEvent } from './telemetry'
-import { gainsOf, PLUGIN_VERSION, statusLineOf, statusTextOf, statusViewOf } from './status'
+import { gainsOf, nextRoutineDayText, PLUGIN_VERSION, routineLineOf, routineTextOf, routineViewOf, statusLineOf, statusTextOf, statusViewOf } from './status'
 import { SPRITE } from './swolomon-sprite'
-import type { StatusFacts } from './status'
+import type { RoutineFacts, StatusFacts } from './status'
 
 const band = atom({ plugin: 'idlereps', key: 'band' } as const, null)
 const pending = atom({ plugin: 'idlereps', key: 'pending' } as const, [])
@@ -250,6 +257,8 @@ const coach: {
   turnCanStretch: boolean
   /** No plan yet: this turn may ask once more to get started. */
   turnCanNudge: boolean
+  /** Just remind me: this turn may remind, or ask what they trained. */
+  turnCanRemind: boolean
   /** A timer band waiting for the prompt to empty (the gate's clause (c)). */
   deferred: BandSpec | null
   /** The first-run band was put off for this session (Not now). */
@@ -312,6 +321,7 @@ const coach: {
   turnMisread: null,
   turnCanStretch: false,
   turnCanNudge: false,
+  turnCanRemind: false,
   deferred: null,
   isIntroDismissed: false,
   isStatusOpen: false,
@@ -472,6 +482,8 @@ async function loadPlan($: EngineInterface): Promise<Plan | null> {
 async function writePlan($: EngineInterface, plan: Plan) {
   await $.fs.write(planPath(), `${JSON.stringify(plan, null, 2)}\n`)
   coach.planCache = null
+  // A plan replaces reminders: one way of training at a time.
+  await save($, 'routine', undefined)
   await save($, 'progress', START)
   await save($, 'targets', undefined)
   await save($, 'undo', undefined)
@@ -819,6 +831,10 @@ async function showDueCue($: EngineInterface) {
     await offerNudge($)
     return
   }
+  if (coach.turnCanRemind) {
+    if ((await read($, band)) === null) await offerRemind($)
+    return
+  }
   const plan = await loadPlan($)
   if (plan === null) return
   if (coach.turnCanStretch) {
@@ -864,6 +880,42 @@ async function mayAskToStart($: EngineInterface): Promise<boolean> {
   return !coach.isIntroDismissed && (await isDue($, 'setup-prompt', 'ever'))
 }
 
+/**
+ * Whether the person has yet to be walked in (owner, 2026-10-02: "/workout shouldn't just be into a workout
+ * where we never talked to the user"): marked by Got it on how training works, by starting a workout, and
+ * at session start for anyone who trained before. A plan alone is not enough: one made by hand, or brought
+ * over from the prototype, never met Swolomon.
+ */
+async function isOnboardingDue($: EngineInterface): Promise<boolean> {
+  return isDue($, 'onboarded', 'ever')
+}
+
+/** Just remind me's days, when that is how they train. */
+async function loadRoutine($: EngineInterface): Promise<Routine | undefined> {
+  return load<Routine | undefined>($, 'routine', undefined)
+}
+
+/** The plan to train with: none until onboarding is done, or with reminders in its place. */
+async function trainingPlan($: EngineInterface): Promise<Plan | null> {
+  return (await isOnboardingDue($)) || (await loadRoutine($)) !== undefined ? null : loadPlan($)
+}
+
+/** Reminders to train with: none until onboarding is done. */
+async function trainingRoutine($: EngineInterface): Promise<Routine | undefined> {
+  return (await isOnboardingDue($)) ? undefined : loadRoutine($)
+}
+
+/**
+ * Whether Swolomon should introduce himself: no way of training chosen yet (no plan, no reminders), or a plan
+ * he never walked them through. Never over a broken plan file: fixing it comes first.
+ */
+async function introState($: EngineInterface) {
+  const file = await planFile($)
+  const isOnboarding = await isOnboardingDue($)
+  const hasRoutine = (await loadRoutine($)) !== undefined
+  return { file, isOnboarding, isIntroDue: !hasRoutine && (file.isMissing || (file.plan !== null && isOnboarding)) }
+}
+
 /** How many times, in all, a later session asks to get started before IdleReps stays quiet. */
 const NUDGES = 5
 
@@ -873,7 +925,8 @@ const NUDGES = 5
  */
 async function couldNudgeThisTurn($: EngineInterface): Promise<boolean> {
   // A plan file that is there but broken is someone already setting up: the broken-plan toast is theirs.
-  if (!(await planFile($)).isMissing || !(await mayAskToStart($))) return false
+  // A plan that never met Swolomon is asked about too (Keep my plan).
+  if (!(await introState($)).isIntroDue || !(await mayAskToStart($))) return false
   if (await isDue($, 'intro', 'ever')) return false
   if (await load($, 'paused', false)) return false
   if (inQuietHours(coach.options.quietHours, hourOf(await now($)))) return false
@@ -888,7 +941,7 @@ async function offerNudge($: EngineInterface) {
   const seen = (await load<Seen>($, 'seen', {})).nudge?.n ?? 0
   await markSeen($, 'nudge')
   await markSeen($, 'nudge-day')
-  await offerBand($, nudgeBand(await coachLine($, 'nudge', { day }), day, seen + 1 >= NUDGES), 'timer')
+  await offerBand($, nudgeBand(await coachLine($, 'nudge', { day }), day, seen + 1 >= NUDGES, (await loadPlan($)) !== null), 'timer')
 }
 
 /**
@@ -896,7 +949,7 @@ async function offerNudge($: EngineInterface) {
  * a day with no workout due or done, and never after Not today.
  */
 async function couldStretchThisTurn($: EngineInterface): Promise<boolean> {
-  const plan = await loadPlan($)
+  const plan = await trainingPlan($)
   if (plan === null || (await load($, 'paused', false))) return false
   if (inQuietHours(coach.options.quietHours, hourOf(await now($)))) return false
   const ctx = await cueContextOf($, plan)
@@ -925,11 +978,77 @@ async function recordStretch($: EngineInterface) {
 
 /** Whether this turn could cue at all (D21): a plan, not paused, quiet hours over, a training day with sets left. */
 async function couldCueThisTurn($: EngineInterface): Promise<boolean> {
-  const plan = await loadPlan($)
+  const plan = await trainingPlan($)
   if (plan === null) return false
   if (await load($, 'paused', false)) return false
   if (inQuietHours(coach.options.quietHours, hourOf(await now($)))) return false
   return cueAllowed(await cueContextOf($, plan), { ignoreTrainingDay: false, ignoreGap: true })
+}
+
+/** Whether this turn could remind (Just remind me): one of their days with nothing logged, or a session to log. */
+async function couldRemindThisTurn($: EngineInterface): Promise<boolean> {
+  const routine = await trainingRoutine($)
+  if (routine === undefined || (await load($, 'paused', false))) return false
+  if (inQuietHours(coach.options.quietHours, hourOf(await now($)))) return false
+  const day = await today($)
+  if (wantsLog(routine, await now($), day)) return true
+  const history = await load<HistoryEntry[]>($, 'history', [])
+  return wantsReminder(routine, history, day, await load<number | undefined>($, 'declinedOn', undefined)) && (await isDue($, 'remind', 'day'))
+}
+
+/** The reminder, or the question of what they trained: into an empty slot only. */
+async function offerRemind($: EngineInterface, cause: Message['cause'] = 'timer') {
+  const routine = await loadRoutine($)
+  if (routine === undefined) return
+  const day = await today($)
+  if (wantsLog(routine, await now($), day)) {
+    await offerBand($, await trainedBandFor($, routine), cause)
+    return
+  }
+  await markSeen($, 'remind')
+  await offerBand($, remindBand(await coachLine($, 'remind-ask', { day }), day, daysLabel(routine.days)), cause)
+}
+
+async function trainedBandFor($: EngineInterface, routine: Routine): Promise<BandSpec> {
+  const day = await today($)
+  const went = routine.going?.d
+  const when = went === undefined || went === day ? undefined : went === day - 1 ? 'yesterday' : longDayName(went)
+  return trainedBand(await coachLine($, 'trained-ask', { day }), day, when)
+}
+
+/** Their days, from the band or `/workout days`: reminders from now on, in place of any plan. */
+async function setRoutineDays($: EngineInterface, days: Weekday[]) {
+  const before = await loadRoutine($)
+  await save($, 'routine', { ...before, days })
+  if (before === undefined) await save($, 'planStartedOn', await today($))
+  await refreshStatus($)
+}
+
+/** A session logged: on the day they went (or today), what it was. */
+async function logTrained($: EngineInterface, what: Trained) {
+  const routine = await loadRoutine($)
+  const day = await today($)
+  const d = routine?.going?.d ?? day
+  await writePatch($, { set: {}, append: [{ kind: 'trained', t: await now($), d, what }] })
+  if (routine !== undefined) await save($, 'routine', { days: routine.days })
+  await clearBand($)
+  const n = routine === undefined ? 1 : weekCount(routine, await load<HistoryEntry[]>($, 'history', []), day).done
+  $.ui.toast(await coachLine($, 'trained-logged', { day, what: TRAINED[what], n }))
+  await refreshStatus($)
+}
+
+/** After the days are set: how it works, once, then today's reminder if today is one of them. */
+async function startRoutine($: EngineInterface) {
+  const routine = await loadRoutine($)
+  if (routine === undefined) return
+  const day = await today($)
+  await clearFirstRun($)
+  if (await isOnboardingDue($)) {
+    await offerBand($, howtoBand(await coachLine($, 'howto', { day }), day, 'remind'), 'keypress')
+    return
+  }
+  const history = await load<HistoryEntry[]>($, 'history', [])
+  if (wantsReminder(routine, history, day, await load<number | undefined>($, 'declinedOn', undefined))) await offerRemind($, 'keypress')
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -946,6 +1065,8 @@ async function startWorkout($: EngineInterface, reason: LongTaskReason | undefin
   const isStart = opts.half === true || (await load<number | undefined>($, 'startedOn', undefined)) !== day
   await save($, 'startedOn', day)
   await save($, 'declinedOn', undefined)
+  // Starting a workout by hand (/workout now) is being in: no walkthrough after that.
+  if (await isOnboardingDue($)) await markSeen($, 'onboarded')
   const plan = await loadPlan($)
   if (plan === null) return null
   const cue = cueFor(plan, await load($, 'progress', START), await load<Targets>($, 'targets', {}))
@@ -1617,44 +1738,84 @@ async function isSafetyAcknowledged($: EngineInterface) {
  * Quick start (§1.5): the starter plan, after the safety step. The whole first run stays in the band where
  * the person already is: the introduction, the safety step, then today's first set (or a taste of one).
  */
-async function quickStart($: EngineInterface, setting?: 'office' | 'home') {
-  if (!(await isSafetyAcknowledged($))) {
-    await replaceBand($, safetyBand(await today($)))
-    return
-  }
+/** Where Quick start's plan is for: a desk, a floor with no gear, or weights (dumbbells, a bar, bands). */
+type Where = 'desk' | 'home' | 'gym'
+
+/** Just remind me: the safety step, then which days. */
+async function remindMe($: EngineInterface) {
+  if (!(await passedSafety($, 'remind'))) return
+  const day = await today($)
+  await replaceBand($, daysBand(await coachLine($, 'days-ask', { day }), day))
+}
+
+const QUICK_START: Record<Where, { answers: Partial<Answers>; toast: 'quick-start' | 'quick-start-home' | 'quick-start-gym' }> = {
+  desk: { answers: { setting: 'office' }, toast: 'quick-start' },
+  home: { answers: { setting: 'home' }, toast: 'quick-start-home' },
+  gym: { answers: { setting: 'home', equipment: { dumbbells: true, bar: true, bands: true } }, toast: 'quick-start-gym' },
+}
+
+async function quickStart($: EngineInterface, where?: Where) {
+  if (!(await passedSafety($, 'quickstart'))) return
   // One question, so the first set fits where the person is: a desk plan never asks for the floor.
-  if (setting === undefined) {
+  if (where === undefined) {
     await replaceBand($, whereBand(await today($)))
     return
   }
-  const plan = generateProgram({ ...STARTER_ANSWERS, setting })
+  const plan = generateProgram({ ...STARTER_ANSWERS, ...QUICK_START[where].answers })
   await writePlan($, plan)
   trackSetup($, plan, { isQuickStart: true, cueEvery: coach.options.cueEvery, idleReminder: coach.options.idleReminder })
-  const showing = await read($, band)
-  if (showing?.kind === 'intro' || showing?.kind === 'safety' || showing?.kind === 'where') await clearBand($)
-  $.ui.toast(line(setting === 'office' ? 'quick-start' : 'quick-start-home', { day: await today($) }))
+  await clearFirstRun($)
+  $.ui.toast(line(QUICK_START[where].toast, { day: await today($) }))
   await offerToday($, plan)
+}
+
+/** Keep my plan: the plan already there, after the safety step, then how training works. */
+async function keepPlan($: EngineInterface) {
+  const plan = await loadPlan($)
+  if (plan === null || !(await passedSafety($, 'keep'))) return
+  await clearFirstRun($)
+  await offerToday($, plan)
+}
+
+/** The band's safety step, once ever, before either way in: whether it is behind them (else it is showing now). */
+async function passedSafety($: EngineInterface, then: NonNullable<BandSpec['then']>): Promise<boolean> {
+  if (await isSafetyAcknowledged($)) return true
+  await replaceBand($, safetyBand(await today($), then))
+  return false
+}
+
+/** The first run's own bands go once it has led somewhere. */
+async function clearFirstRun($: EngineInterface) {
+  const kind = (await read($, band))?.kind
+  if (kind === 'intro' || kind === 'safety' || kind === 'where' || kind === 'program' || kind === 'byoplan' || kind === 'days') await clearBand($)
 }
 
 /**
  * Right after a new plan, the first set is offered at once (§1.7 ease 7: first value fast). On a training
  * day it is today's workout, on the ask band with Swolomon's plan-ready line and how the rest will come;
- * on a rest day, the first workout's day and a set now for a taste. Which band it offered, if any.
+ * on a rest day, the first workout's day and a set now for a taste. Whether a band was offered.
  */
-async function offerToday($: EngineInterface, plan: Plan): Promise<'ask' | 'ready' | null> {
+async function offerToday($: EngineInterface, plan: Plan): Promise<boolean> {
+  const offered = async (spec: BandSpec) => {
+    await offerBand($, spec, 'keypress')
+    return (await read($, band))?.kind === spec.kind
+  }
+  // Onboarding's last step comes first, once: how training here works. Got it then offers today.
+  if (await isOnboardingDue($)) {
+    const day = await today($)
+    return offered(howtoBand(await coachLine($, 'howto', { day }), day))
+  }
   const ctx = await cueContextOf($, plan)
   const cue = cueFor(plan, ctx.progress, await load<Targets>($, 'targets', {}))
-  if (cue === null) return null
+  if (cue === null) return false
   if (cueAllowed(ctx, { ignoreTrainingDay: false, ignoreGap: true })) {
     const text = await coachLine($, 'plan-ready-ask', cueLineContext(cue, ctx.today, ''))
-    await offerBand($, askBand(cue, text, ctx.today, undefined, { isNewPlan: true }), 'keypress')
-    return (await read($, band))?.kind === 'ask' ? 'ask' : null
+    return offered(askBand(cue, text, ctx.today, undefined, { isNewPlan: true }))
   }
-  if (!cueAllowed(ctx, { ignoreTrainingDay: true, ignoreGap: true })) return null
+  if (!cueAllowed(ctx, { ignoreTrainingDay: true, ignoreGap: true })) return false
   const first = nextTrainingDay(plan, ctx.progress, ctx.today)
   const text = await coachLine($, 'plan-ready-later-ask', { day: ctx.today, when: first === null ? 'soon' : longDayName(first) })
-  await offerBand($, readyBand(text, ctx.today), 'keypress')
-  return (await read($, band))?.kind === 'ready' ? 'ready' : null
+  return offered(readyBand(text, ctx.today))
 }
 
 async function openSetup($: EngineInterface, opts: { isQuickStart: boolean }) {
@@ -1723,8 +1884,7 @@ async function startPlan($: EngineInterface) {
   const showing = await read($, band)
   if (showing?.kind === 'intro') await clearBand($)
   const day = await today($)
-  const offered = await offerToday($, plan)
-  if (offered !== null) {
+  if (await offerToday($, plan)) {
     $.ui.toast(line('plan-ready', { day, name: plan.name }))
     return
   }
@@ -1768,12 +1928,43 @@ async function planStartedOn($: EngineInterface): Promise<number> {
  * footer's dim mode labels (`SessionMode`), not a pinned status line: those carry the engine's warning mark.
  */
 async function refreshStatus($: EngineInterface) {
+  const routine = await loadRoutine($)
+  if (routine !== undefined) {
+    const facts = await routineFacts($, routine)
+    coach.isMidWorkout = false
+    setTally($, coach.options.statusLine ? routineLineOf(facts) : undefined)
+    if (coach.isStatusOpen) await update($, statusView, () => routineViewOf(facts))
+    return
+  }
   const plan = await loadPlan($)
   const facts = plan === null ? null : await statusFacts($, plan)
   const tally = facts === null ? undefined : statusLineOf(facts)
   coach.isMidWorkout = /^💪 [1-9]\d*\//.test(tally ?? '')
   setTally($, coach.options.statusLine ? tally : undefined)
   if (facts !== null && coach.isStatusOpen) await update($, statusView, () => statusViewOf(facts))
+}
+
+async function routineFacts($: EngineInterface, routine: Routine): Promise<RoutineFacts> {
+  return {
+    routine,
+    history: await load<HistoryEntry[]>($, 'history', []),
+    today: await today($),
+    declinedOn: await load<number | undefined>($, 'declinedOn', undefined),
+    paused: await load($, 'paused', false),
+    since: await planStartedOn($),
+  }
+}
+
+/** `/workout` in Just remind me: the pane, Swolomon curling in it (napping on a rest day, flexing once trained). */
+async function openRoutinePane($: EngineInterface, routine: Routine): Promise<string | null> {
+  const facts = await routineFacts($, routine)
+  const view = routineViewOf(facts)
+  await update($, statusView, () => view)
+  coach.isStatusOpen = true
+  const rows = Math.max(PORTRAIT_ROWS, view.head.length + 3) + 1 + view.more.length
+  const opened = await $.ui.open({ id: STATUS_PANE, title: 'IdleReps', rows })
+  if (opened.isPlaced) playPaneMove($, moveById(view.isWin ? 'double-biceps' : view.isRestDay ? 'nap' : 'curl'))
+  return opened.isPlaced ? null : routineTextOf(facts)
 }
 
 function setTally($: EngineInterface, tally: string | undefined) {
@@ -1796,7 +1987,7 @@ async function armIdle($: EngineInterface) {
   coach.idleTimer = null
   const minutes = Number(coach.options.idleReminder)
   if (!(minutes > 0) || coach.isTurnRunning) return
-  const plan = await loadPlan($)
+  const plan = await trainingPlan($)
   if (plan === null || (await load($, 'paused', false))) return
   if (!cueAllowed(await cueContextOf($, plan), { ignoreTrainingDay: false, ignoreGap: true })) return
   coach.idleTimer = timer($, 'session', minutes * 60_000, () => void remindIdle($))
@@ -1805,7 +1996,7 @@ async function armIdle($: EngineInterface) {
 async function remindIdle($: EngineInterface) {
   coach.idleTimer = null
   const minutes = Number(coach.options.idleReminder)
-  const plan = await loadPlan($)
+  const plan = await trainingPlan($)
   if (plan === null || coach.isTurnRunning) return
   const ctx = await cueContextOf($, plan)
   const cue = cueFor(plan, ctx.progress, await load<Targets>($, 'targets', {}))
@@ -1874,19 +2065,110 @@ async function dayToast($: EngineInterface, plan: Plan) {
   await markSeen($, 'day-toast')
 }
 
+async function closeStatus($: EngineInterface) {
+  coach.isStatusOpen = false
+  cancelTimers('pane')
+  coach.paneFrame = null
+  await $.ui.close({ id: STATUS_PANE })
+}
+
+/** Give me a plan: the three ways to one. */
+async function offerProgram($: EngineInterface) {
+  const day = await today($)
+  await replaceBand($, programBand(await coachLine($, 'program-ask', { day }), day))
+}
+
+/** Back from a first-run step to the introduction, without the entrance. */
+async function backToIntro($: EngineInterface) {
+  await replaceBand($, introBand(await today($), { entrance: false, hasPlan: (await loadPlan($)) !== null }))
+}
+
 // ---------------------------------------------------------------------------------------------------------
 // Buttons: every press goes through the action's id, so a button and `/workout <id>` do the same thing.
 
 async function runAction($: EngineInterface, kind: ActionKind, id: string, surface: string): Promise<void> {
   if (kind === 'intro') {
-    if (id === 'quickstart') await quickStart($)
-    else if (id === 'setup') await openSetup($, { isQuickStart: false })
+    if (id === 'program') await offerProgram($)
+    else if (id === 'keep') await keepPlan($)
+    else if (id === 'remind') await remindMe($)
     else if (id === 'notnow') {
       coach.isIntroDismissed = true
       await clearBand($)
     } else if (id === 'dontask') {
       await markSeen($, 'setup-prompt')
+      // With a plan already there, no more asking means training with it as it is.
+      if ((await loadPlan($)) !== null) await markSeen($, 'onboarded')
       await clearBand($)
+    }
+    return
+  }
+  if (kind === 'howto') {
+    await markSeen($, 'onboarded')
+    await clearBand($)
+    if ((await loadRoutine($)) !== undefined) await startRoutine($)
+    else {
+      const plan = await loadPlan($)
+      if (plan !== null) await offerToday($, plan)
+    }
+    return
+  }
+  if (kind === 'program') {
+    if (id === 'quickstart') await quickStart($)
+    else if (id === 'setup') await openSetup($, { isQuickStart: false })
+    else if (id === 'own') await replaceBand($, byoplanBand(await coachLine($, 'byoplan-ask', { day: await today($) }), await today($), planPath()))
+    else await backToIntro($)
+    return
+  }
+  if (kind === 'byoplan') {
+    await offerProgram($)
+    return
+  }
+  if (kind === 'days') {
+    if (isDayPreset(id)) {
+      await setRoutineDays($, DAY_PRESETS[id])
+      $.ui.toast(line('days-set', { day: await today($), days: daysLabel(DAY_PRESETS[id]) }))
+      await startRoutine($)
+    } else await backToIntro($)
+    return
+  }
+  if (kind === 'remind') {
+    const day = await today($)
+    if (id === 'going') {
+      const routine = await loadRoutine($)
+      if (routine !== undefined) await save($, 'routine', { ...routine, going: { d: day, t: await now($) } })
+      await clearBand($)
+      $.ui.toast(await coachLine($, 'remind-going', { day }))
+    } else if (id === 'did') {
+      const routine = await loadRoutine($)
+      if (routine !== undefined) await replaceBand($, await trainedBandFor($, routine))
+    } else {
+      await save($, 'declinedOn', day)
+      await clearBand($)
+      const routine = await loadRoutine($)
+      $.ui.toast(line('remind-skipped', { day, nextDay: routine === undefined ? 'soon' : nextRoutineDayText({ routine, today: day }) }))
+    }
+    await refreshStatus($)
+    return
+  }
+  if (kind === 'trained') {
+    if (isTrained(id)) await logTrained($, id)
+    else {
+      const routine = await loadRoutine($)
+      if (routine !== undefined) await save($, 'routine', { days: routine.days })
+      await clearBand($)
+      $.ui.toast(line('trained-didnt', { day: await today($) }))
+      await refreshStatus($)
+    }
+    return
+  }
+  if (kind === 'routine') {
+    if (id === 'close') await closeStatus($)
+    else {
+      const routine = await loadRoutine($)
+      const day = await today($)
+      if (id === 'log' && routine !== undefined) await placeBand($, await trainedBandFor($, routine))
+      else if (id === 'days') await placeBand($, daysBand(await coachLine($, 'days-ask', { day }), day))
+      else if (id === 'plan') await placeBand($, programBand(await coachLine($, 'program-ask', { day }), day))
     }
     return
   }
@@ -1924,7 +2206,7 @@ async function runAction($: EngineInterface, kind: ActionKind, id: string, surfa
     return
   }
   if (kind === 'where') {
-    await quickStart($, id === 'home' ? 'home' : 'office')
+    await quickStart($, id === 'home' || id === 'gym' ? id : 'desk')
     return
   }
   if (kind === 'stretch') {
@@ -1955,20 +2237,17 @@ async function runAction($: EngineInterface, kind: ActionKind, id: string, surfa
     else if (id === 'today') await startFromCommand($, 'today')
     else if (id === 'share') $.ui.toast(await shareWeek($, surface))
     else if (id === 'setup') await openSetup($, { isQuickStart: false })
-    else if (id === 'close') {
-      coach.isStatusOpen = false
-      cancelTimers('pane')
-      coach.paneFrame = null
-      await $.ui.close({ id: STATUS_PANE })
-    }
+    else if (id === 'close') await closeStatus($)
     return
   }
   if (kind === 'safety' && (await read($, setup)) === null) {
     // The band's safety step (Quick start).
+    // On to the way in that asked for it.
+    const then = (await read($, band))?.then
     if (id === 'understand') {
       await markSeen($, 'safety')
-      await quickStart($)
-    } else await replaceBand($, introBand(await today($), { entrance: false }))
+      await (then === 'keep' ? keepPlan($) : then === 'remind' ? remindMe($) : quickStart($))
+    } else await backToIntro($)
     return
   }
   if (kind === 'safety') {
@@ -2043,6 +2322,37 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
   const day = await today($)
   const shown = await read($, band)
 
+  // Never straight into a workout with someone Swolomon hasn't met: the introduction first, where they are.
+  if (arg === '' || arg === 'status') {
+    const intro = await introState($)
+    if (intro.isIntroDue && (await isDue($, 'setup-prompt', 'ever'))) {
+      coach.isIntroDismissed = false
+      await placeBand($, introBand(day, { hasPlan: intro.file.plan !== null }))
+      return line('reply-meet', { day })
+    }
+    // Just remind me: their week, the sessions, the days.
+    const routine = await loadRoutine($)
+    if (routine !== undefined) return arg === '' ? openRoutinePane($, routine) : routineTextOf(await routineFacts($, routine))
+  }
+  if (arg === 'days') {
+    const days = parseDays(rest.join(' '))
+    if (days === null) {
+      if (rest.length > 0) return line('reply-days-usage', { day })
+      await placeBand($, daysBand(await coachLine($, 'days-ask', { day }), day))
+      return null
+    }
+    await setRoutineDays($, days)
+    // Naming the days is choosing them: no walkthrough after that.
+    await markSeen($, 'onboarded')
+    await clearFirstRun($)
+    return line('days-set', { day, days: daysLabel(days) })
+  }
+  if (arg === 'log') {
+    const routine = await loadRoutine($)
+    if (routine === undefined) return line('reply-no-routine', { day })
+    await placeBand($, await trainedBandFor($, routine))
+    return null
+  }
   if (arg === '') {
     const plan = await loadPlan($)
     if (plan === null) return noPlanReply($)
@@ -2092,7 +2402,8 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
   // Asked-for bands (the replay, the flex) show now or not at all: never queued behind a set to pop up later.
   if (isEasterEgg(arg)) void track($, { event: 'easter_egg', properties: { command: arg } })
   if (arg === 'swolomon') {
-    const isShown = await placeIfFree($, (await loadPlan($)) === null ? introBand(day) : replayBand(day))
+    const intro = await introState($)
+    const isShown = await placeIfFree($, intro.isIntroDue ? introBand(day, { hasPlan: intro.file.plan !== null }) : replayBand(day))
     return isShown ? null : line('reply-swolomon-busy', { day })
   }
   // Easter eggs (§1.13.5): the only replies in Swolomon's voice.
@@ -2104,8 +2415,13 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
   }
   if (arg === 'protein' || arg === 'wisdom') return `${COACH_NAME}: ${line(arg, { day })}`
 
+  // Quick start straight from the introduction or the nudge, past Give me a plan.
+  if (arg === 'quickstart' && (shown?.kind === 'intro' || shown?.kind === 'program')) {
+    await quickStart($)
+    return null
+  }
   const plan = await loadPlan($)
-  if (plan === null && !['restore', 'erase', 'cancel', 'quickstart', 'notnow', 'dontask', 'desk', 'home', 'understand', 'copy', 'back', 'close'].includes(arg)) {
+  if (plan === null && shown?.actions.includes(arg) !== true && !['restore', 'erase', 'cancel', 'quickstart', 'notnow', 'dontask', 'desk', 'home', 'gym', 'understand', 'copy', 'back', 'close'].includes(arg)) {
     return noPlanReply($)
   }
   switch (arg) {
@@ -2249,6 +2565,9 @@ async function planFromText($: EngineInterface, text: string): Promise<string> {
   }
   await writePlan($, plan)
   void track($, { event: 'plan_imported', properties: { workouts: plan.workouts.length } })
+  // Brought their own: on to how it works (once) and the first set, like any new plan.
+  await clearFirstRun($)
+  await offerToday($, plan)
   return line('reply-plan-written', {
     day,
     name: plan.name,
@@ -2485,7 +2804,7 @@ type GitOperation = { commit?: unknown; pr?: { action: string } }
 
 /** The sign a tool call gives of a long task, once per turn and only on a turn that could cue. */
 async function watchCall<R>($: EngineInterface, tool: string, input: Record<string, unknown>, run: () => Promise<R>): Promise<R> {
-  if (!(coach.turnCanCue || coach.turnCanStretch || coach.turnCanNudge) || coach.hasStrongSign) return run()
+  if (!(coach.turnCanCue || coach.turnCanStretch || coach.turnCanNudge || coach.turnCanRemind) || coach.hasStrongSign) return run()
   coach.toolCalls += 1
   if (tool === 'TaskCreate') coach.tasksThisTurn += 1
   const sign = toolSign(factsOf(tool, input, coach.tasksThisTurn), coach.toolCalls)
@@ -2546,24 +2865,28 @@ export const register: Register = (on, options) => {
         }
       }
     }
-    const file = await planFile($)
+    // Anyone who trained before onboarding existed is past it.
+    if ((await isOnboardingDue($)) && (await load<HistoryEntry[]>($, 'history', [])).length > 0) await markSeen($, 'onboarded')
     // The first session after install: the introduction, and a toast pointing at it in case it is missed.
     // Later sessions without a plan open quietly; the nudge comes while the agent works (offerNudge).
-    if (file.isMissing && e.isInteractive && (await mayAskToStart($)) && (await isDue($, 'intro', 'ever'))) {
+    // A plan with no onboarding behind it (made by hand, brought from the prototype) gets the introduction too.
+    const { file, isOnboarding: onboarding, isIntroDue } = await introState($)
+    if (isIntroDue && e.isInteractive && (await mayAskToStart($)) && (await isDue($, 'intro', 'ever'))) {
       await markSeen($, 'intro')
       await markSeen($, 'intro-day')
-      await offerBand($, introBand(day), 'timer')
+      await offerBand($, introBand(day, { hasPlan: file.plan !== null }), 'timer')
       await toast($, line('installed', { day }), 'timer')
-    } else if (file.plan !== null && (await read($, band))?.kind === 'intro') {
+    } else if (file.plan !== null && !onboarding && (await read($, band))?.kind === 'intro') {
       await clearBand($)
     }
     // §1.10c: what's-new, plus the day toast.
     await whatsNew($, migrated === 'fresh')
-    if (file.plan !== null && !(await mondayRecap($))) await dayToast($, file.plan)
+    const training = await trainingPlan($)
+    if (training !== null && !(await mondayRecap($))) await dayToast($, training)
     // A block finished but not answered (Later, or the rating dismissed): asked again on a training day, once.
-    if (file.plan !== null && e.isInteractive && (await isDue($, 'program-end-ask', 'day'))) {
+    if (training !== null && e.isInteractive && (await isDue($, 'program-end-ask', 'day'))) {
       const progress = await load($, 'progress', START)
-      if (progress.workout >= file.plan.workouts.length && isTrainingDay(file.plan, progress, day)) await offerProgramEnd($, 'timer')
+      if (progress.workout >= training.workouts.length && isTrainingDay(training, progress, day)) await offerProgramEnd($, 'timer')
     }
     await refreshStatus($)
     await armIdle($)
@@ -2585,7 +2908,7 @@ export const register: Register = (on, options) => {
     // The next prompt ends the chance to undo from the band, and dismisses an unanswered rating or a replay.
     // The first-run band goes once a plan exists, however it got there (by hand, another session).
     const shown = await read($, band)
-    const isIntroDone = shown?.kind === 'intro' && (await loadPlan($)) !== null
+    const isIntroDone = shown?.kind === 'intro' && (await trainingPlan($)) !== null
     const isDismissedByPrompt = ['logged', 'rating', 'bonus', 'rankup', 'replay', 'flex', 'ready'].includes(shown?.kind ?? '') || shown?.isNudge === true
     if (isDismissedByPrompt || isIntroDone) await clearBand($)
     const isBig = isBigAsk(e.text)
@@ -2593,10 +2916,12 @@ export const register: Register = (on, options) => {
     coach.turnCanCue = await couldCueThisTurn($)
     coach.turnCanStretch = !coach.turnCanCue && (await couldStretchThisTurn($))
     coach.turnCanNudge = await couldNudgeThisTurn($)
+    coach.turnCanRemind = await couldRemindThisTurn($)
     coach.turnMisread = null
-    coach.turnCanMisread = (await loadPlan($)) !== null && !(await load($, 'paused', false)) && !inQuietHours(coach.options.quietHours, hourOf(await now($)))
+    const isTraining = (await trainingPlan($)) !== null || (await trainingRoutine($)) !== undefined
+    coach.turnCanMisread = isTraining && !(await load($, 'paused', false)) && !inQuietHours(coach.options.quietHours, hourOf(await now($)))
     const showing = await read($, band)
-    if ((coach.turnCanCue || coach.turnCanStretch || coach.turnCanNudge) && (showing === null || showing.kind === 'logged')) {
+    if ((coach.turnCanCue || coach.turnCanStretch || coach.turnCanNudge || coach.turnCanRemind) && (showing === null || showing.kind === 'logged')) {
       scheduleCue($, cueDelayMs(turnWaitMs(isBig), await load<number | undefined>($, 'nextCueAt', undefined), coach.turnStartedAt))
     }
     return next(e)
@@ -2745,15 +3070,16 @@ export const register: Register = (on, options) => {
     const view = await read($, statusView)
     if (view === null) return <Text dimColor>No plan yet. Run /workout setup.</Text>
     const rowOf = (row: string | BandPart[], key: string) => rowText(Text, row === '' ? ' ' : row, key, { truncate: true })
-    const ids = ['now', ...(view.isRestDay ? ['today'] : []), ...(view.canShare ? ['share'] : []), 'setup', 'close']
+    const kind = view.isRoutine === true ? 'routine' : 'status'
+    const ids = view.isRoutine === true ? ['log', 'days', 'plan', 'close'] : ['now', ...(view.isRestDay ? ['today'] : []), ...(view.canShare ? ['share'] : []), 'setup', 'close']
     const buttons = (
       <Box key="buttons">
         {ids.map((id, i) => {
-          const action = actionOf('status', id)
+          const action = actionOf(kind, id)
           return (
             <Box key={`b-${id}`}>
               {i > 0 && <Text>   </Text>}
-              <Button key={id} {...numbered(action.hotkey, action.label)} onPress={() => runAction($, 'status', id, surface)} />
+              <Button key={id} {...numbered(action.hotkey, action.label)} onPress={() => runAction($, kind, id, surface)} />
             </Box>
           )
         })}

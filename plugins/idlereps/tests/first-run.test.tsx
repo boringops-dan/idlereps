@@ -18,7 +18,7 @@ async function longTurn($: Engine, clock: { advance: (ms: number) => Promise<voi
   await $.turn.start({ text: 'go', turnId })
   await clock.advance(31_000)
   const rows = drawnRows(await ui.drawn())
-  const nudged = (await ui.find({ key: 'quickstart' })) !== undefined
+  const nudged = (await ui.find({ key: 'program' })) !== undefined
   await $.turn.complete(done(turnId))
   await ui.unmount()
   return { rows, nudged }
@@ -29,7 +29,7 @@ test('the first session: the introduction, and a toast saying where Swolomon is,
   await $.session.start(SESSION)
   expect(w.toasts).toContain(line('installed', { day: TODAY }))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(await ui.find({ key: 'quickstart' })).toBeDefined()
+  expect(await ui.find({ key: 'program' })).toBeDefined()
   await ui.unmount()
   await clock.advance(DAY_MS)
   await $.session.start(SESSION)
@@ -40,13 +40,13 @@ test('a later session opens quietly: no band until the agent is working', OPTION
   const { clock } = world(on, null, { seen: { intro: { at: 1, n: 1 } } })
   await $.session.start(SESSION)
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(await ui.find({ key: 'quickstart' })).toBeUndefined()
+  expect(await ui.find({ key: 'program' })).toBeUndefined()
   await ui.unmount()
   const { rows, nudged } = await longTurn($, clock, 't1')
   expect(nudged).toBe(true)
   expect(rows).toContain(line('nudge', { day: TODAY }))
   expect(rows).toContain(line('nudge-detail', { day: TODAY }))
-  expect(rows.at(-1)).toBe("1: Quick start   2: Set up my plan   3: Not now   4: Don't ask again")
+  expect(rows.at(-1)).toBe("1: Give me a plan   2: Just remind me   3: Not now   4: Don't ask again")
 })
 
 test('the nudge leads straight into Quick start', OPTIONS, async ($, on) => {
@@ -119,7 +119,7 @@ test('an unanswered nudge goes with the next prompt', OPTIONS, async ($, on) => 
   await longTurn($, clock, 't1')
   await $.turn.start({ text: 'next', turnId: 't2' })
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(await ui.find({ key: 'quickstart' })).toBeUndefined()
+  expect(await ui.find({ key: 'program' })).toBeUndefined()
   await ui.unmount()
 })
 
@@ -139,7 +139,7 @@ test('the first session’s introduction is not put away by a prompt', OPTIONS, 
   await $.session.start(SESSION)
   await $.turn.start({ text: 'go', turnId: 't1' })
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(await ui.find({ key: 'quickstart' })).toBeDefined()
+  expect(await ui.find({ key: 'program' })).toBeDefined()
   await ui.unmount()
 })
 

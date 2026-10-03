@@ -4,7 +4,7 @@
  * every button has a command by construction. Pure data.
  */
 
-export type ActionKind = 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex' | 'status' | 'safety' | 'byo'
+export type ActionKind = 'routine' | 'remind' | 'trained' | 'days' | 'program' | 'byoplan' | 'howto' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex' | 'status' | 'safety' | 'byo'
 
 export type Action = {
   id: string
@@ -16,13 +16,41 @@ export type Action = {
 }
 
 export const ACTIONS: readonly Action[] = [
-  { kind: 'intro', id: 'quickstart', hotkey: '1', label: 'Quick start', isPrimary: true },
-  { kind: 'intro', id: 'setup', hotkey: '2', label: 'Set up my plan' },
+  { kind: 'intro', id: 'program', hotkey: '1', label: 'Give me a plan', isPrimary: true },
+  // In place of Give me a plan when a plan is already there.
+  { kind: 'intro', id: 'keep', hotkey: '1', label: 'Keep my plan', isPrimary: true },
+  { kind: 'intro', id: 'remind', hotkey: '2', label: 'Just remind me' },
   { kind: 'intro', id: 'notnow', hotkey: '3', label: 'Not now' },
   { kind: 'intro', id: 'dontask', hotkey: '4', label: "Don't ask again" },
 
+  { kind: 'howto', id: 'gotit', hotkey: '1', label: 'Got it', isPrimary: true },
+
+  // Give me a plan: three ways to one.
+  { kind: 'program', id: 'quickstart', hotkey: '1', label: 'Quick start', isPrimary: true },
+  { kind: 'program', id: 'setup', hotkey: '2', label: 'Build it with me' },
+  { kind: 'program', id: 'own', hotkey: '3', label: 'I have my own' },
+  { kind: 'program', id: 'back', hotkey: 'b', label: 'Back' },
+  { kind: 'byoplan', id: 'back', hotkey: 'b', label: 'Back', isPrimary: true },
+
+  // Just remind me: the days, then on those days the reminder and what was trained.
+  { kind: 'days', id: 'mwf', hotkey: '1', label: 'Mon Wed Fri', isPrimary: true },
+  { kind: 'days', id: 'tts', hotkey: '2', label: 'Tue Thu Sat' },
+  { kind: 'days', id: 'weekdays', hotkey: '3', label: 'Mon to Fri' },
+  { kind: 'days', id: 'everyday', hotkey: '4', label: 'Every day' },
+  { kind: 'days', id: 'back', hotkey: 'b', label: 'Back' },
+  { kind: 'remind', id: 'going', hotkey: '1', label: 'Going', isPrimary: true },
+  { kind: 'remind', id: 'did', hotkey: '2', label: 'Already did' },
+  { kind: 'remind', id: 'skipday', hotkey: '3', label: 'Not today' },
+  { kind: 'trained', id: 'upper', hotkey: '1', label: 'Upper', isPrimary: true },
+  { kind: 'trained', id: 'lower', hotkey: '2', label: 'Lower' },
+  { kind: 'trained', id: 'full', hotkey: '3', label: 'Full body' },
+  { kind: 'trained', id: 'cardio', hotkey: '4', label: 'Cardio' },
+  { kind: 'trained', id: 'other', hotkey: '5', label: 'Other' },
+  { kind: 'trained', id: 'didnt', hotkey: '0', label: "Didn't go" },
+
   { kind: 'where', id: 'desk', hotkey: '1', label: 'At a desk', isPrimary: true },
-  { kind: 'where', id: 'home', hotkey: '2', label: 'At home' },
+  { kind: 'where', id: 'home', hotkey: '2', label: 'At home, no gear' },
+  { kind: 'where', id: 'gym', hotkey: '3', label: 'With weights' },
 
   { kind: 'stretch', id: 'stretched', hotkey: '1', label: 'Done', isPrimary: true },
   { kind: 'stretch', id: 'notnow', hotkey: '2', label: 'Not now' },
@@ -101,6 +129,10 @@ export const ACTIONS: readonly Action[] = [
   { kind: 'status', id: 'share', hotkey: '3', label: 'Share week' },
   { kind: 'status', id: 'setup', hotkey: '4', label: 'Change plan' },
   { kind: 'status', id: 'close', hotkey: '0', label: 'Close' },
+  { kind: 'routine', id: 'log', hotkey: '1', label: 'Log a session', isPrimary: true },
+  { kind: 'routine', id: 'days', hotkey: '2', label: 'Change days' },
+  { kind: 'routine', id: 'plan', hotkey: '3', label: 'Get a plan' },
+  { kind: 'routine', id: 'close', hotkey: '0', label: 'Close' },
 
   { kind: 'safety', id: 'understand', hotkey: '1', label: 'I understand', isPrimary: true },
   { kind: 'safety', id: 'close', hotkey: '0', label: 'Close' },

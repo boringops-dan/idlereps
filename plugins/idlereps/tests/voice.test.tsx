@@ -23,7 +23,7 @@ import type { LineId } from '../hooks/copy'
 import { RANKS } from '../hooks/history'
 import { PORTRAIT_GAP } from '../hooks/portrait'
 import { LIBRARY } from '../hooks/programs'
-import { BAND, NOON, OPTIONS, SESSION, SETUP, speaks, STATUS, tallyOf, TINY, TODAY, WEIGHTED, workout, world } from './world'
+import { BAND, NOON, OPTIONS, SESSION, SETUP, speaks, STATUS, tallyOf, TINY, TODAY, WEIGHTED, workout, world, ownStore } from './world'
 
 /** Swolomon's voice and the line registry (plan §1.10 to §1.10c, §1.13.2, D22, Task 15). */
 
@@ -57,6 +57,11 @@ const FILLS = {
   schedule: 'Mon Wed Fri',
   status: 'status',
   sets: 9999,
+  what: 'A session',
+  days: 'Mon Tue Wed Thu Fri Sat',
+  done: 7,
+  of: 7,
+  today: 'Out training: /workout log when back.',
   wait: 'about 55 min',
   minutes: '12 h 45 min',
   from: 'Wednesday',
@@ -171,37 +176,27 @@ test('the introduction, verbatim, its address term only in the last line', () =>
     const lines = introLines(day)
     const mate = pickAddress(day, 'intro-header')
     expect(lines).toEqual([
-      "Oh hey, new face! Name's Swolomon. Welcome to the gym.",
-      'Every Greek god started out as a shrimp. Trust me. I was the shrimp.',
-      "Here's the deal: while your agent does... secret agent stuff, you lift.",
-      "One set at a time, a minute or so. Press 1 when it's done. That's it.",
-      `Quick start: no gear, three days a week. Or build your own, ${mate}?`,
+      "Swolomon. I don't breathe air, I breathe reps. Lifting is life.",
+      'You hand your agent work? Cute. I hand YOU work.',
+      'Your agent grinds, you lift. Press 1 when the set is done. Glory.',
+      `Want a full plan from me, or just reminders to train, ${mate}?`,
     ])
-    expect(lines.map(l => words(l, ADDRESS_TERMS).length)).toEqual([0, 0, 0, 0, 1])
+    expect(lines.map(l => words(l, ADDRESS_TERMS).length)).toEqual([0, 0, 0, 1])
     for (const l of lines) expect(fill(l, {}).length).toBeLessThanOrEqual(80)
   }
   expect(line('intro-header', { day: 0 })).toBe('IdleReps · a workout plan and tracker that runs while your agent works')
 })
 
-test('the first-run band: header, five lines, live buttons; /workout swolomon replays it and changes nothing', OPTIONS, async ($, on) => {
-  const store = new Map<string, unknown>()
-  on('store.get', ($, e) => ({ value: store.get(e.key) }))
-  on('store.set', ($, e) => {
-    store.set(e.key, e.value)
-    return { value: undefined }
-  })
-  on('store.delete', ($, e) => {
-    store.delete(e.key)
-    return { value: undefined }
-  })
-  on('store.keys', () => ({ value: [...store.keys()] }))
+test('the first-run band: header, four lines, live buttons; /workout swolomon replays it and changes nothing', OPTIONS, async ($, on) => {
+  const store = ownStore(on)
   const { w } = world(on, null, 'own-store')
   await $.session.start(SESSION)
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   for (const text of introLines(TODAY)) expect(await ui.find({ type: 'Text', text })).toBeDefined()
-  // Header, five lines and the buttons beside the 8-row portrait: the tall band's budget, exactly (§1.10b).
+  // Header, four lines and the buttons beside the 8-row portrait: the tall band's budget, exactly (§1.10b).
   expect(await ui.find({ key: 'swolomon' })).toBeDefined()
   expect(rowsOf(await ui.drawn(), BAND.props.bodyColumns)).toBe(8)
+  await ui.press({ key: 'program' })
   await ui.press({ key: 'setup' })
   expect(w.opened).toEqual(['workout-setup'])
   // With a plan: the replay ends on the plan being ready, offers Let's go, and writes nothing.
@@ -209,11 +204,22 @@ test('the first-run band: header, five lines, live buttons; /workout swolomon re
   const before = JSON.stringify([...store.entries()])
   await $.command.run(workout('swolomon'))
   for (const text of replayLines(TODAY)) expect(await ui.find({ type: 'Text', text })).toBeDefined()
-  expect(await ui.find({ key: 'quickstart' })).toBeUndefined()
+  expect(await ui.find({ key: 'program' })).toBeUndefined()
   expect(await ui.find({ key: 'letsgo' })).toBeDefined()
   expect(JSON.stringify([...store.entries()])).toBe(before)
   await $.turn.start({ text: 'go', turnId: 't1' })
   expect(await ui.find({ type: 'Text', text: introLines(TODAY)[0] ?? '' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('how it works: header, his line, four rows and Got it inside the tall band at 80 columns', OPTIONS, async ($, on) => {
+  world(on, TINY, { seen: { safety: { at: 1, n: 1 } } }, { fresh: true })
+  await $.session.start(SESSION)
+  await $.command.run(workout('keep'))
+  const narrow = { ...BAND, props: { ...BAND.props, bodyColumns: 80 } }
+  const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...narrow })
+  expect(await ui.find({ key: 'gotit' })).toBeDefined()
+  expect(rowsOf(await ui.drawn(), 80)).toBeLessThanOrEqual(8)
   await ui.unmount()
 })
 
@@ -375,10 +381,10 @@ test('a plan written by hand dismisses the first-run band at the next prompt', O
   const { w } = world(on, null)
   await $.session.start(SESSION)
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(await ui.find({ key: 'quickstart' })).toBeDefined()
+  expect(await ui.find({ key: 'program' })).toBeDefined()
   w.file.text = JSON.stringify(TINY)
   await $.turn.start({ text: 'go', turnId: 't1' })
-  expect(await ui.find({ key: 'quickstart' })).toBeUndefined()
+  expect(await ui.find({ key: 'program' })).toBeUndefined()
   await ui.unmount()
 })
 
@@ -399,7 +405,7 @@ test('a session start that finds a plan clears a first-run band left from before
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   w.file.text = JSON.stringify(TINY)
   await $.session.start(SESSION)
-  expect(await ui.find({ key: 'quickstart' })).toBeUndefined()
+  expect(await ui.find({ key: 'program' })).toBeUndefined()
   await ui.unmount()
 })
 
@@ -408,7 +414,7 @@ test('with no plan, the next prompt leaves the first-run band in place', OPTIONS
   await $.session.start(SESSION)
   await $.turn.start({ text: 'go', turnId: 't1' })
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(await ui.find({ key: 'quickstart' })).toBeDefined()
+  expect(await ui.find({ key: 'program' })).toBeDefined()
   await ui.unmount()
 })
 
@@ -416,12 +422,13 @@ test('Set up my plan, finished, takes the first-run band down', OPTIONS, async (
   world(on, null, { seen: { safety: { at: 1, n: 1 } } })
   await $.session.start(SESSION)
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
+  await ui.press({ key: 'program' })
   await ui.press({ key: 'setup' })
   const pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...SETUP })
   await pane.press({ key: 'choice-2' })
   for (const key of ['choice-1', 'continue', 'choice-1', 'choice-1', 'choice-1', 'choice-1', 'choice-1', 'choice-1', 'choice-1', 'choice-1']) await pane.press({ key })
   await pane.press({ key: 'start-plan' })
-  expect(await ui.find({ key: 'quickstart' })).toBeUndefined()
+  expect(await ui.find({ key: 'program' })).toBeUndefined()
   await pane.unmount()
   await ui.unmount()
 })

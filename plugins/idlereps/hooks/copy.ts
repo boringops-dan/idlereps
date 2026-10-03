@@ -182,6 +182,18 @@ export const LINES = [
   { id: 'pane-rest', voice: 'swolomon', variants: ['Rest day, {mate}. Muscles grow on the couch.', 'No sets today, {mate}. Recovery is a lift too.'] },
   { id: 'pane-declined', voice: 'swolomon', variants: ['Rest is training too, {mate}. See you {nextDay}.'] },
   { id: 'pane-paused', voice: 'swolomon', variants: ['Paused, {mate}. The iron will wait for you.'] },
+  // Just remind me: the pane, the reminder, what was trained.
+  { id: 'routine-pane-day', voice: 'swolomon', variants: ['Lift day, {mate}. The iron is calling. Pick up.', 'Your day, {mate}. Go make the weights nervous.'] },
+  { id: 'routine-pane-going', voice: 'swolomon', variants: ["Out training, {mate}. Tell me what you hit when you're back."] },
+  { id: 'routine-pane-done', voice: 'swolomon', variants: ['Trained today, {mate}. The iron remembers.', 'Session logged, {mate}. That is the way.'] },
+  { id: 'routine-pane-rest', voice: 'swolomon', variants: ['Rest day, {mate}. Muscles grow on the couch. Next: {nextDay}.'] },
+  { id: 'remind-ask', voice: 'swolomon', variants: ["Lift day, {mate}. Your agent's busy. Go hit it?", "{AgentDoing}. Your turn, {mate}.", 'The iron is calling, {mate}. Going today?'] },
+  { id: 'remind-going', voice: 'swolomon', variants: ["Go get it, {mate}. I'll ask what you hit.", "That's the spirit, {mate}. Go."] },
+  { id: 'trained-ask', voice: 'swolomon', variants: ['Back from the iron, {mate}? What did you hit?', 'Welcome back, {mate}. What did we train?'] },
+  { id: 'trained-logged', voice: 'swolomon', variants: ['{what} logged, {mate}. {n} sessions this week.', '{what}, {mate}. Written in the scrolls. {n} this week.'] },
+  { id: 'days-ask', voice: 'swolomon', variants: ['Which days do you train, {mate}? I will hold you to them.'] },
+  { id: 'program-ask', voice: 'swolomon', variants: ["A program! Now we're talking, {mate}. How do we build it?"] },
+  { id: 'byoplan-ask', voice: 'swolomon', variants: ['Got your own program, {mate}? Show me.'] },
   { id: 'pane-finished', voice: 'swolomon', variants: ['The whole program, {mate}. Legends are made like this.'] },
   { id: 'hold-go', voice: 'swolomon', variants: ['Hold it, {mate}. Breathe.', 'Steady, {mate}. The clock is on our side.'] },
   { id: 'hold-switch', voice: 'swolomon', variants: ['Side one, done. Switch, {mate}.'] },
@@ -242,8 +254,10 @@ export const LINES = [
     voice: 'swolomon',
     variants: ["Your agent's on it, {mate}. Perfect time for a first set.", 'Waiting on your agent, {mate}? {coach} has a set for that.'],
   },
+  // Onboarding's last step, before the first set: how training here works.
+  { id: 'howto', voice: 'swolomon', variants: ["Here's how we train together, {mate}."] },
   // Quick start's one question.
-  { id: 'where-ask', voice: 'swolomon', variants: ['Where do you train, {mate}? {coach} builds for both.'] },
+  { id: 'where-ask', voice: 'swolomon', variants: ['Where do you train, {mate}? Iron or not, I build for it.'] },
   // The week's finish line.
   {
     id: 'week-done',
@@ -265,7 +279,7 @@ export const LINES = [
   { id: 'rank-iron-disciple', voice: 'swolomon', variants: ['250 sets, {mate}. Iron Disciple. {coach} is honored.'] },
   { id: 'rank-demigod', voice: 'swolomon', variants: ['500 sets, {mate}. Demigod. Big Greg asked for your autograph.'] },
   { id: 'rank-olympian', voice: 'swolomon', variants: ["1,000 sets, {mate}. Olympian. {coach}'s eyes are sweating. That's all."] },
-  { id: 'rank-greek-god', voice: 'swolomon', variants: ['2,500 sets, {mate}. Greek God. I was the shrimp. Look at you now.'] },
+  { id: 'rank-greek-god', voice: 'swolomon', variants: ['2,500 sets, {mate}. Greek God. Look at you now.'] },
 
   // Swolomon: the regulars and the gym calendar (§1.13.3, §1.13.4), on the first set band after Start.
   {
@@ -318,6 +332,29 @@ export const LINES = [
   { id: 'feat-full-week', voice: 'swolomon', variants: ["A full week, {mate}. Every training day. That's how legends start."] },
 
   // Plain: bands.
+  { id: 'howto-header', voice: 'plain', variants: ['How IdleReps works'] },
+  { id: 'howto-sets', voice: 'plain', variants: ['A set shows up here while your agent works on something long.'] },
+  { id: 'howto-keys', voice: 'plain', variants: ['Busy? Press Later and it comes back. Half a workout still counts.'] },
+  { id: 'howto-gap', voice: 'plain', variants: ['It waits between sets and never interrupts your typing.'] },
+  { id: 'howto-more', voice: 'plain', variants: ['/workout shows your week. /workout flex shows off.'] },
+  { id: 'howto-remind-days', voice: 'plain', variants: ['On your days, a reminder shows up here while your agent works.'] },
+  { id: 'howto-remind-keys', voice: 'plain', variants: ["Going? Press 1. When you're back, log what you hit in one tap."] },
+  { id: 'howto-remind-gap', voice: 'plain', variants: ["Can't make it? Not today. It never interrupts your typing."] },
+  { id: 'howto-remind-more', voice: 'plain', variants: ['/workout shows your week. /workout log logs a session any day.'] },
+  { id: 'remind-detail', voice: 'plain', variants: ['Your days: {days}. Already been? 2 logs it.'] },
+  { id: 'trained-detail', voice: 'plain', variants: ['One tap: what the session was. It counts toward your week.'] },
+  { id: 'trained-detail-late', voice: 'plain', variants: ['From {when}. One tap: what the session was.'] },
+  { id: 'days-detail', voice: 'plain', variants: ['Any other days: /workout days mon thu sat'] },
+  { id: 'program-detail', voice: 'plain', variants: ['Quick start: a starter plan now. Build: your gear, days, goal. Own: paste yours.'] },
+  { id: 'byoplan-paste', voice: 'plain', variants: ['Type /workout plan, then paste it: any format, any app. It reads it.'] },
+  { id: 'byoplan-file', voice: 'plain', variants: ['Or write it by hand: {path}'] },
+  { id: 'days-set', voice: 'plain', variants: ['Your days: {days}. A reminder comes while your agent works.'] },
+  { id: 'trained-didnt', voice: 'plain', variants: ['No session logged. Showing up next time still counts.'] },
+  { id: 'remind-skipped', voice: 'plain', variants: ['Not today. Next up: {nextDay}.'] },
+  { id: 'reply-days-usage', voice: 'plain', variants: ['Name the days you train: /workout days mon wed fri'] },
+  { id: 'reply-no-routine', voice: 'plain', variants: ['No reminders set. /workout days mon wed fri sets them up.'] },
+  { id: 'routine-status', voice: 'plain', variants: ['Reminders on {days}. This week: {done} of {of}. {today}'] },
+  { id: 'reply-meet', voice: 'plain', variants: ['Swolomon is just above the prompt: press 1 to begin.'] },
   { id: 'intro-header', voice: 'plain', variants: ['IdleReps · a workout plan and tracker that runs while your agent works'] },
   { id: 'ask-detail', voice: 'plain', variants: ['First up: {exercise}, {amount} · about {time}.'] },
   { id: 'lead-working', voice: 'plain', variants: ['While your agent works'] },
@@ -349,6 +386,11 @@ export const LINES = [
     variants: ['Starter plan ready: no gear, no floor, Mon Wed Fri. /workout setup to change it.'],
   },
   {
+    id: 'quick-start-gym',
+    voice: 'plain',
+    variants: ['Starter plan ready: dumbbells, a bar and bands, Mon Wed Fri. /workout setup to change it.'],
+  },
+  {
     id: 'quick-start-home',
     voice: 'plain',
     variants: ['Starter plan ready: no gear, Mon Wed Fri. /workout setup to change it.'],
@@ -370,7 +412,7 @@ export const LINES = [
   { id: 'reply-share-empty', voice: 'plain', variants: ['Nothing to share yet this week.'] },
   { id: 'reply-shared', voice: 'plain', variants: ['Copied: {text}'] },
   { id: 'reply-not-finished', voice: 'plain', variants: ['The next block starts once this one is done: {n} workouts to go.'] },
-  { id: 'nudge-detail', voice: 'plain', variants: ['1 to start: no gear, about a minute a set, one set at a time.'] },
+  { id: 'nudge-detail', voice: 'plain', variants: ['1 to start: one set at a time, while your agent works.'] },
   { id: 'nudge-last', voice: 'plain', variants: ["Last time I'll ask. /workout setup whenever you're ready."] },
   { id: 'reply-feedback-sent', voice: 'plain', variants: ['Sent, thank you. Ideas and discussion: {url}'] },
   { id: 'reply-feedback-sent-cut', voice: 'plain', variants: ['Sent the first {max} characters, thank you. Ideas and discussion: {url}'] },
@@ -383,7 +425,7 @@ export const LINES = [
   { id: 'installed', voice: 'plain', variants: ['IdleReps is installed. Swolomon is just above the prompt: press 1 to start.'] },
   { id: 'stretched', voice: 'plain', variants: ['Stretched: {exercise}. Rest days count too.'] },
   { id: 'stretch-note', voice: 'plain', variants: ['Easy does it: no bouncing, breathe out into it.'] },
-  { id: 'where-detail', voice: 'plain', variants: ['Desk: standing moves, no floor. Home: floor work too. No gear either way.'] },
+  { id: 'where-detail', voice: 'plain', variants: ['Desk: standing moves. Home: floor work too. Weights: dumbbells, a bar, bands.'] },
   { id: 'plan-ready', voice: 'plain', variants: ['Plan ready: {name}.'] },
   { id: 'plan-ready-later', voice: 'plain', variants: ['Plan ready. First workout {when}.'] },
   { id: 'config-failed', voice: 'plain', variants: ["Couldn't save reminder settings; change them in /config"] },
@@ -491,15 +533,17 @@ export const REASON_LINE: Record<LongTaskReason, LineId> = {
 
 /** §1.10a: the introduction, verbatim; the address term only in the last line. */
 const INTRO = [
-  "Oh hey, new face! Name's {coach}. Welcome to the gym.",
-  'Every Greek god started out as a shrimp. Trust me. I was the shrimp.',
-  "Here's the deal: while your agent does... secret agent stuff, you lift.",
-  "One set at a time, a minute or so. Press 1 when it's done. That's it.",
-  'Quick start: no gear, three days a week. Or build your own, {mate}?',
+  "{coach}. I don't breathe air, I breathe reps. Lifting is life.",
+  'You hand your agent work? Cute. I hand YOU work.',
+  'Your agent grinds, you lift. Press 1 when the set is done. Glory.',
+  'Want a full plan from me, or just reminders to train, {mate}?',
 ] as const
 
-export const introLines = (day: number): string[] =>
-  INTRO.map(text => fill(text, { coach: COACH_NAME, mate: pickAddress(day, 'intro-header') }))
+/** The introduction's last line when a plan is already there (made by hand, or brought from before). */
+const INTRO_WITH_PLAN = 'You have a plan already. Keep it, or just get reminders, {mate}?'
+
+export const introLines = (day: number, hasPlan = false): string[] =>
+  (hasPlan ? [...INTRO.slice(0, -1), INTRO_WITH_PLAN] : INTRO).map(text => fill(text, { coach: COACH_NAME, mate: pickAddress(day, 'intro-header') }))
 
 /** The introduction replayed once a plan exists: its last line no longer offers to make one. */
 export const replayLines = (day: number): string[] => [...introLines(day).slice(0, -1), line('replay-close', { day })]

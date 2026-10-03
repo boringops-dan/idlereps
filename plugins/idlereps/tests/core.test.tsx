@@ -2,14 +2,14 @@ import { expect, test } from 'claude-code/testing'
 
 import type { BandSpec, HistoryEntry, Plan, Seen } from '../types'
 import { STORE_KEYS } from '../types/store-keys'
-import { ACTIONS } from '../hooks/actions'
-import { BAND_PRIORITY, LOGGED_MS, nextFromPending, offerToSlot } from '../hooks/bands'
+import { ACTIONS, actionIdsOf } from '../hooks/actions'
+import { BAND_PRIORITY, introActions, LOGGED_MS, nextFromPending, offerToSlot } from '../hooks/bands'
 import { due, mark, mondayOf } from '../hooks/ledger'
 import { cueFor, dayNumberOf, START } from '../hooks/plan'
 import { applyInverse, applyPatch, record, RECORD_KEYS } from '../hooks/record'
 import type { RecordAction, RecordStore } from '../hooks/record'
 import { gate } from '../hooks/schedule'
-import { BAND, NOON, OPTIONS, SESSION, TINY, TODAY, editPrompt, liveClock, typing, WEIGHTED, workout, world } from './world'
+import { BAND, NOON, OPTIONS, SESSION, TINY, TODAY, editPrompt, liveClock, typing, WEIGHTED, workout, world, ONBOARDED } from './world'
 
 /** The core mechanisms (plan §4.3, Task 22). */
 
@@ -60,7 +60,7 @@ test('a reload never brings back what was marked', OPTIONS, async ($, on) => {
   const { w } = world(on, null, { seen: { 'setup-prompt': { at: NOON - 60_000, n: 1 } } })
   await $.session.start(SESSION)
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(await ui.find({ key: 'quickstart' })).toBeUndefined()
+  expect(await ui.find({ key: 'program' })).toBeUndefined()
   await ui.unmount()
   expect(w.toasts).toEqual([])
 })
@@ -95,12 +95,34 @@ test('the slot: a band that matters more stays; the waiting ones come back highe
 test('ACTIONS is D11 for the bands and panes Phase A draws (with Replay: 1 Let\'s go)', () => {
   const table = ACTIONS.map(a => `${a.kind} ${a.hotkey} ${a.label}`)
   expect(table).toEqual([
-    'intro 1 Quick start',
-    'intro 2 Set up my plan',
+    'intro 1 Give me a plan',
+    'intro 1 Keep my plan',
+    'intro 2 Just remind me',
     'intro 3 Not now',
     "intro 4 Don't ask again",
+    'howto 1 Got it',
+    'program 1 Quick start',
+    'program 2 Build it with me',
+    'program 3 I have my own',
+    'program b Back',
+    'byoplan b Back',
+    'days 1 Mon Wed Fri',
+    'days 2 Tue Thu Sat',
+    'days 3 Mon to Fri',
+    'days 4 Every day',
+    'days b Back',
+    'remind 1 Going',
+    'remind 2 Already did',
+    'remind 3 Not today',
+    'trained 1 Upper',
+    'trained 2 Lower',
+    'trained 3 Full body',
+    'trained 4 Cardio',
+    'trained 5 Other',
+    "trained 0 Didn't go",
     'where 1 At a desk',
-    'where 2 At home',
+    'where 2 At home, no gear',
+    'where 3 With weights',
     'stretch 1 Done',
     'stretch 2 Not now',
     'ready 1 Try a set now',
@@ -156,6 +178,10 @@ test('ACTIONS is D11 for the bands and panes Phase A draws (with Replay: 1 Let\'
     'status 3 Share week',
     'status 4 Change plan',
     'status 0 Close',
+    'routine 1 Log a session',
+    'routine 2 Change days',
+    'routine 3 Get a plan',
+    'routine 0 Close',
     'safety 1 I understand',
     'safety 0 Close',
     'safety 2 Back',
@@ -163,8 +189,13 @@ test('ACTIONS is D11 for the bands and panes Phase A draws (with Replay: 1 Let\'
     'byo b Back',
     'byo 0 Close',
   ])
-  const pairs = ACTIONS.map(a => `${a.kind}/${a.hotkey}`)
-  expect(new Set(pairs).size).toBe(pairs.length)
+  // Hotkeys are unique on each band as drawn: the first-run band with and without a plan, every other kind whole.
+  const kinds = [...new Set(ACTIONS.map(a => a.kind))]
+  const bands = [...[false, true].map(hasPlan => ({ kind: 'intro', ids: introActions(hasPlan) })), ...kinds.filter(k => k !== 'intro').map(kind => ({ kind, ids: actionIdsOf(kind) }))]
+  for (const { kind, ids } of bands) {
+    const keys = ids.map(id => ACTIONS.find(a => a.kind === kind && a.id === id)?.hotkey)
+    expect([kind, new Set(keys).size]).toEqual([kind, keys.length])
+  }
   for (const action of ACTIONS) expect(/^[0-9a-z]$/.test(action.hotkey)).toBe(true)
 })
 
@@ -235,7 +266,7 @@ test('a stale band records nothing', () => {
 // The store registry and the plan cache.
 
 test('every store key the plugin reads or writes is registered', OPTIONS, async ($, on) => {
-  const store = new Map<string, unknown>()
+  const store = new Map<string, unknown>([['seen', ONBOARDED]])
   const unregistered: string[] = []
   const registered = new Set<string>(STORE_KEYS.map(k => k.key))
   // The prototype's keys are read once, by the migration step that retires them.

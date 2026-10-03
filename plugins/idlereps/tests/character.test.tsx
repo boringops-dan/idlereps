@@ -101,10 +101,10 @@ test('"..." holds once, after its last dot; a comma holds 100 ms; lines wait 400
   expect(lines.at).toEqual([[20, 40], [460]])
 })
 
-test('the introduction types out in about 11 seconds', () => {
+test('the introduction types out in about 8 seconds: who he is, what he does, how, the choice', () => {
   const { doneAt } = timelineOf(introLines(TODAY))
-  expect(doneAt).toBeGreaterThan(9_000)
-  expect(doneAt).toBeLessThan(12_500)
+  expect(doneAt).toBeGreaterThan(6_500)
+  expect(doneAt).toBeLessThan(9_500)
 })
 
 test('a win holds the flex once its line is out; any other line rests', () => {
@@ -313,7 +313,7 @@ test('animated: the intro walks on over the buttons first, 8 rows in all, then t
   expect([stage?.props.columns, stage?.props.rows]).toEqual([STAGE_COLUMNS, STAGE_ROWS])
   // The stage and the buttons' row: the tall bands' 8 rows (§1.10b), never more.
   expect(STAGE_ROWS + 1).toBe(8)
-  expect(await ui.find({ key: 'quickstart' })).toBeDefined()
+  expect(await ui.find({ key: 'program' })).toBeDefined()
   expect(await ui.find({ key: 'swolomon' })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: line('intro-header', { day: TODAY }) })).toBeUndefined()
   await clock.advance(1_000)
@@ -337,6 +337,7 @@ test('animated: a button pressed during the entrance does its job at once', ANIM
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   await clock.advance(500)
   expect(await ui.find({ key: 'stage' })).toBeDefined()
+  await ui.press({ key: 'program' })
   await ui.press({ key: 'quickstart' })
   // Quick start's next step, the safety step, takes the band at once.
   expect(await ui.find({ key: 'understand' })).toBeDefined()
@@ -758,10 +759,11 @@ test('the safety step in the band: Back returns to the introduction, without wal
   blitLog(on)
   await $.session.start(SESSION)
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
+  await ui.press({ key: 'program' })
   await ui.press({ key: 'quickstart' })
   expect(await ui.find({ type: 'Text', text: line('safety-header', { day: TODAY }) })).toBeDefined()
   await ui.press({ key: 'back' })
-  expect(await ui.find({ key: 'quickstart' })).toBeDefined()
+  expect(await ui.find({ key: 'program' })).toBeDefined()
   expect(await ui.find({ key: 'stage' })).toBeUndefined()
   expect(w.writes).toEqual([])
   await ui.unmount()

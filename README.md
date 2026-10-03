@@ -21,14 +21,25 @@ Or inside Claude Code:
 ```
 
 Then start a new session. Swolomon walks on just above the prompt (a toast points the way), introduces
-IdleReps, and offers **Quick start** (a starter plan for Mon, Wed and Fri with no gear) or **Set up my
-plan** (dumbbells, a bar, bands). Quick start is a few presses of `1`: one safety note, desk or home, and
-your first set, offered right there. Log it with `1` and you've seen the whole thing; the next set comes
-while your agent works on something long. On a day off, you can still try one set.
+himself, and asks how you want to train:
+
+- **Give me a plan**: then **Quick start** (a starter plan for Mon, Wed and Fri, at a desk, at home, or
+  with weights), **Build it with me** (your gear, days and goal), or **I have my own** (paste it after
+  `/workout plan`, in any format, or write the plan file by hand). Quick start is a few presses: one
+  safety note, where you train, how training here works (four lines, once), and your first set, offered
+  right there. The next set comes while your agent works on something long.
+- **Just remind me**: you train your own way (a gym, a home gym, a run) and pick your days. On those
+  days, while your agent works, Swolomon asks if you're going; when you're back, one tap logs what you hit
+  (upper, lower, full body, cardio, other). `/workout` shows your week; `/workout log` logs a session any
+  day; `/workout days mon thu sat` changes your days. Choosing a plan later replaces the reminders.
 
 Not now? Later sessions open quietly. While your agent works on something long, Swolomon asks once that
 day, small, with the same buttons: five times at most, the last saying so. **Don't ask again** ends it;
 `/workout setup` or `/workout swolomon` start it any time.
+
+Already have a plan (written by hand, or brought over from the prototype)? Swolomon still introduces
+himself, once, with **Keep my plan** in place of Give me a plan. Until then, `/workout` brings him up rather
+than going straight into a workout.
 
 Update: `claude plugin marketplace update idlereps` (or `/plugin marketplace update idlereps`).
 
@@ -102,8 +113,13 @@ What each band's numbers do:
 
 | Band | Buttons |
 |---|---|
-| First run | `1` Quick start · `2` Set up my plan · `3` Not now · `4` Don't ask again |
-| Where do you train? (Quick start) | `1` At a desk · `2` At home |
+| First run | `1` Give me a plan (or Keep my plan) · `2` Just remind me · `3` Not now · `4` Don't ask again |
+| Give me a plan | `1` Quick start · `2` Build it with me · `3` I have my own · `b` Back |
+| Which days? (Just remind me) | `1` Mon Wed Fri · `2` Tue Thu Sat · `3` Mon to Fri · `4` Every day · `b` Back |
+| How IdleReps works (once, first) | `1` Got it |
+| Where do you train? (Quick start) | `1` At a desk · `2` At home, no gear · `3` With weights |
+| Training today? (Just remind me) | `1` Going · `2` Already did · `3` Not today |
+| What did you hit? (Just remind me) | `1` Upper · `2` Lower · `3` Full body · `4` Cardio · `5` Other · `0` Didn't go |
 | Rest-day stretch | `1` Done · `2` Not now |
 | Ready for a workout? | `1` Start · `2` Later · `3` Not today · `4` Just half |
 | Bonus set (after an Easy workout) | `1` One more · `2` Done for today |
@@ -208,6 +224,8 @@ Other commands:
 | `/workout reset` | Back to workout 1. Your history is kept. |
 | `/workout setup` | Make a new plan. |
 | `/workout plan <text>` | Turn a plan described in plain words into your plan. |
+| `/workout days <days>` | Just remind me: train on these days (e.g. `mon wed fri`). |
+| `/workout log` | Just remind me: log a session. |
 | `/workout half` | The half version of today's workout: each exercise's sets halved. |
 | `/workout next-block` | Once the plan is done: the same plan again from workout 1, weights and reps kept. |
 | `/workout share` | Copy one line about your week to post anywhere (see Share your week). |

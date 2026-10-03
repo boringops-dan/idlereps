@@ -75,7 +75,16 @@ export type World = {
 }
 
 type Seed = Record<string, unknown> | 'own-store'
-type WorldOptions = { legacy?: string; now?: number; surfaces?: RenderSurface[] }
+/** `fresh`: someone Swolomon hasn't walked in yet; otherwise the store says onboarding is behind them. */
+type WorldOptions = { legacy?: string; now?: number; surfaces?: RenderSurface[]; fresh?: true }
+
+export const ONBOARDED = { onboarded: { at: 1, n: 1 } }
+
+/** The seed as the store starts: onboarding already done, unless the test is about it. */
+function withOnboarding(seed: Record<string, unknown>, fresh: boolean): Record<string, unknown> {
+  if (fresh) return seed
+  return { ...seed, seen: { ...ONBOARDED, ...(seed.seen as Record<string, unknown> | undefined) } }
+}
 type Clock = ReturnType<typeof mock.clock>
 
 /** Every engine answer the plugin needs, the store seeded from `seed`; with `ownClock` the test answers the clock itself. */
@@ -83,7 +92,7 @@ export function world(on: On, plan: Plan | null, seed?: Seed, opts?: WorldOption
 export function world(on: On, plan: Plan | null, seed: Seed, opts: WorldOptions & { ownClock: true }): { clock: null; w: World }
 export function world(on: On, plan: Plan | null, seed: Seed = {}, opts: WorldOptions & { ownClock?: true } = {}): { clock: Clock | null; w: World } {
   mock.env(on, { HOME: '/home/me' })
-  if (seed !== 'own-store') mock.store(on, seed)
+  if (seed !== 'own-store') mock.store(on, withOnboarding(seed, opts.fresh === true))
   const clock = opts.ownClock === true ? null : mock.clock(on, { now: opts.now ?? NOON })
   const w: World = {
     file: { text: plan === null ? null : JSON.stringify(plan), mtimeMs: 1 },
@@ -163,8 +172,8 @@ export function world(on: On, plan: Plan | null, seed: Seed = {}, opts: WorldOpt
 }
 
 /** A store the test holds itself (with `world`'s 'own-store' seed): read it, or change it between steps. */
-export function ownStore(on: On, seed: Record<string, unknown> = {}) {
-  const store = new Map<string, unknown>(Object.entries(seed))
+export function ownStore(on: On, seed: Record<string, unknown> = {}, opts: { fresh?: true } = {}) {
+  const store = new Map<string, unknown>(Object.entries(withOnboarding(seed, opts.fresh === true)))
   on('store.get', ($, e) => ({ value: store.get(e.key) }))
   on('store.set', ($, e) => {
     store.set(e.key, e.value)

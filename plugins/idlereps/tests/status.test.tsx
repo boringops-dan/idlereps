@@ -169,8 +169,8 @@ test('/workout status is one line with the same facts', OPTIONS, async ($, on) =
   expect(said.includes('\n')).toBe(false)
 })
 
-test('/workout with no plan says how to make one', OPTIONS, async ($, on) => {
-  const { w } = world(on, null)
+test('/workout with no plan, after Don’t ask again, says how to make one (otherwise Swolomon introduces himself)', OPTIONS, async ($, on) => {
+  const { w } = world(on, null, { seen: { 'setup-prompt': { at: 1, n: 1 } } })
   await $.session.start(SESSION)
   expect(JSON.stringify(await $.command.run(workout('')))).toMatch(/No plan yet\. Run \/workout setup/)
   expect(w.opened).toEqual([])
