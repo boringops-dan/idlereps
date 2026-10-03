@@ -3,8 +3,8 @@ import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
 import { ADDRESS_TERMS, fill, line, LINES, usesAgent } from '../hooks/copy'
-import { MISREADS, misreadOf } from '../hooks/misreads'
-import { BAND, drawnRows, NOON, OPTIONS, SESSION, TINY, TODAY, workout, world } from './world'
+import { LEARN_AFTER, MISREADS, misreadOf, saysOf } from '../hooks/misreads'
+import { BAND, drawnRows, NOON, OPTIONS, ownStore, SESSION, TINY, TODAY, workout, world } from './world'
 
 /**
  * Swolomon reads what the agent does (owner, 2026-10-02): always wrong, always gym talk. The spinner says
@@ -27,13 +27,14 @@ test('thirty-plus readings, each its own', () => {
 test('he never gets it right: no code words, the agent only as "your agent", no gendered words', () => {
   const wrong: string[] = []
   for (const m of MISREADS) {
-    for (const text of [m.verb, m.doing, m.says]) {
+    for (const text of [m.verb, m.doing, m.says, ...(m.learned === undefined ? [] : [m.learned])]) {
       if (words(text, CODE).length > 0) wrong.push(`code: ${text}`)
       if (words(text, BANNED).length > 0) wrong.push(`banned: ${text}`)
       if (/\bagent\b/i.test(text) && !/your agent/i.test(text)) wrong.push(`agent: ${text}`)
     }
     if (!m.doing.startsWith("your agent's ")) wrong.push(`doing: ${m.doing}`)
     if ((m.says.match(/\{mate\}/g) ?? []).length !== 1) wrong.push(`mate: ${m.says}`)
+    if (m.learned !== undefined && (m.learned.match(/\{mate\}/g) ?? []).length !== 1) wrong.push(`mate: ${m.learned}`)
   }
   expect(wrong).toEqual([])
 })
@@ -46,8 +47,10 @@ test('they fit: the spinner word short, his line within 70 beside his name, ever
     if (m.verb.length > 28) wrong.push(`verb ${m.verb}`)
     if (m.doing.length > 33) wrong.push(`doing ${m.doing.length} ${m.doing}`)
     for (const term of ADDRESS_TERMS) if (new RegExp(`\\b${term}\\b`, 'i').test(`${m.verb} ${m.doing} ${m.says}`)) wrong.push(`term ${term}: ${m.id}`)
-    const said = fill(m.says, { mate: LONGEST_TERM })
-    if (said.length > 70) wrong.push(`says ${said.length} ${said}`)
+    for (const says of [m.says, ...(m.learned === undefined ? [] : [m.learned])]) {
+      const said = fill(says, { mate: LONGEST_TERM })
+      if (said.length > 70) wrong.push(`says ${said.length} ${said}`)
+    }
     for (const entry of agentLines) {
       for (const variant of entry.variants.filter(v => /\{agentDoing\}|\{AgentDoing\}/.test(v))) {
         const text = fill(variant, { coach: 'Swolomon', mate: LONGEST_TERM, agentDoing: m.doing, workout: 'Core and cardio', n: 12, wait: 'about 55 min', nextDay: 'Wednesday' })
@@ -211,4 +214,38 @@ test('with sets done that turn, the set count and his reading together', OPTIONS
   const rows = await turnEnd($)
   expect(rows[0]).toBe(`Baked for 183s · ${line('turn-sets', { day: TODAY, sets: '1 set' })} 💪`)
   expect(rows[1]).toMatch(/^Swolomon: Your agent read a fitness magazine/)
+})
+
+// He learns your world, badly (owner, 2026-10-03): said often enough, he has asked around.
+
+test('learning: the first three times his reading, then what he learned asking around; never right', () => {
+  const push = misreadOf({ tool: 'Bash', command: 'git push' })
+  if (push === null) throw new Error('no reading')
+  expect([0, 1, 2].map(n => saysOf(push, n))).toEqual([push.says, push.says, push.says])
+  expect(saysOf(push, LEARN_AFTER)).toBe(push.learned)
+  const cat = misreadOf({ tool: 'Bash', command: 'cat x' })
+  if (cat === null) throw new Error('no reading')
+  expect(saysOf(cat, 99)).toBe(cat.says)
+  expect(MISREADS.filter(m => m.learned !== undefined).length).toBeGreaterThanOrEqual(15)
+})
+
+test('the fourth time a push ends a turn: what he learned', OPTIONS, async ($, on) => {
+  const store = ownStore(on, { misreadsSeen: { push: 3 } })
+  world(on, TINY, 'own-store')
+  await $.session.start(SESSION)
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  await $.tool.call(bash('git push'))
+  await $.turn.complete(done('t1'))
+  expect((await turnEnd($))[1]).toMatch(/^Swolomon: Asked around, .+\. Those push-ups involve no floor\. Odd\.$/)
+  expect(store.get('misreadsSeen')).toEqual({ push: 4 })
+})
+
+test('counted only when said: a short turn, or one with an outcome, counts nothing', OPTIONS, async ($, on) => {
+  const store = ownStore(on, {})
+  world(on, TINY, 'own-store')
+  await $.session.start(SESSION)
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  await $.tool.call(bash('git push'))
+  await $.turn.complete(done('t1', 20_000))
+  expect(store.get('misreadsSeen')).toBeUndefined()
 })

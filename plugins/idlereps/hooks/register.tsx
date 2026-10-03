@@ -86,7 +86,7 @@ import {
   weekProgress,
 } from './plan'
 import { drawMicro, MICRO_HEIGHT, MICRO_WIDTH } from './figure'
-import { misreadOf } from './misreads'
+import { misreadOf, saysOf } from './misreads'
 import type { Misread } from './misreads'
 import { drawMove, moveById, moveForExercise, MOVES, poseAt } from './moves'
 import type { Move } from './moves'
@@ -3048,6 +3048,14 @@ const BLIP_ASSET = 'assets/blip.wav'
 /** A turn this long gets Swolomon's reading of it even without sets, once a day. */
 const MISREAD_TURN_MS = 60_000
 
+/** His reading, as said this time: counted, and once said often enough, what he learned asking around. */
+async function learnedOf($: EngineInterface, misread: Misread): Promise<Misread> {
+  const seen = await load<Record<string, number>>($, 'misreadsSeen', {})
+  const n = seen[misread.id] ?? 0
+  await save($, 'misreadsSeen', { ...seen, [misread.id]: n + 1 })
+  return { ...misread, says: saysOf(misread, n) }
+}
+
 /** The spinner shows Swolomon's reading of the call running; a change redraws it. */
 function setCallMisread($: EngineInterface, misread: Misread | null) {
   if (coach.callMisread === misread) return
@@ -3190,9 +3198,11 @@ export const register: Register = (on, options) => {
     coach.isTurnRunning = false
     // The line that closes the turn says what the person did meanwhile; it is found by the turn's length.
     // Without sets, Swolomon still says what he thinks the agent was up to: once a day, on a long turn.
-    const misread = coach.turnMisread ?? undefined
-    const saysAnyway = coach.turnSets === 0 && misread !== undefined && e.durationMs >= MISREAD_TURN_MS && (await isDue($, 'misread-turn', 'day'))
+    const seenMisread = coach.turnMisread ?? undefined
+    const saysAnyway = coach.turnSets === 0 && seenMisread !== undefined && e.durationMs >= MISREAD_TURN_MS && (await isDue($, 'misread-turn', 'day'))
     if (saysAnyway) await markSeen($, 'misread-turn')
+    // Said often enough, he has asked around: what he says of it moves on (hooks/misreads.ts).
+    const misread = seenMisread !== undefined && coach.turnOutcome === undefined && (coach.turnSets > 0 || saysAnyway) ? await learnedOf($, seenMisread) : seenMisread
     if (e.agentId === undefined && (coach.turnSets > 0 || saysAnyway)) {
       coach.setsByTurnLength.set(e.durationMs, {
         sets: coach.turnSets,
