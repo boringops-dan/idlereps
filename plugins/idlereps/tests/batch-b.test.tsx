@@ -37,8 +37,8 @@ test('the turn’s outcome: a PR outranks a commit outranks tests; the latest te
   expect(turnOutcome('pr', 'commit')).toBe('pr')
 })
 
-async function turnEnd($: Engine) {
-  const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', component: 'TurnDuration', props: { word: 'Baked', durationMs: 183_000 } })
+async function turnEnd($: Engine, durationMs = 183_000) {
+  const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', component: 'TurnDuration', props: { word: 'Baked', durationMs } })
   const rows = drawnRows(await ui.drawn())
   await ui.unmount()
   return rows
@@ -86,13 +86,17 @@ test('a commit outranks the tests run after it', OPTIONS, async ($, on) => {
   expect((await turnEnd($))[1]).toBe(`Swolomon: ${line('react-commit', { day: TODAY })}`)
 })
 
-test('no sets this turn: no reaction, however the tests went (Swolomon never comments on work alone)', OPTIONS, async ($, on) => {
+test('no sets this turn: Swolomon still reads the agent, once a day, and never as a set count', OPTIONS, async ($, on) => {
   world(on, TINY)
   await $.session.start(SESSION)
   await $.turn.start({ text: 'go', turnId: 't1' })
   await $.tool.call(bash('npm test'))
   await $.turn.complete(done)
-  expect(await turnEnd($)).toEqual(['Baked for 183s'])
+  expect(await turnEnd($)).toEqual(['Baked for 183s', `Swolomon: ${line('react-tests-pass', { day: TODAY })}`])
+  await $.turn.start({ text: 'go', turnId: 't2' })
+  await $.tool.call(bash('npm test'))
+  await $.turn.complete({ ...(done as object), turnId: 't2', durationMs: 200_000 } as never)
+  expect(await turnEnd($, 200_000)).toEqual(['Baked for 200s'])
 })
 
 test('the outcome is the turn’s own: the next turn starts with none', OPTIONS, async ($, on) => {

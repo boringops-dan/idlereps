@@ -1,10 +1,12 @@
 import { expect, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
+import type { Engine } from 'claude-code/testing'
 
 import type { Answers, Plan } from '../types'
 import { flexBand } from '../hooks/bands'
 import { drawMove, moveById, moveForExercise, moveMs, MOVES, poseAt, REEL } from '../hooks/moves'
-import { encodeMove, encodeSprite } from '../hooks/portrait'
+import { drawMicro, MICRO_HEIGHT, MICRO_WIDTH } from '../hooks/figure'
+import { encodeMicro, encodeMove, encodeSprite } from '../hooks/portrait'
 import { DESK_STRETCHES, generateProgram, LIBRARY } from '../hooks/programs'
 import { SPRITE } from '../hooks/swolomon-sprite'
 import { BAND, drawnRows, SESSION, STATUS, TINY, TODAY, workout, world } from './world'
@@ -237,4 +239,94 @@ test('not animated: the pane’s portrait stays still', STILL, async ($, on) => 
   await clock.advance(10_000)
   expect(blits).toEqual([])
   await pane.unmount()
+})
+
+// ---------------------------------------------------------------------------------------------------------
+// The tiny Swolomon beside a set.
+
+const microOf = (id: string) => encodeMicro(SPRITE, id, (moveById(id)?.poses ?? []).map(drawMicro), MICRO_WIDTH, MICRO_HEIGHT)
+
+test('every exercise move draws tiny: 8 × 6, his colours, and the poses differ', () => {
+  for (const move of MOVES.filter(m => m.family === 'exercise')) {
+    const poses = move.poses.map(drawMicro)
+    for (const rows of poses) expect([move.id, rows.length, rows.every(r => r.length === MICRO_WIDTH)]).toEqual([move.id, MICRO_HEIGHT, true])
+    expect(() => microOf(move.id)).not.toThrow()
+    expect([move.id, new Set(move.beats.map(([p]) => poses[p]?.join('\n'))).size >= 2]).toEqual([move.id, true])
+    // His laurel always shows, however small.
+    for (const rows of poses) expect([move.id, rows.some(r => r.includes('g'))]).toEqual([move.id, true])
+  }
+})
+
+/** Today's first set (Swolomon speaks), Done, then the next set (silent). */
+async function silentSet($: Engine) {
+  await $.command.run(workout('start'))
+  await $.command.run(workout('done'))
+  await $.command.run(workout('now'))
+}
+
+test('a silent set: the tiny Swolomon beside it does the exercise, then holds still', ANIMATED, async ($, on) => {
+  const { clock } = world(on, TINY)
+  const blits = blitLog(on)
+  await $.session.start(SESSION)
+  const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
+  await silentSet($)
+  const tiny = (await ui.find({ key: 'swolomon-tiny' })) as { props: { cells: string; rows: number } } | undefined
+  const cells = microOf('push-up')
+  expect([tiny?.props.rows, tiny?.props.cells]).toEqual([3, cells[0]])
+  const pushUp = moveById('push-up')
+  if (pushUp === undefined) throw new Error('no push-up')
+  await clock.advance(moveMs(pushUp) + 500)
+  const tinyBlits = blits.map(b => b.cells).filter(c => cells.includes(c))
+  expect(tinyBlits).toContain(cells[1])
+  expect(tinyBlits.at(-1)).toBe(cells[0])
+  const settled = blits.length
+  await clock.advance(30_000)
+  expect(blits.length).toBe(settled)
+  // Silent still: no name tag, no head.
+  expect(await ui.find({ key: 'swolomon' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('the set Swolomon speaks on keeps his talking head, not the tiny one', ANIMATED, async ($, on) => {
+  world(on, TINY)
+  await $.session.start(SESSION)
+  const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
+  await $.command.run(workout('start'))
+  expect(await ui.find({ key: 'swolomon-tiny' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('not animated: the tiny Swolomon stands in the start position, no blits', STILL, async ($, on) => {
+  const { clock } = world(on, TINY)
+  const blits = blitLog(on)
+  await $.session.start(SESSION)
+  const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
+  await silentSet($)
+  await clock.advance(10_000)
+  expect(((await ui.find({ key: 'swolomon-tiny' })) as { props: { cells: string } } | undefined)?.props.cells).toBe(microOf('push-up')[0])
+  expect(blits).toEqual([])
+  await ui.unmount()
+})
+
+test('no tiny Swolomon where the set would not fit beside him, nor off the terminal', ANIMATED, async ($, on) => {
+  world(on, TINY)
+  await $.session.start(SESSION)
+  const narrow = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND, props: { ...BAND.props, bodyColumns: 30 } })
+  const desktop = await $.ui.mount({ plugin: 'idlereps', surface: 'desktop', ...BAND })
+  await silentSet($)
+  expect(await narrow.find({ key: 'swolomon-tiny' })).toBeUndefined()
+  expect(await desktop.find({ key: 'swolomon-tiny' })).toBeUndefined()
+  await narrow.unmount()
+  await desktop.unmount()
+})
+
+test('an exercise with no move of its own: no tiny Swolomon, the set as before', ANIMATED, async ($, on) => {
+  const SWINGS: Plan = { ...TINY, workouts: [{ name: 'K', exercises: [{ name: 'Kettlebell swings', reps: '15 reps', sets: 3 }] }] }
+  world(on, SWINGS)
+  await $.session.start(SESSION)
+  const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
+  await silentSet($)
+  expect(await ui.find({ key: 'swolomon-tiny' })).toBeUndefined()
+  expect(drawnRows(await ui.drawn()).some(row => row.includes('Kettlebell swings'))).toBe(true)
+  await ui.unmount()
 })

@@ -188,18 +188,19 @@ export const LINES = [
   { id: 'hold-time', voice: 'swolomon', variants: ['Time! Beautiful hold, {mate}.', 'Time! Rock solid, {mate}.'] },
   { id: 'busy-day', voice: 'swolomon', variants: ["Busy day, {mate}. I'll check back every {n} min instead."] },
   // The turn-end line, when the person trained through it: Swolomon on what the agent got done.
+  // What the agent got done, as Swolomon understands it: never correctly (owner: he always misreads it).
   {
     id: 'react-tests-pass',
     voice: 'swolomon',
-    variants: ['Green lights for your agent, {mate}. Green for you too.', 'All green, {mate}. Your agent passed. So did you.'],
+    variants: ['Your agent passed its fitness test, {mate}. So did you.', 'All green, {mate}. Your agent made weight.'],
   },
   {
     id: 'react-tests-fail',
     voice: 'swolomon',
-    variants: ['Red lights for your agent. Your sets? All green, {mate}.', 'Your agent hit a wall, {mate}. You hit your reps.'],
+    variants: ['Your agent failed its fitness test, {mate}. Rest, eat, retest.', 'Your agent missed weight, {mate}. You hit your reps.'],
   },
-  { id: 'react-commit', voice: 'swolomon', variants: ['Your agent saved its work, {mate}. You banked your gains.'] },
-  { id: 'react-pr', voice: 'swolomon', variants: ['Your agent sent its work in, {mate}. Yours speaks for itself.'] },
+  { id: 'react-commit', voice: 'swolomon', variants: ['Your agent made a commitment, {mate}. To leg day, I assume.'] },
+  { id: 'react-pr', voice: 'swolomon', variants: ['Your agent asked for a form check, {mate}. Brave.'] },
   // Rest days: one desk stretch, once a day, while the agent works.
   {
     id: 'stretch-ask',

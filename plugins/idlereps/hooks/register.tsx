@@ -37,7 +37,7 @@ import {
   replayBand,
   setBand,
 } from './bands'
-import { agentDoing, COACH_NAME, COMMUNITY_URL, FEEDBACK_URL, line, progressDots, REASON_LINE, SAFETY_TEXT, TELEMETRY_URL, usesAgent, whatsNewLine } from './copy'
+import { agentDoing, COACH_NAME, fill, pickAddress, COMMUNITY_URL, FEEDBACK_URL, line, progressDots, REASON_LINE, SAFETY_TEXT, TELEMETRY_URL, usesAgent, whatsNewLine } from './copy'
 import type { LineContext, LineId } from './copy'
 import { appendHistory, movedSeconds, rankFor, RANKS, setsThisWeek } from './history'
 import { due, mark, mondayOf } from './ledger'
@@ -69,12 +69,16 @@ import {
   targetOf,
   weekProgress,
 } from './plan'
+import { drawMicro, MICRO_HEIGHT, MICRO_WIDTH } from './figure'
+import { misreadOf } from './misreads'
+import type { Misread } from './misreads'
 import { drawMove, moveById, moveForExercise, MOVES, poseAt, REEL } from './moves'
 import type { Move } from './moves'
 import {
   BLINK_EVERY_MS,
   BLINK_FOR_MS,
   BLINK_MS,
+  encodeMicro,
   encodeMove,
   encodeSprite,
   ENTRANCE_MS,
@@ -184,6 +188,18 @@ const SVGS = Object.fromEntries((Object.keys(SPRITE.frames) as (keyof typeof SPR
 const PORTRAIT_ROWS = SPRITE.height / 2
 /** Every move's poses as full-portrait cells, encoded once per load. */
 const MOVE_CELLS: Record<string, string[]> = Object.fromEntries(MOVES.map(move => [move.id, encodeMove(SPRITE, move.id, drawMove(move))]))
+/** The exercise moves drawn tiny, for beside a set (3 rows), encoded once per load. */
+const MICRO_CELLS: Record<string, string[]> = Object.fromEntries(
+  MOVES.filter(move => move.family === 'exercise').map(move => [move.id, encodeMicro(SPRITE, move.id, move.poses.map(drawMicro), MICRO_WIDTH, MICRO_HEIGHT)]),
+)
+const MICRO_ROWS = MICRO_HEIGHT / 2
+
+/** The tiny Swolomon beside a set nobody speaks on: the exercise's move, if it has one (§1.11 Moves). */
+function microMoveOf(spec: BandSpec): Move | undefined {
+  if (spec.kind !== 'set' || spec.coach !== undefined || spec.cue === undefined) return undefined
+  const id = moveForExercise(spec.cue.exercise.name)
+  return id === null || MICRO_CELLS[id] === undefined ? undefined : moveById(id)
+}
 
 /** The theme's own colours for each tone, so light and dark themes both read (muted is the dim style). */
 const TONE_COLOUR: Record<Exclude<Tone, 'muted'>, string> = { accent: 'warning', good: 'success' }
@@ -225,7 +241,11 @@ const coach: {
   turnSets: number
   /** What the agent got done this turn worth a word (tests, a commit, a PR), and each finished turn's by its length. */
   turnOutcome: Outcome | undefined
-  setsByTurnLength: Map<number, { sets: number; outcome?: Outcome }>
+  setsByTurnLength: Map<number, { sets: number; outcome?: Outcome; misread?: Misread }>
+  /** Swolomon reads what the agent does this turn (a plan, not paused, not quiet hours): his reading of the call running, and the turn's latest. */
+  turnCanMisread: boolean
+  callMisread: Misread | null
+  turnMisread: Misread | null
   /** This turn may offer the rest day's desk stretch (instead of a set). */
   turnCanStretch: boolean
   /** No plan yet: this turn may ask once more to get started. */
@@ -247,6 +267,9 @@ const coach: {
   /** The status pane's portrait, where it is drawn, and its pose as cells while a move plays there. */
   panePortrait: string | null
   paneFrame: string | null
+  /** The tiny Swolomon beside a set: where drawn, and his pose as cells while he does the exercise. */
+  micro: { requestId: string } | null
+  microFrame: string | null
   /** Where `/workout flex` is in Swolomon's reel this session. */
   reel: number | null
   /** The install id, read (or made) once a load (see installIdOf). */
@@ -284,6 +307,9 @@ const coach: {
   turnSets: 0,
   turnOutcome: undefined,
   setsByTurnLength: new Map(),
+  turnCanMisread: false,
+  callMisread: null,
+  turnMisread: null,
   turnCanStretch: false,
   turnCanNudge: false,
   deferred: null,
@@ -297,6 +323,8 @@ const coach: {
   moveFrame: null,
   panePortrait: null,
   paneFrame: null,
+  micro: null,
+  microFrame: null,
   reel: null,
   installId: null,
   portrait: null,
@@ -537,8 +565,14 @@ async function startTalk($: EngineInterface, spec: BandSpec): Promise<BandSpec> 
   coach.talkText = spec.coach?.join(' ') ?? ''
   // Read aloud when the line starts: now, or once Swolomon has walked on.
   if (spec.coach !== undefined && spec.entrance !== true) void speakLine($)
+  coach.microFrame = null
   if (spec.coach === undefined || !coach.options.coachAnimation) {
     if ((await read($, talk)) !== null) await update($, talk, () => null)
+    const micro = microMoveOf(spec)
+    if (micro !== undefined && coach.options.coachAnimation) {
+      coach.talkSeq += 1
+      playMicro($, micro, coach.talkSeq)
+    }
     return spec
   }
   coach.talkSeq += 1
@@ -643,6 +677,41 @@ async function playMove($: EngineInterface, move: Move, key: number, isWin: bool
   )
 }
 
+/**
+ * The tiny Swolomon does the set's exercise alongside you: its reps once, a moment after the set shows,
+ * then he holds the start position (nothing moves after).
+ */
+function playMicro($: EngineInterface, move: Move, key: number) {
+  const cells = MICRO_CELLS[move.id] ?? []
+  let showing = -1
+  let startedAt: number | null = null
+  ticker($, 'band', TICK_MS, stop =>
+    void (async () => {
+      const at = await now($)
+      startedAt ??= at
+      const where = coach.micro
+      const pose = coach.talkSeq === key ? poseAt(move, at - startedAt) : null
+      if (pose === null || where === null) {
+        stop()
+        if (coach.talkSeq === key && where !== null && showing > 0) {
+          coach.microFrame = cells[0] ?? null
+          await blitMicro($, where.requestId, coach.microFrame)
+        }
+        return
+      }
+      if (pose === showing) return
+      showing = pose
+      coach.microFrame = cells[pose] ?? null
+      await blitMicro($, where.requestId, coach.microFrame)
+    })(),
+  )
+}
+
+async function blitMicro($: EngineInterface, requestId: string, cells: string | null) {
+  if (cells === null) return
+  await $.ui.blit({ requestId, key: 'swolomon-tiny', cells, columns: MICRO_WIDTH, rows: MICRO_ROWS }).catch(() => undefined)
+}
+
 /** Blits full-portrait cells to a drawn Raster; a refused blit (it moved on) is ignored. */
 async function blitFull($: EngineInterface, requestId: string, cells: string | null) {
   if (cells === null) return
@@ -715,6 +784,8 @@ async function cueContextOf($: EngineInterface, plan: Plan): Promise<CueContext>
 
 /** `{agentDoing}` for a line, moving the day's storyline on when the line names the agent (§1.13.2). */
 async function agentFill($: EngineInterface, id: LineId, day: number): Promise<string> {
+  // What the agent is doing this turn, misread, beats today's theory about it.
+  if (coach.isTurnRunning && coach.turnMisread !== null) return coach.turnMisread.doing
   const stored = await load($, 'agentBeat', { day, n: 0 })
   const beat = (stored.day === day ? stored.n : 0) + 1
   const turnMs = coach.isTurnRunning ? (await now($)) - coach.turnStartedAt : 0
@@ -2368,6 +2439,30 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
       </Box>
     )
   }
+  // A set nobody speaks on: the tiny Swolomon beside it, doing the exercise, where there is room.
+  const micro = microMoveOf(spec)
+  coach.micro = null
+  if (
+    fit === 'none' &&
+    micro !== undefined &&
+    surface === 'terminal' &&
+    SPRITE.approved &&
+    'Raster' in elements &&
+    site.maxRows >= MICRO_ROWS &&
+    site.bodyColumns >= MICRO_WIDTH + PORTRAIT_GAP + textColumns
+  ) {
+    const { Raster } = elements
+    coach.micro = { requestId: site.requestId }
+    return (
+      <Box flexDirection="row" alignItems="flex-start">
+        <Raster key="swolomon-tiny" columns={MICRO_WIDTH} rows={MICRO_ROWS} cells={coach.microFrame ?? MICRO_CELLS[micro.id]?.[0] ?? ''} />
+        <Box key="portrait-gap" width={PORTRAIT_GAP} />
+        <Box key="text" flexDirection="column">
+          {rows}
+        </Box>
+      </Box>
+    )
+  }
   if (fit === 'none' || !('Raster' in elements)) return <Box flexDirection="column">{rows}</Box>
 
   const { Raster } = elements
@@ -2411,6 +2506,16 @@ const COMEBACK_DAYS = 7
 
 /** Swolomon's talk blip (§1.11 Sound): original, generated by scripts/make-blip-wav.mjs. */
 const BLIP_ASSET = 'assets/blip.wav'
+
+/** A turn this long gets Swolomon's reading of it even without sets, once a day. */
+const MISREAD_TURN_MS = 60_000
+
+/** The spinner shows Swolomon's reading of the call running; a change redraws it. */
+function setCallMisread($: EngineInterface, misread: Misread | null) {
+  if (coach.callMisread === misread) return
+  coach.callMisread = misread
+  $.ui.invalidate('ui.render')
+}
 
 const REACTION: Record<Outcome, LineId> = { 'tests-pass': 'react-tests-pass', 'tests-fail': 'react-tests-fail', commit: 'react-commit', pr: 'react-pr' }
 
@@ -2488,6 +2593,8 @@ export const register: Register = (on, options) => {
     coach.turnCanCue = await couldCueThisTurn($)
     coach.turnCanStretch = !coach.turnCanCue && (await couldStretchThisTurn($))
     coach.turnCanNudge = await couldNudgeThisTurn($)
+    coach.turnMisread = null
+    coach.turnCanMisread = (await loadPlan($)) !== null && !(await load($, 'paused', false)) && !inQuietHours(coach.options.quietHours, hourOf(await now($)))
     const showing = await read($, band)
     if ((coach.turnCanCue || coach.turnCanStretch || coach.turnCanNudge) && (showing === null || showing.kind === 'logged')) {
       scheduleCue($, cueDelayMs(turnWaitMs(isBig), await load<number | undefined>($, 'nextCueAt', undefined), coach.turnStartedAt))
@@ -2501,7 +2608,21 @@ export const register: Register = (on, options) => {
     if (!coach.isTurnRunning) return next(e)
     const tool = String(e.tool)
     const input = e as unknown as Record<string, unknown>
-    const result = await watchCall($, tool, input, () => next(e))
+    // Swolomon's reading of the call: the spinner says it while it runs, his lines this turn use it.
+    const misread = coach.turnCanMisread && e.agentId === undefined ? misreadOf(factsOf(tool, input, 0)) : null
+    const misreadBefore = coach.turnMisread
+    if (misread !== null) {
+      coach.turnMisread = misread
+      setCallMisread($, misread)
+    }
+    let result: Awaited<ReturnType<typeof next>>
+    try {
+      result = await watchCall($, tool, input, () => next(e))
+    } finally {
+      if (misread !== null && coach.callMisread === misread) setCallMisread($, null)
+    }
+    // A denied call ran nothing, so it did nothing worth a word either.
+    if (misread !== null && result.deny !== undefined && coach.turnMisread === misread) coach.turnMisread = misreadBefore
     // A denied call ran nothing, so it achieved nothing.
     if (tool === 'Bash' && result.deny === undefined) {
       const op = result.isError === undefined ? (result.result as { gitOperation?: GitOperation }).gitOperation : undefined
@@ -2514,9 +2635,19 @@ export const register: Register = (on, options) => {
   on('turn.complete', async ($, e, next) => {
     coach.isTurnRunning = false
     // The line that closes the turn says what the person did meanwhile; it is found by the turn's length.
-    if (e.agentId === undefined && coach.turnSets > 0) {
-      coach.setsByTurnLength.set(e.durationMs, { sets: coach.turnSets, ...(coach.turnOutcome === undefined ? {} : { outcome: coach.turnOutcome }) })
+    // Without sets, Swolomon still says what he thinks the agent was up to: once a day, on a long turn.
+    const misread = coach.turnMisread ?? undefined
+    const saysAnyway = coach.turnSets === 0 && misread !== undefined && e.durationMs >= MISREAD_TURN_MS && (await isDue($, 'misread-turn', 'day'))
+    if (saysAnyway) await markSeen($, 'misread-turn')
+    if (e.agentId === undefined && (coach.turnSets > 0 || saysAnyway)) {
+      coach.setsByTurnLength.set(e.durationMs, {
+        sets: coach.turnSets,
+        ...(coach.turnOutcome === undefined ? {} : { outcome: coach.turnOutcome }),
+        ...(misread === undefined ? {} : { misread }),
+      })
     }
+    coach.turnMisread = null
+    setCallMisread($, null)
     coach.turnSets = 0
     coach.turnOutcome = undefined
     if (e.agentId === undefined) await recordWorkTime($)
@@ -2564,7 +2695,10 @@ export const register: Register = (on, options) => {
 
   // While today's workout is under way, the spinner lifts too: a gym word in place of the engine's.
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
-    if (!coach.isMidWorkout || e.props.message !== null) return next(e)
+    if (e.props.message !== null) return next(e)
+    // What the agent is doing, as Swolomon understands it; else, mid-workout, a gym word.
+    if (coach.callMisread !== null) return next({ ...e, props: { ...e.props, word: coach.callMisread.verb } })
+    if (!coach.isMidWorkout) return next(e)
     return next({ ...e, props: { ...e.props, word: gymWord(e.props.word) } })
   })
 
@@ -2575,17 +2709,26 @@ export const register: Register = (on, options) => {
     const { Box, Text } = $.ui.resolve(e)
     const drawn = await next(e)
     const day = await today($)
-    const sets = (
-      <Box key="line" flexDirection="row">
-        {drawn}
-        <Text key="sets" dimColor>
-          {` · ${line('turn-sets', { day, sets: turn.sets === 1 ? '1 set' : `${turn.sets} sets` })} 💪`}
-        </Text>
-      </Box>
-    )
-    if (turn.outcome === undefined) return sets
-    // The person trained through it, and the agent got something done: Swolomon notices both.
-    const said = line(REACTION[turn.outcome], { day })
+    const sets =
+      turn.sets === 0 ? (
+        drawn
+      ) : (
+        <Box key="line" flexDirection="row">
+          {drawn}
+          <Text key="sets" dimColor>
+            {` · ${line('turn-sets', { day, sets: turn.sets === 1 ? '1 set' : `${turn.sets} sets` })} 💪`}
+          </Text>
+        </Box>
+      )
+    // What the agent got done, as Swolomon understands it (never correctly): its outcome, else his reading
+    // of what it did.
+    const said =
+      turn.outcome !== undefined
+        ? line(REACTION[turn.outcome], { day })
+        : turn.misread !== undefined
+          ? fill(turn.misread.says, { mate: pickAddress(day, 'react-commit') })
+          : null
+    if (said === null) return sets
     return (
       <Box flexDirection="column">
         {sets}

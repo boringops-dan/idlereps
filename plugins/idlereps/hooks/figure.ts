@@ -274,3 +274,69 @@ export function turned(f: Figure): Figure {
     ...(f.fx === undefined ? {} : { fx: f.fx.map(x => ({ ...x, at: m(x.at) })) }),
   }
 }
+
+// ---------------------------------------------------------------------------------------------------------
+// The tiny Swolomon (§1.11 Moves, the set band): the same pose, drawn into 8 × 6 pixels (3 rows beside a
+// set), so he does the exercise alongside you. A head of 3 × 2, one-pixel limbs, the same colours.
+
+export const MICRO_WIDTH = 8
+export const MICRO_HEIGHT = 6
+
+const MICRO_HEAD: Record<Facing, readonly string[]> = { front: ['ggg', 'kwk'], right: ['hgg', 'hsk'], left: ['ggh', 'ksh'] }
+
+/** A pose drawn small: every point scaled into the 8 × 6 frame. */
+export function drawMicro(f: Figure): string[] {
+  const sx = MICRO_WIDTH / SIZE
+  const sy = MICRO_HEIGHT / SIZE
+  const g: Grid = Array.from({ length: MICRO_HEIGHT }, () => new Array<string>(MICRO_WIDTH).fill('.'))
+  const at = (p: P): P => [p[0] * sx, p[1] * sy]
+  const paint = (x: number, y: number, c: string) => {
+    const row = g[Math.floor(y)]
+    const ix = Math.floor(x)
+    if (row !== undefined && ix >= 0 && ix < MICRO_WIDTH) row[ix] = c
+  }
+  /** A one-pixel line through the scaled points. */
+  const line = (points: readonly P[], c: string) => {
+    for (let i = 0; i + 1 < points.length; i += 1) {
+      const a = points[i]
+      const b = points[i + 1]
+      if (a === undefined || b === undefined) continue
+      const [ax, ay] = at(a)
+      const [bx, by] = at(b)
+      const steps = Math.max(1, Math.ceil(Math.max(Math.abs(bx - ax), Math.abs(by - ay)) * 2))
+      for (let k = 0; k <= steps; k += 1) paint(ax + ((bx - ax) * k) / steps, ay + ((by - ay) * k) / steps, c)
+    }
+  }
+  for (const p of f.props ?? []) {
+    if (p.kind === 'bar') line([[0, p.y], [SIZE - 1, p.y]], 'I')
+    if (p.kind === 'wall') line([[p.x, 0], [p.x, SIZE - 1]], 'I')
+  }
+  if (f.backLeg !== undefined) line(f.backLeg, 's')
+  if (f.frontLeg !== undefined) line(f.frontLeg, 's')
+  if (f.shorts !== undefined) line([f.shorts.from, f.shorts.to], 'n')
+  // Arms under the tank at this size, or the tank (the colour that says it is him) disappears.
+  if (f.backArm !== undefined) line(f.backArm, 's')
+  if (f.frontArm !== undefined) line(f.frontArm, 's')
+  if (f.torso !== undefined) {
+    const isUpright = Math.abs(f.torso.to[1] - f.torso.from[1]) >= Math.abs(f.torso.to[0] - f.torso.from[0])
+    const half = ((f.torso.width ?? 6) / 2) * 0.6
+    // Two pixels wide in the frame: the tank's body, then its shade.
+    const offset = (p: P, d: number): P => (isUpright ? [p[0] + d, p[1]] : [p[0], p[1] + d])
+    line([offset(f.torso.from, -half), offset(f.torso.to, -half)], 't')
+    line([offset(f.torso.from, half), offset(f.torso.to, half)], 'T')
+  }
+  for (const p of f.props ?? []) {
+    if (p.kind === 'dumbbell' || p.kind === 'kettlebell') paint(p.at[0] * sx, p.at[1] * sy, 'i')
+    if (p.kind === 'barbell') line([[p.at[0] - p.half, p.at[1]], [p.at[0] + p.half, p.at[1]]], 'i')
+    if (p.kind === 'band') line([p.from, p.to], 'r')
+  }
+  // Sweat shows even this small: a drop of it where the big one has its drops.
+  for (const fx of f.fx ?? []) if (fx.kind === 'sweat' || fx.kind === 'drop') paint(fx.at[0] * sx, fx.at[1] * sy, 'b')
+  if (f.head !== undefined) {
+    // The head sits at its full-size centre, scaled.
+    const [cx, cy] = at([f.head.at[0] + 3, f.head.at[1] + 2])
+    const top = Math.max(0, cy - 1)
+    MICRO_HEAD[f.head.facing].forEach((row, j) => [...row].forEach((c, i) => paint(cx - 1.5 + i, top + j, c)))
+  }
+  return g.map(row => row.join(''))
+}

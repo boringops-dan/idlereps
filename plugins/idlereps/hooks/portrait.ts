@@ -94,6 +94,11 @@ export function encodeMove(sprite: Sprite, id: string, poses: readonly (readonly
   return poses.map((rows, i) => encodeCells(decodeRows(sprite, rows, `${id} pose ${i}`, sprite.width, sprite.height)))
 }
 
+/** The tiny Swolomon's poses (figure.ts `drawMicro`, 8 × 6 pixels) as cells, encoded once per load. */
+export function encodeMicro(sprite: Sprite, id: string, poses: readonly (readonly string[])[], width: number, height: number): string[] {
+  return poses.map((rows, i) => encodeCells(decodeRows(sprite, rows, `${id} tiny pose ${i}`, width, height)))
+}
+
 /** Every frame of the sprite, encoded once. */
 export function encodeSprite(sprite: Sprite): Record<FrameName | MiniFrameName, string> {
   const names = Object.keys(sprite.frames) as (FrameName | MiniFrameName)[]

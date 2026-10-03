@@ -701,18 +701,19 @@ const stretch: Move = {
   reps: 2,
 }
 
-const DEAD_BUG = (alt: boolean): Figure =>
+/** On his back, arms up and knees up; `reach`: one arm overhead and the other side's leg out long. */
+const DEAD_BUG = (reach: boolean): Figure =>
   side({
     head: [10, 9],
     neck: [11, 14],
     hip: [5, 14],
     arms: [
-      [[10.5, 14], [10.5, 11], [alt ? 13 : 10.5, alt ? 9.5 : 8.5]],
-      [[11.5, 14], [11.5, 11], [alt ? 11.5 : 14, alt ? 8.5 : 10]],
+      [[10.5, 14], [10.5, 10], [10.5, 6]],
+      reach ? [[11.5, 14], [13.5, 13], [15.5, 12.5]] : [[11.5, 14], [11.5, 10], [11.5, 6]],
     ],
     legs: [
-      [[5, 14], [5, 11], [alt ? 1 : 2.5, alt ? 12.5 : 10.5]],
-      [[5.5, 14], [5.5, 11], [alt ? 3 : 0.5, alt ? 10.5 : 13]],
+      [[5, 14], [5, 10], [3, 7]],
+      reach ? [[5.5, 14], [3, 13.5], [0.5, 13]] : [[5.5, 14], [5.5, 10], [3.5, 7]],
     ],
     seat: [5, 12.5],
     props: [{ kind: 'mat', y: 15 }],

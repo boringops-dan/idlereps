@@ -152,6 +152,13 @@ rest, so you know what's coming. On a rest day he naps. He lifts a trophy for a 
 jump when you finish a week, and tosses his laurel when you finish a program. `/workout flex` shows a
 different move each time.
 
+**Beside every set**, a tiny Swolomon does the exercise with you, a few reps, then holds still.
+
+**What your agent is up to.** Swolomon has never heard of coding, so he reads everything your agent does
+as gym talk. A push is push-ups, a curl is curls, a build is building muscle, and tests are a fitness
+test. While a command runs, the spinner says what he thinks it is ("Doing push-ups…"). His lines that
+turn use it, and when the turn ends he tells you what he made of it.
+
 **Ranks.** Every set you do counts toward a rank, from New Face through Regular, Rack Regular, Iron
 Disciple, Demigod and Olympian to Greek God at 2,500 sets. Skipped sets don't count, and nothing about
 your body ever does. `/workout` shows your rank and how far the next one is.

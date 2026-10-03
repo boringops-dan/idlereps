@@ -87,7 +87,7 @@ export function toolSign(facts: ToolFacts, callsThisTurn: number): Sign | null {
 export type Outcome = 'tests-pass' | 'tests-fail' | 'commit' | 'pr'
 
 /** Commands that run a test suite. */
-const TEST_COMMAND =
+export const TEST_COMMAND =
   /\b(?:(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?test|npx\s+(?:-y\s+)?(?:vitest|jest|playwright\s+test|mocha)|vitest|jest|pytest|tox|cargo\s+(?:test|nextest)|go\s+test|swift\s+test|rspec|phpunit|mix\s+test|dotnet\s+test|plugin\s+test)\b/
 
 /** What a Bash call's result says happened. `gitOperation` is the engine's own reading of the command. */

@@ -8,7 +8,7 @@ Not covered by that license, and all rights reserved:
 - The names "IdleReps" and "Swolomon", and Swolomon's character and likeness.
 - Swolomon's art: plugins/idlereps/hooks/swolomon-sprite.ts (the pixel portraits and every frame of
   them), his body and moves in plugins/idlereps/hooks/figure.ts and plugins/idlereps/hooks/moves.ts (every
-  pose of them), and any image made from them.
+  pose of them), his readings in plugins/idlereps/hooks/misreads.ts, and any image made from them.
 - Swolomon's talk sound: plugins/idlereps/assets/blip.wav.
 
 As the Apache License (section 6) says, it grants no permission to use these names or marks. A fork may
