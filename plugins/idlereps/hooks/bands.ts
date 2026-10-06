@@ -588,7 +588,8 @@ export function ratingBand(
   return {
     kind: 'rating',
     coach: [coachText],
-    ...(isWeekDone ? { isWin: true as const, portrait: 'full' as const, tall: true as const, act: 'victory-jump' } : {}),
+    // Every workout finished, he is there for it (owner, 2026-10-06): confetti; the week's end, the victory jump.
+    ...(isWeekDone ? { isWin: true as const, portrait: 'full' as const, tall: true as const, act: 'victory-jump' } : { portrait: 'full' as const, act: 'confetti' }),
     // What the workout earned, said as a fact: the exercises done on target every set move up.
     body: [
       ...(week === null ? [] : [weekLine(week)]),
@@ -598,7 +599,7 @@ export function ratingBand(
     ...(sets.length > 0 && sets.length <= 16
       ? {
           trailing: [
-            { text: '      ' },
+            { text: '   ' },
             ...sets.map((set): BandPart => (set.result === 'done' ? { text: '●', tone: 'good' } : { text: '○', tone: 'muted' })),
             { text: `  ${done} of ${sets.length} done`, tone: 'muted' },
           ],

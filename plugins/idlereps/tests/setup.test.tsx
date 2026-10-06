@@ -19,7 +19,7 @@ test('the first-run band: Quick start, one question, the starter plan, and its f
   const { w } = world(on, null, {}, { fresh: true })
   await $.session.start(SESSION)
   const band = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(await band.find({ type: 'Text', text: 'IdleReps · a workout plan and tracker that runs while your agent works' })).toBeDefined()
+  expect(await band.find({ type: 'Text', text: 'IdleReps · a workout plan and tracker, while your agent works' })).toBeDefined()
   await band.press({ key: 'quickstart' })
   // One question first: where the person trains. Nothing is written until it is answered; no pane opens.
   expect(w.writes).toEqual([])

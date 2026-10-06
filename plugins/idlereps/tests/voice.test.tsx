@@ -216,7 +216,7 @@ test('the introduction, verbatim, its address term only in the last line', () =>
   // Part of a line out, mid-word: still emphasized; no line has an unclosed star.
   expect(emphasisRuns('*Yo')).toEqual([{ text: 'Yo', isEmphasis: true }])
   for (const entry of LINES) for (const variant of entry.variants) expect(variant.split('*').length % 2).toBe(1)
-  expect(line('intro-header', { day: 0 })).toBe('IdleReps · a workout plan and tracker that runs while your agent works')
+  expect(line('intro-header', { day: 0 })).toBe('IdleReps · a workout plan and tracker, while your agent works')
 })
 
 test('the first-run band: header, four lines, live buttons; /workout swolomon replays it and changes nothing', OPTIONS, async ($, on) => {

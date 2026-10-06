@@ -3245,7 +3245,8 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
   const surface = site.surface
   const numbered = (hotkey: string, label: string) =>
     surface === 'terminal' ? ({ hotkey, label, plain: true } as const) : ({ hotkey, label: `${hotkey} · ${label}` } as const)
-  const gap = <Text>   </Text>
+  // Three spaces between buttons; two when that is what leaves room for his full portrait (below).
+  let gapWidth = 3
   const isTimed = spec.cue === undefined ? false : (targetOf(spec.cue.exercise.reps)?.isTimed ?? false)
   const isBand = spec.cue?.exercise.band !== undefined
   const labelOf = (id: string) => {
@@ -3256,20 +3257,6 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
     if (spec.kind === 'reschedule' && spec.move !== undefined) return id === 'move' ? `Move to ${weekdayShortName(spec.move.to)}` : `Keep ${weekdayShortName(spec.move.from)}`
     return actionOf(spec.kind, id).label
   }
-  const buttons = spec.actions.map((id, i) => {
-    const action = actionOf(spec.kind, id)
-    return (
-      <Box key={`b-${id}`}>
-        {i > 0 && gap}
-        <Button
-          key={id}
-          {...numbered(action.hotkey, labelOf(id))}
-          {...(action.isPrimary === true ? { variant: 'primary' as const } : {})}
-          onPress={() => runAction($, spec.kind, id, surface)}
-        />
-      </Box>
-    )
-  })
 
   // The header: its lead, then the workout's sets as dots (when they fit on a row) and in words.
   const lead = spec.headerLead === true ? `${line(site.isWorking ? 'lead-working' : 'lead-idle', { day: 0 })} · ` : ''
@@ -3293,24 +3280,48 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
   // How wide the text is, to decide whether the portrait fits beside it (§1.11 Fit).
   const widthOf = (row: string | BandPart[]) =>
     typeof row === 'string' ? row.length : row.filter(part => part.truncate !== true).reduce((n, part) => n + part.text.length, 0)
-  const buttonColumns = spec.actions.reduce((n, id, i) => n + (i > 0 ? 3 : 0) + actionOf(spec.kind, id).hotkey.length + 2 + labelOf(id).length, 0)
-  const textColumns = Math.max(
-    widthOf(headerParts),
-    ...(spec.coach ?? []).map(text => plainOf(text).length),
-    ...spec.body.map(widthOf),
-    ...(spec.extras ?? []).map(text => text.length),
-    ...(spec.footer ?? []).map(text => text.length),
-    spec.inline === true ? widthOf(spec.body.at(-1) ?? '') + 3 + buttonColumns : buttonColumns + widthOf(spec.trailing ?? []),
-  )
-  const fit: Fit = fitPortrait({
-    wanted: spec.portrait ?? 'none',
-    surface,
-    approved: SPRITE.approved,
-    maxRows: site.maxRows,
-    bodyColumns: site.bodyColumns,
-    bandRows: bandRows(spec),
-    textColumns,
-    sprite: SPRITE,
+  const columnsWith = (gapAt: number) => {
+    const buttonColumns = spec.actions.reduce((n, id, i) => n + (i > 0 ? gapAt : 0) + actionOf(spec.kind, id).hotkey.length + 2 + labelOf(id).length, 0)
+    return Math.max(
+      widthOf(headerParts),
+      ...(spec.coach ?? []).map(text => plainOf(text).length),
+      ...spec.body.map(widthOf),
+      ...(spec.extras ?? []).map(text => text.length),
+      ...(spec.footer ?? []).map(text => text.length),
+      spec.inline === true ? widthOf(spec.body.at(-1) ?? '') + 3 + buttonColumns : buttonColumns + widthOf(spec.trailing ?? []),
+    )
+  }
+  const fitWith = (columns: number): Fit =>
+    fitPortrait({
+      wanted: spec.portrait ?? 'none',
+      surface,
+      approved: SPRITE.approved,
+      maxRows: site.maxRows,
+      bodyColumns: site.bodyColumns,
+      bandRows: bandRows(spec),
+      textColumns: columns,
+      sprite: SPRITE,
+    })
+  let textColumns = columnsWith(3)
+  let fit: Fit = fitWith(textColumns)
+  if (fit !== 'full' && fitWith(columnsWith(2)) === 'full') {
+    gapWidth = 2
+    textColumns = columnsWith(2)
+    fit = 'full'
+  }
+  const buttons = spec.actions.map((id, i) => {
+    const action = actionOf(spec.kind, id)
+    return (
+      <Box key={`b-${id}`}>
+        {i > 0 && <Text>{' '.repeat(gapWidth)}</Text>}
+        <Button
+          key={id}
+          {...numbered(action.hotkey, labelOf(id))}
+          {...(action.isPrimary === true ? { variant: 'primary' as const } : {})}
+          onPress={() => runAction($, spec.kind, id, surface)}
+        />
+      </Box>
+    )
   })
   // A frame he was in the middle of is for the size it was made for; at another size he starts from rest.
   if (coach.portrait?.size !== (fit === 'none' ? undefined : fit)) coach.moveFrame = null
@@ -3345,7 +3356,7 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
     return (
       <Box key={`body-${i}`}>
         {rowText(Text, row, `body-${i}-text`)}
-        {gap}
+        <Text>   </Text>
         {buttons}
       </Box>
     )

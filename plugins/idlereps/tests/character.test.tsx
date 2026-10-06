@@ -403,7 +403,7 @@ test('animated: full size to the mini head and back: each blit the size it is dr
   await clock.advance(40_000)
   await full.unmount()
   const atFull = blits.length
-  const mini = await mountAt($, 84)
+  const mini = await mountAt($, 75)
   await clock.advance(40_000)
   await mini.unmount()
   const asMini = blits.slice(atFull)
@@ -540,7 +540,7 @@ test('animated: mid-stroll, a redraw at the mini size starts him from rest there
   }
   expect(isAway).toBe(true)
   await ui.unmount()
-  ui = await mountAt($, 84)
+  ui = await mountAt($, 75)
   expect(rest.has(((await ui.find({ key: 'swolomon' })) as { props: { cells: string } } | undefined)?.props.cells ?? '')).toBe(true)
   await ui.unmount()
   ui = await mountAt($, 100)
@@ -699,7 +699,7 @@ test('animated: a button pressed during the entrance does its job at once', ANIM
   await ui.unmount()
 })
 
-for (const columns of [80, 60]) {
+for (const columns of [75, 60]) {
   test(`animated: at ${columns} columns, no room for the stage: no entrance, and the line starts at once`, ANIMATED, async ($, on) => {
     const { clock } = world(on, null)
     blitLog(on)
@@ -1198,7 +1198,7 @@ test('the logged line: today’s count, and a new best with Swolomon’s line', 
 
 test('the rating shows the finished workout as dots after its buttons', () => {
   const band = ratingBand('A', TODAY, { workout: 0, targetsBefore: {}, results: { 'Push-ups': [{ result: 'done', count: 10 }, { result: 'skip' }] } }, 1)
-  expect(band.trailing?.map(part => part.text).join('')).toBe('      ●○  1 of 2 done')
+  expect(band.trailing?.map(part => part.text).join('')).toBe('   ●○  1 of 2 done')
 })
 
 test('week marks: days before the plan began are never missed training days', () => {
