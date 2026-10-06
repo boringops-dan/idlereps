@@ -4,6 +4,7 @@
  */
 
 import { gestureOf } from './celebrate'
+import type { Season } from './season'
 import type { Celebration } from './celebrate'
 import type { BandKind, BandLine, BandPart, BandSpec, Cue, Draft, ExerciseMemory, LongTaskReason, Plan, RatingBasis, Weekday } from '../types'
 import { actionIdsOf } from './actions'
@@ -378,14 +379,16 @@ export function firstSetLineId(cue: Cue, plan: Plan, day: number, reason: LongTa
 
 /**
  * Swolomon's line on every other set band (owner, 2026-10-06): in turn by the set's step, a form cue for its
- * move (when it has one), a cheer, banter. Stable for a set, varied set to set.
+ * move (when it has one), a cheer, banter (the season's, in season). Stable for a set, varied set to set.
  */
-export function duringSetLineId(cue: Cue): LineId {
+export function duringSetLineId(cue: Cue, season: Season | null = null): LineId {
   const move = moveForExercise(cue.exercise.name)
   const form = move === null ? undefined : (`form-${move}` as LineId)
   const turn = cue.step % 3
   if (turn === 0 && form !== undefined && isLineId(form)) return form
-  return turn === 2 ? 'set-banter' : 'set-cheer'
+  // In season, his banter is the season's (hooks/season.ts).
+  if (turn === 2) return season?.banter ?? 'set-banter'
+  return 'set-cheer'
 }
 
 /** The context the ask-first, pick-up and day-toast lines fill from. */

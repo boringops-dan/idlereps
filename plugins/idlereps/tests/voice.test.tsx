@@ -3,6 +3,7 @@ import type { RenderElement } from 'claude-code'
 
 import type { Plan } from '../types'
 import { ACTIONS } from '../hooks/actions'
+import { SEASONS } from '../hooks/season'
 import {
   ADDRESS_TERMS,
   AGENT_JOBS,
@@ -153,6 +154,7 @@ test('lines fit: Swolomon’s and band rows within 80 columns, his band lines wi
     'replay-close',
     'week-done',
     'week-one-done',
+    ...SEASONS.map(season => season.greeting),
     ...RANK_LINES,
   ]
   for (const { id, voice, text } of everyLine()) {

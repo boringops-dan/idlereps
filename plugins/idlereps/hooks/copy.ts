@@ -656,6 +656,21 @@ export const LINES = [
   { id: 'reply-plan-unreachable', voice: 'plain', variants: ["Couldn't reach the model ({reason}). Nothing changed."] },
   { id: 'reply-setup-opened', voice: 'plain', variants: ['Setup is open.'] },
   { id: 'reply-swolomon-busy', voice: 'plain', variants: ['{coach} is spotting your set. /workout swolomon again after it.'] },
+  // Swolomon: his seasons (hooks/season.ts): the day's hello in costume, and banter on the set band.
+  { id: 'season-birthday', voice: 'swolomon', variants: ["It's my birthday, {mate}! Party hat's on. Cake counts as protein, right?"] },
+  { id: 'season-birthday-banter', voice: 'swolomon', variants: ['Birthday reps, {mate}. One for every year. I lost count.', 'Best birthday gift? This set, {mate}.'] },
+  { id: 'season-halloween', voice: 'swolomon', variants: ["Happy Halloween, {mate}! I'm a witch. A very swole witch.", 'Trick or treat, {mate}. The trick is showing up. So is the treat.'] },
+  { id: 'season-halloween-banter', voice: 'swolomon', variants: ['Boo, {mate}. Did I scare the reps out of you?', 'Pumpkin spice and heavy iron, {mate}.', 'Cast a spell on these reps, {mate}.'] },
+  { id: 'season-new-year', voice: 'swolomon', variants: ['Happy New Year, {mate}! No resolutions needed. You already show up.'] },
+  { id: 'season-new-year-banter', voice: 'swolomon', variants: ['First reps of the year, {mate}. Look at us go.', 'The party hat stays on for every set, {mate}.'] },
+  { id: 'season-winter', voice: 'swolomon', variants: ["Happy holidays, {mate}! Santa asked me to check the list. You're on it."] },
+  { id: 'season-winter-banter', voice: 'swolomon', variants: ["Ho ho ho, {mate}. That's three reps.", "Sleigh's heavy this year, {mate}. Help me push.", 'Cookies are a bulk, {mate}. It is written.'] },
+  { id: 'season-valentines', voice: 'swolomon', variants: ["Happy Valentine's, {mate}. I love you. And these weights."] },
+  { id: 'season-valentines-banter', voice: 'swolomon', variants: ['Roses are red, {mate}. Reps are too.', 'Be my gym valentine, {mate}?'] },
+  { id: 'season-st-patricks', voice: 'swolomon', variants: ["Happy St Patrick's, {mate}! Green hat, gold medals."] },
+  { id: 'season-st-patricks-banter', voice: 'swolomon', variants: ['A pot of gold at the end of this set, {mate}.', 'Feeling lucky, {mate}? Luck is reps.'] },
+  { id: 'season-april-fools', voice: 'swolomon', variants: ["Swolomon's not in today, {mate}. I'm a totally different trainer."] },
+  { id: 'season-april-fools-banter', voice: 'swolomon', variants: ['Nobody suspects a thing, {mate}. Great disguise, right?', 'Do a thousand reps, {mate}. April Fools. Just this set.'] },
 ] as const satisfies readonly LineEntry[]
 
 export type LineId = (typeof LINES)[number]['id']

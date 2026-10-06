@@ -8,6 +8,7 @@
  */
 
 import { drawFigure, shift, turned } from './figure'
+import type { Outfit } from './season'
 import type { Expr, Figure, Fx, Limb, P, Prop } from './figure'
 
 export type MoveFamily = 'exercise' | 'flex' | 'gag'
@@ -1181,7 +1182,7 @@ export function moveById(id: MoveId): Move | undefined {
 }
 
 /** Each move's poses drawn once: 16 rows of palette characters each. */
-export const drawMove = (move: Move): string[][] => move.poses.map(drawFigure)
+export const drawMove = (move: Move, outfit?: Outfit): string[][] => move.poses.map(pose => drawFigure(pose, outfit))
 
 /**
  * The exercise a set names, demonstrated: matched on the words in its name, most specific first, so every

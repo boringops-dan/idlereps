@@ -7,6 +7,8 @@
  * and every band falls back to the text-only name tag. Pure data.
  */
 
+import type { Outfit } from './season'
+
 export type FrameName = 'idle' | 'talkA' | 'talkB' | 'blink' | 'flex' | IdleFrameName | EntranceFrameName
 /** His idling between lines (owner, 2026-10-03: "blinking and moving around a little ... looking around through the 4th wall"). */
 export type IdleFrameName = 'glanceL' | 'glanceR' | 'lookYou' | 'wink' | 'smirk' | 'flexB'
@@ -16,6 +18,8 @@ export type MiniFrameName = 'miniIdle' | 'miniTalkA' | 'miniTalkB' | 'miniBlink'
 
 export type Sprite = {
   approved: boolean
+  /** What he is wearing (season.ts): set on a dressed sprite, so his moves wear it too. */
+  outfit?: Outfit
   width: number
   height: number
   miniSize: number
@@ -91,6 +95,14 @@ export const SPRITE: Sprite = {
     I: 0x9aa0b0, // bars and handles
     r: 0xd8443c, // resistance band, hearts, the flush of effort
     b: 0x6cc4f0, // sweat
+    // His outfits' (season.ts): orange, purple, pink, green, and their shades.
+    o: 0xf08a24,
+    p: 0x7a46b8,
+    P: 0x4a2878,
+    u: 0xf28ab8,
+    v: 0x2fa84f,
+    V: 0x1d6e34,
+    R: 0xa82a2a,
   },
   frames: {
     idle: IDLE,

@@ -33,7 +33,7 @@ const BREATH_MS = BREATH_HALF_MS * 2
 function moveShots(sprite: Sprite, id: string): Shot[] {
   const move = moveById(id)
   if (move === undefined) return []
-  const grids = move.poses.map((pose, i) => decodeRows(sprite, drawFigure(pose), `${id} pose ${i}`, sprite.width, sprite.height))
+  const grids = move.poses.map((pose, i) => decodeRows(sprite, drawFigure(pose, sprite.outfit), `${id} pose ${i}`, sprite.width, sprite.height))
   return Array.from({ length: move.reps }, () => move.beats.flatMap(([pose, ms]) => (grids[pose] === undefined ? [] : [{ grid: grids[pose], ms }]))).flat()
 }
 

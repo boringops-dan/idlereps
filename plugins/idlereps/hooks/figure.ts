@@ -8,6 +8,9 @@
  * rows of palette characters.
  */
 
+import { headOverlay, overlaid } from './season'
+import type { Outfit } from './season'
+
 export type P = readonly [number, number]
 export type Facing = 'front' | 'right' | 'left'
 export type Expr = 'grin' | 'strain' | 'blink' | 'wink' | 'o' | 'sleep' | 'talk' | 'smirk'
@@ -186,8 +189,8 @@ function prop(grid: Grid, p: Prop) {
   }
 }
 
-/** A pose as a frame's 16 rows of palette characters. */
-export function drawFigure(f: Figure): string[] {
+/** A pose as a frame's 16 rows of palette characters; dressed in `outfit` (season.ts) when he wears one. */
+export function drawFigure(f: Figure, outfit?: Outfit): string[] {
   const grid = blank()
   for (const p of f.props ?? []) if (p.kind === 'bar' || p.kind === 'mat' || p.kind === 'wall' || p.kind === 'chair') prop(grid, p)
   // In profile the far limbs are in shade; front-on both sides are lit.
@@ -213,7 +216,9 @@ export function drawFigure(f: Figure): string[] {
   if (f.head !== undefined) stamp(grid, headRows(f.head.facing, f.head.expr, f.head.bare), f.head.at[0], f.head.at[1])
   for (const p of f.props ?? []) if (!(p.kind === 'bar' || p.kind === 'mat' || p.kind === 'wall' || p.kind === 'chair')) prop(grid, p)
   for (const fx of f.fx ?? []) stamp(grid, FX[fx.kind], fx.at[0], fx.at[1])
-  return grid.map(row => row.join(''))
+  const rows = grid.map(row => row.join(''))
+  // The outfit on his head, unless the laurel is off it (in his hand, in the air): then the hat is too.
+  return outfit === undefined || f.head === undefined || f.head.bare === true ? rows : overlaid(rows, headOverlay(outfit, f.head.at, f.head.facing))
 }
 
 // ---------------------------------------------------------------------------------------------------------
