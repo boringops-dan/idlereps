@@ -13,6 +13,10 @@ update shows these lines once. **Under the hood** is everything else.
 - Every set celebrated: high fives, low fives, gimme ten, confetti, and more. Don't be too slow.
 - He coaches every set, does it with you, and peeks over the prompt between sets.
 - He learns how long your project's commands take, and asks early when one will run long.
+- He dresses for the holidays: a witch hat, a Santa hat, party hats, and more.
+- He remembers your sets: milestones, how far you've come, the same weekday week after week.
+- His competition prep has chapters, posing practice and a routine on show day.
+- He reacts as your agent works, and the gym regulars walk past behind him.
 
 ### Under the hood
 

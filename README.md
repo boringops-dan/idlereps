@@ -186,15 +186,30 @@ knocks out a few reps of the moves you've collected. On a win, his sparkles twin
 a `/` in its own colour: under the title where the band has one, else after his line. "So... we doing
 this or what?" Then "Hello?", then boredom. After five he leaves it. Never during a set.
 
-**He's training too.** Your second set enters him in Regionals, and every set you do is a set of his prep.
+**He's training too.** Your second set enters him in Regionals, and every set you do is a set of his prep:
+meal prep, halfway, posing practice (from then on he practises his poses between your sets), peak week.
 When the bar fills (30 sets) he competes before your next session and comes back with gold, or now and
-then a silver he takes very well. Then Nationals, Worlds, and on. His medals are in the pane.
+then a silver he takes very well, and shows you his routine. Then Nationals, Worlds, and on. His prep, the
+chapter he's in and his medals are in the pane.
 
 **He knows you.** Back after a couple of days, he missed you; after a week, your spot is still warm; the
 day after, how yesterday went for you and your agent both. Now and then, on a turn with nothing due, he
 asks you something: morning person or night owl, dogs or cats, what you lift to. Later he brings it
 up. He counts the days you showed up, is groggy before eight and puzzled to see you after eleven (in the
 pane at night he's asleep), and notices when you open a project he hasn't seen you in: a new gym.
+
+**He remembers.** On a set he brings up your own history: your 10th (25th, 100th...) set of that
+exercise, how far it's come in the last two months, the same weekday three weeks running, an exercise
+you're back to after a while, or the one you skipped last time (no grudge). Each kind at most once a day.
+A week, a month, 100 days and a year after your first set, he marks the day.
+
+**Holidays.** He dresses for them, in his portrait, his moves and his walks: a witch hat for Halloween (Oct 24 to 31), a
+Santa hat (Dec 18 to 26), party hats for New Year (Dec 31 to Jan 2) and his birthday (Oct 20), a heart on
+Valentine's, a green top hat on St Patrick's, and nose-and-glasses on April Fools'. He says hello in
+costume once a season, and his banter on your sets is the season's.
+
+**The regulars.** Big Greg, Deadlift Doris and Cardio Kevin now and then walk past behind him, his eyes
+following them, and he tells you who that was.
 
 **Spot him.** Every few days he's the one stuck on his last rep. `1: You got this!` and he gets it up.
 
@@ -216,7 +231,9 @@ dozes off until it starts again.
 as gym talk. A push is push-ups, a curl is curls, a build is building muscle, and tests are a fitness
 test. While a command runs, the spinner says what he thinks it is ("Doing push-ups…"). His lines that
 turn use it, and when the turn ends he tells you what he made of it. See the same thing a few times and he
-asks around, and gets a little closer. Never right.
+asks around, and gets a little closer. Never right. He reacts as it happens, too: tests green or red,
+work locked in, a pull request (a personal record, surely), an install starting ("loading plates"). An
+aside on the band once his line is out, or in the peek; once per kind a turn.
 
 **Ranks.** Every set you do counts toward a rank, from New Face through Regular, Rack Regular, Iron
 Disciple, Demigod and Olympian to Greek God at 2,500 sets. Skipped sets don't count, and nothing about
