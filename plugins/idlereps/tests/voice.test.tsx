@@ -45,6 +45,9 @@ const FILLS = {
   workout: LONGEST_WORKOUT,
   nextWorkout: LONGEST_WORKOUT,
   n: 999,
+  then: 9999,
+  now: 9999,
+  weekday: 'Wednesday',
   nextDay: 'Wednesday',
   when: 'Wednesday',
   exercise: 'Dumbbell overhead triceps extension',
@@ -155,6 +158,7 @@ test('lines fit: Swolomon’s and band rows within 80 columns, his band lines wi
     'week-done',
     'week-one-done',
     ...SEASONS.map(season => season.greeting),
+    'anniversary',
     ...RANK_LINES,
   ]
   for (const { id, voice, text } of everyLine()) {

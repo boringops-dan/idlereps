@@ -57,6 +57,7 @@ import { dailyTarget, ideasFor, isMoved, MOVED, movedOn, movesOn } from './remin
 import { sittingMs, STILL_MS } from './still'
 import { expectedWaitMs, keptTurns, waitSize } from './waits'
 import { greetingOf } from './greeting'
+import { anniversaryOf, callbackFor } from './callbacks'
 import { asidesAllowed, engagementOf, extrasCap, recordOutcome, spend, START_ATTENTION } from './attention'
 import type { Attention, Chat } from './attention'
 import { EMPTY_CARD, stamp } from './punch'
@@ -1322,7 +1323,7 @@ async function setBandFor($: EngineInterface, cue: Cue, coachText: string | unde
   const showHint = await isDue($, 'hint', { count: 3 })
   if (showHint) await markSeen($, 'hint')
   // He is on every set (owner, 2026-10-06): a form cue, a cheer or banter when no other line leads. Not Quiet.
-  const said = coachText ?? (coach.options.coachChat === 'quiet' ? undefined : line(duringSetLineId(cue, seasonOf(day)), { day: day + cue.step }))
+  const said = coachText ?? (coach.options.coachChat === 'quiet' ? undefined : ((await rememberedLine($, cue, day)) ?? line(duringSetLineId(cue, seasonOf(day)), { day: day + cue.step })))
   const spec = setBand(cue, {
     ...(said === undefined ? {} : { coach: said }),
     ...(memory === undefined ? {} : { memory }),
@@ -1332,6 +1333,14 @@ async function setBandFor($: EngineInterface, cue: Cue, coachText: string | unde
   // Once his line is out, he shows the set's exercise in the full portrait, then lives in it.
   const demo = moveForExercise(cue.exercise.name)
   return said === undefined || demo === null ? spec : { ...spec, act: demo }
+}
+
+/** Something he remembers about this set (hooks/callbacks.ts), each kind once a day; undefined: nothing today. */
+async function rememberedLine($: EngineInterface, cue: Cue, day: number): Promise<string | undefined> {
+  const callback = callbackFor(await load<HistoryEntry[]>($, 'history', []), cue.exercise.name, day)
+  if (callback === null || !(await isDue($, callback.mark, 'day'))) return undefined
+  await markSeen($, callback.mark)
+  return line(callback.id, { day, ...callback.ctx })
 }
 
 /** A cue's timer went off: the next set when today's workout was agreed to, else the question. */
@@ -2753,14 +2762,21 @@ async function greet($: EngineInterface): Promise<boolean> {
     workedYesterdayMs: workedMs(await load<WorkIntervals>($, 'workIntervals', {}), day - 1, day - 1),
   })
   // Held back (quiet hours): said at a later session today instead, so the day is not marked seen yet.
-  if ((greeting !== null || seasonOf(day) !== null) && (await decide($, { channel: 'toast', cause: 'timer' })) !== 'show') return false
+  if ((greeting !== null || seasonOf(day) !== null || anniversaryOf(history, day) !== null) && (await decide($, { channel: 'toast', cause: 'timer' })) !== 'show') return false
   await save($, 'lastSeenOn', day)
   // In season, his hello is the season's, once a year (hooks/season.ts); never on the first session ever.
   const season = lastSeenOn === undefined ? null : seasonOf(day)
   const seasonMark = season === null ? null : `season-${season.id}-${seasonBeganOn(day)}`
-  const said = seasonMark !== null && season !== null && (await isDue($, seasonMark, { count: 1 })) ? { id: season.greeting, ctx: {} } : greeting
+  // Else the anniversary of their first set, once each (hooks/callbacks.ts).
+  const days = lastSeenOn === undefined ? null : anniversaryOf(history, day)
+  const said =
+    seasonMark !== null && season !== null && (await isDue($, seasonMark, { count: 1 }))
+      ? { id: season.greeting, ctx: {} as Record<string, number>, mark: seasonMark }
+      : days !== null && (await isDue($, `anniversary-${days}`, { count: 1 }))
+        ? { id: 'anniversary' as const, ctx: { n: days }, mark: `anniversary-${days}` }
+        : greeting
   if (said === null || !(await mayExtra($, true))) return false
-  if (said !== greeting && seasonMark !== null) await markSeen($, seasonMark)
+  if ('mark' in said) await markSeen($, said.mark)
   $.ui.toast(line(said.id, { day, ...said.ctx }))
   // The hello takes the day toast's place, so it uses up the day toast too.
   await markSeen($, 'day-toast')

@@ -671,6 +671,13 @@ export const LINES = [
   { id: 'season-st-patricks-banter', voice: 'swolomon', variants: ['A pot of gold at the end of this set, {mate}.', 'Feeling lucky, {mate}? Luck is reps.'] },
   { id: 'season-april-fools', voice: 'swolomon', variants: ["Swolomon's not in today, {mate}. I'm a totally different trainer."] },
   { id: 'season-april-fools-banter', voice: 'swolomon', variants: ['Nobody suspects a thing, {mate}. Great disguise, right?', 'Do a thousand reps, {mate}. April Fools. Just this set.'] },
+  // Swolomon: he remembers you (hooks/callbacks.ts), on a set band; the anniversaries are the day's hello.
+  { id: 'cb-milestone', voice: 'swolomon', variants: ['Set {n} of this one, ever, {mate}. I was there for every one.', 'That makes {n} of these, {mate}. I kept count.'] },
+  { id: 'cb-progress', voice: 'swolomon', variants: ["This was {then} a while back, {mate}. Now it's {now}. That's you.", 'From {then} to {now} on this one, {mate}. I remember.'] },
+  { id: 'cb-weekday', voice: 'swolomon', variants: ['{n} {weekday}s in a row, {mate}. I see you.', "{weekday} again, {mate}. That's {n} weeks running."] },
+  { id: 'cb-back', voice: 'swolomon', variants: ['{n} days since this one, {mate}. Welcome back to it.', 'Ah, an old friend. {n} days, {mate}.'] },
+  { id: 'cb-skipped', voice: 'swolomon', variants: ['Skipped this one last time, {mate}. No grudge. Fresh start.', 'This one again, {mate}. Last time was last time.'] },
+  { id: 'anniversary', voice: 'swolomon', variants: ['{n} days since your first set, {mate}. Best {n} days of my life.', 'Our {n}-day anniversary, {mate}. I got you nothing. Just reps.'] },
 ] as const satisfies readonly LineEntry[]
 
 export type LineId = (typeof LINES)[number]['id']
