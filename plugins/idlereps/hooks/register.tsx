@@ -3142,8 +3142,14 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
     case 'good':
     case 'tough':
       return line((await rate($, arg)) ? 'reply-rated' : 'reply-nothing-to-rate', { day })
-    case 'skip':
     case 'done':
+      // The hold timer's bands have a Done of their own (the seconds held, or the full hold): the button's.
+      if (rest.length === 0 && shown !== null && shown.kind !== 'set' && shown.kind !== 'edit' && shown.actions.includes('done')) {
+        await runAction($, shown.kind, 'done', 'terminal')
+        return null
+      }
+      return doneCommand($, arg, rest)
+    case 'skip':
       return doneCommand($, arg, rest)
   }
   // Every button has its command (§4.3 item 4): the showing band's own ids.

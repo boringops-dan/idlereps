@@ -2,11 +2,11 @@
 
 A workout plan and tracker for Claude Code. It builds a plan around the equipment you have, and while
 your agent works on something long it hands you one set at a time. Press `1` to log it and get back to
-work. No gear needed, and nothing leaves your machine.
+work. No gear needed, and nothing leaves your machine unless you send it.
 
 ## Install
 
-Requires Claude Code 2.1.287 or later. From your shell:
+Built and tested for Claude Code 2.1.287 or later. From your shell:
 
 ```sh
 claude plugin marketplace add boringops-dan/idlereps
@@ -44,26 +44,27 @@ Update: `claude plugin marketplace update idlereps` (or `/plugin marketplace upd
 
 1. You send a prompt and your agent gets to work.
 2. When it looks like a long one, a band above the prompt asks if you have time for a set, and names it:
-   `First up: Squats, 12 reps · about 45 s.` IdleReps reads the hints your agent gives: a test run or a
+   `First up: Squats, 12 reps · about 1 min.` IdleReps reads the hints your agent gives: a test run or a
    build, a helper agent, a long command timeout, a to-do list, a background job it's watching, lots of
    tool calls, or just a minute going by. When the agent schedules its own wake-up, Swolomon says how long
    it's away: "Your agent's back in about 5 min."
-3. Say yes and you get one set: `Squats: 12 reps (1/2)`. Do it, press `1`, and get back to work.
+3. Say yes and you get one set: `Squats: 12 reps (1/2)` (a workout's first set comes after a one-minute warm-up,
+   unless you turn that off). Do it, press `1`, and get back to work.
 4. The next set comes after a gap (15 minutes by default), never more often, and never while you're typing.
    In Just remind me the ideas fit the wait: a quick one when your turns usually run short, a set for a
    few minutes, a walk when a long build or a helper agent is under way ("Ideas for about 8 min: a lap of
    the block · …").
-5. Your plan progresses: hit the top of the rep range and it moves you on to more reps, more weight, or a
-   harder variant.
+5. Your plan progresses: do every set at your target and the next workout adds a rep. Reach the top of the
+   range on every set and you move to more weight, a heavier band or a harder variant.
 
 ## Showing up beats doing nothing
 
 Any exercise is better than none, so IdleReps never makes it all or nothing:
 
-- **Just half.** Every offer has `4: Just half` (or `/workout half`): each exercise's sets halved. It counts
+- **Just half.** The "Ready for a workout?" band has `4: Just half` (or `/workout half`) until you're past
+  halfway: each exercise's sets halved. It counts
   for your week and your streak; it just doesn't raise your targets.
-- **Low days count.** After a week away, or the day after a workout you rated Tough, Swolomon suggests
-  half. No catching up, ever.
+- **Low days count.** After a week away, or after a workout you rated Tough, Swolomon suggests half. No catching up, ever.
 - **Good days push.** Rate a workout Easy and you get one bonus set at your new target.
 - **No streak shame.** Miss a day and the Workout pane says how many days you showed up this month, not
   "Streak 0".
@@ -83,13 +84,13 @@ Any exercise is better than none, so IdleReps never makes it all or nothing:
   time`.
 - A finished workout names what you did on target every set; once you rate it, a toast says what goes up
   next time: `Stronger already. Next time: Squats 13 reps.`
-- The Workout pane's **Since day 1** row shows how far you've come: `Squats 12 → 18 reps · Incline push-ups →
-  Push-ups`.
+- The Workout pane's **Since day 1** row shows how far you've come: `Incline push-ups → Push-ups · Squats 12 →
+  18 reps`.
 - The pane counts the time you've moved: `Moved 12 min this week while your agent worked · 1 h 4 min since
   day 1`, and once an exercise has three days of history its row draws the trend: `▁▃▅█`.
-- Finish a week of a plan and Swolomon celebrates: the pane and the rating band show the week's finish
+- Finish a week of a plan IdleReps built and Swolomon celebrates: the pane and the rating band show the week's finish
   line, `Week 1: 2 of 3 workouts ●●○`.
-- A turn you trained through ends with what you did meanwhile: `Baked for 6m 12s · 2 sets while you
+- A turn you trained through ends with what you did meanwhile: `Baked for 6m 12s · 1 set while you
   waited 💪`, and if your agent's tests passed (or didn't), or it committed or opened a PR, Swolomon has a
   word about that too. While today's workout is under way the spinner lifts too.
 
@@ -98,13 +99,16 @@ Any exercise is better than none, so IdleReps never makes it all or nothing:
 The band looks like this in the terminal (with Swolomon's head beside it when there's room):
 
 ```
-While your agent works · Week 1 · Full body A   ●●○○○○  set 3 of 6
+Body like a board, legend. Chest down.
+While your agent works · Week 1 · Full body A   ●●●○○○  set 3 of 6
 Push-ups: 8 reps  (1/2)   last: 8 reps
 ↳ knees down is fine
+
 1: Done   2: Edit   3: Skip   4: Later
 ```
 
-The dots are the workout's sets: done, this one, and the ones to come.
+The dots are the workout's sets: done, this one, and the ones to come. Swolomon's line on top changes
+with each set (none when "How much Swolomon says" is Quiet).
 
 Every button has a number, and the number always works. Ways to press a button:
 
@@ -113,7 +117,7 @@ Every button has a number, and the number always works. Ways to press a button:
 | **Number** | With the prompt **empty**, press the button's number. | Works everywhere. A digit typed into a prompt that has text is just text. |
 | Keyboard focus | `ctrl+x` then `tab` moves focus to the band; arrows or Tab move between buttons; Enter presses; Esc goes back to the prompt. | Numbers also work while the band has focus. |
 | Click | Click the button. | Works in the desktop app. In a terminal, clicks often don't reach Claude Code: they need the fullscreen layout and a terminal that reports mouse clicks (Apple Terminal: View → Allow Mouse Reporting). |
-| Command | `/workout <button>`, for example `/workout done`, `/workout skip`, `/workout later`, `/workout undo`. | Always works, on every surface. Use this if nothing else responds. |
+| Command | `/workout <button>`, for example `/workout done`, `/workout skip`, `/workout later`, `/workout undo`. | Works on every surface. Use this if nothing else responds. A few buttons go by a short name: warm-up Done is `/workout warmed`, Stood up is `/workout stood`. |
 
 What each band's numbers do:
 
@@ -128,10 +132,10 @@ What each band's numbers do:
 | Ready for a workout? | `1` Start · `2` Later · `3` Not today · `4` Just half |
 | Bonus set (after an Easy workout) | `1` One more · `2` Done for today |
 | A set | `1` Done · `2` Edit · `3` Skip · `4` Later · `5` Timer (timed sets) |
-| Hold timer | `1` Done · `2` Stop timer; each side: `1` Start side 2 |
+| Hold timer | `1` Done · `2` Stop timer; between sides: `1` Start side 2 · `2` Stop timer; at zero: `1` Done · `2` Edit |
 | Move a training day? | `1` Move to (day) · `2` Keep (day) |
-| Edit a set | `1` Save · `2` fewer reps · `3` more reps · `4` lighter · `5` heavier |
-| Logged | `0` Undo |
+| Edit a set | `1` Save · `2` `< reps` · `3` `reps >` · `4` `< weight` · `5` `weight >` (seconds on timed sets, band levels for bands; weight only where there is one) |
+| Logged | `1` High five (or his celebration of the set) · `0` Undo |
 | How did it feel? | `1` Easy · `2` Good · `3` Tough · `0` Undo |
 | Rank up | `1` Let's go · `0` Undo |
 | Swolomon's introduction, or a flex | `1` Let's go, or `1` Nice |
@@ -156,14 +160,12 @@ buttons. In the desktop app and VS Code, Swolomon's portrait is drawn as a pictu
 ## Meet Swolomon
 
 Swolomon is your coach: a good-natured gym regular with a gold laurel and a big grin, thrilled by every
-set, who has never heard of coding. Swolomon hears "your agent" and pictures a secret agent, a travel
+set. Swolomon hears "your agent" and pictures a secret agent, a travel
 agent or a sports agent, and is impressed by all of them. Each day brings one theory, and it escalates.
 
 In a wide terminal Swolomon's pixel portrait sits beside the band and talks while the line types out; in a
 narrower one, a small head; anywhere else, the name. The first time you meet, Swolomon is just passing
-through, and then notices you. Swolomon speaks only at the moments that matter (the
-first set of the day, a new best, a finished workout) and keeps it to one line, so the band stays small
-while you work. Turn the animation off in `/config` (Animate Swolomon). `/workout swolomon` replays the
+through, and then notices you. Swolomon keeps it to one line, so the band stays small while you work. Turn the animation off in `/config` (Animate Swolomon). `/workout swolomon` replays the
 introduction.
 
 **Swolomon's moves.** Swolomon has more than 30 moves, all in the same pixel style. Open `/workout` and
@@ -175,9 +177,9 @@ jump when you finish a week, and tosses his laurel when you finish a program.
 3 sets, then one more set each time. When one unlocks, he performs it for you (`2` plays it again).
 `/workout flex` shows off the ones you have; `/workout moves` lists them.
 
-**He lives in his square.** While a band or the pane is up, he blinks, glances around, now and then
-stares straight out of the screen at you, deadpan, and winks. Where his portrait is drawn full size (the
-introduction and the `/workout` pane), he also turns side to side, strolls out of his square and back, and
+**He lives in his square.** While a band or the pane is up, he blinks and glances around. Where his
+portrait is drawn full size (the introduction and the `/workout` pane), he also stares straight out of the
+screen at you, deadpan, and winks, turns side to side, strolls out of his square and back, and
 knocks out a few reps of the moves you've collected. On a win, his sparkles twinkle.
 
 **He gets impatient.** Leave a band waiting on a choice and now and then he pipes up, for a moment, after
@@ -190,7 +192,7 @@ then a silver he takes very well. Then Nationals, Worlds, and on. His medals are
 
 **He knows you.** Back after a couple of days, he missed you; after a week, your spot is still warm; the
 day after, how yesterday went for you and your agent both. Now and then, on a turn with nothing due, he
-asks you something: morning person or night owl, dogs or cats, what you lift to. Weeks later he brings it
+asks you something: morning person or night owl, dogs or cats, what you lift to. Later he brings it
 up. He counts the days you showed up, is groggy before eight and puzzled to see you after eleven (in the
 pane at night he's asleep), and notices when you open a project he hasn't seen you in: a new gym.
 
@@ -251,7 +253,7 @@ All in `/config`, under IdleReps:
 - `/workout` opens the Workout pane: Swolomon's take on your day, today's workout as a table (every
   exercise, its sets as dots, the amount and your best), this week, your streak, your rank with a bar to
   the next one, and your bests.
-- `/workout status` prints the same in one line.
+- `/workout status` prints a one-line summary.
 - The prompt footer shows today's sets: `💪 3/9`.
 
 Other commands:
@@ -272,9 +274,9 @@ Other commands:
 | `/workout dontask` | Stop the first-run nudges. |
 | `/workout half` | The half version of today's workout: each exercise's sets halved. |
 | `/workout next-block` | Once the plan is done: the same plan again from workout 1, weights and reps kept. |
-| `/workout share` | Copy one line about your week to post anywhere (see Share your week). |
+| `/workout share` | Copy one line about your week to post anywhere (see [Share your week](#share-your-week)). |
 | `/workout export` | Write your history to `~/.claude/idlereps/history.csv` and a backup to `backup.json`. |
-| `/workout restore` · `/workout erase` | Bring a backup back, or erase everything. Each asks first; your plan file stays. |
+| `/workout restore` · `/workout erase` | Bring a backup back, or erase your progress and history. Each asks first; your plan file, exports and `/config` settings stay. |
 | `/workout swolomon` | Replay Swolomon's introduction. |
 
 ## Bring your own plan
@@ -310,8 +312,9 @@ The fields:
 - `schedule`: either `{ "days": [...] }` (`mon` to `sun`) or `{ "everyNDays": 2 }`.
 - `workouts`: done in order, one per training day. Missing a day never skips a workout.
 - `reps`: a number and a unit: `10 reps`, `8 each leg`, `20 s`, `30 s each side`.
-- `range` (optional): the rep range. Reach the top on every set and the next workout adds a rep, or
-  weight.
+- `range` (optional): the rep range. Hit your target on every set and the next workout adds a rep. Reach
+  the top of the range on every set and it adds weight (or a heavier band, or a harder variant) and starts
+  again at the bottom.
 - `weight` (optional): `start`, `step` and `unit` (`kg` or `lb`) for a weighted exercise.
 - `band` (optional): `levels` (light to heavy) and `start`, for a resistance band.
 - `note` (optional): a short tip shown under the set.
@@ -323,8 +326,8 @@ The setup pane's **Copy example** button copies this example.
 Designed plans follow two public sources (named as attribution, not endorsement):
 
 - The **ACSM 2026 resistance training position stand** (Medicine & Science in Sports & Exercise, April
-  2026): each major muscle group at least twice a week, 2 to 3 sets per exercise, stopping 2 to 3 reps
-  short of failure, with any equipment.
+  2026): 2 to 3 sets per exercise, stopping 2 to 3 reps short of failure, with any equipment, and each
+  major muscle group twice a week where the days allow.
 - The **r/bodyweightfitness Recommended Routine**: progressions from an easier to a harder variant of each
   movement, and the rule "hit the top of the range on every set, then move to the harder variant and start
   at the bottom of the range".
@@ -338,9 +341,9 @@ IdleReps suggests exercises; it is not medical advice. Stop any exercise that ca
 
 ## Privacy
 
-Everything stays on your machine: your plan is in `~/.claude/idlereps/plan.json`, and your progress and
-history are in Claude Code's plugin storage. IdleReps sends something only when you choose to:
-`/workout plan <text>` sends your description to the model to turn it into a plan; `/workout feedback` and
+Your data stays on your machine: your plan is in `~/.claude/idlereps/plan.json`, your progress and
+history are in Claude Code's plugin storage, and your settings are in `/config`. IdleReps sends something only when you choose to:
+`/workout plan <text>` sends your description to Claude (Haiku), through Claude Code, to turn it into a plan; `/workout feedback` and
 the one-time check-in send what you wrote or answered to idlereps.app. Anonymous usage counts are off
 unless you turn them on, and not live yet. Swolomon's notes on you (your answers to his questions, the
 names of the project folders you work in, so he notices a new one) stay on your machine with the rest. Every field sent is listed on
@@ -348,7 +351,7 @@ names of the project folders you work in, so he notices a new one) stay on your 
 
 Progress is per machine. To move it, `/workout export` on the old machine, copy
 `~/.claude/idlereps/backup.json` across, and `/workout restore` on the new one. `/workout erase` removes
-everything IdleReps stored (it asks first; your plan file stays).
+your progress and history (it asks first; your plan file, exports and settings stay).
 
 ### Share your week
 
@@ -380,7 +383,7 @@ There are others nobody wrote down.
 ## License
 
 The code is licensed under [Apache-2.0](LICENSE). The names IdleReps and Swolomon, Swolomon's art and
-sound are not: they remain all rights reserved (see [NOTICE](NOTICE)).
+talk sound are not: they remain all rights reserved (see [NOTICE](NOTICE)).
 
 ## For developers
 
