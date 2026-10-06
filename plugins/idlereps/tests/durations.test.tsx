@@ -4,7 +4,8 @@ import { CALL_TIMES_KEPT, callKind, commandKind, expectedMs, learn, LONG_CALL_MS
 import { toolSign } from '../hooks/signals'
 import { expectedWaitMs } from '../hooks/waits'
 import { line } from '../hooks/copy'
-import { BAND, OPTIONS, ownStore, SESSION, TINY, TODAY, world } from './world'
+import { UNLOCK_ORDER } from '../hooks/collection'
+import { ASKED, BAND, ONBOARDED, OPTIONS, ownStore, SESSION, TINY, TODAY, world } from './world'
 
 /** How long a call will take (owner, 2026-10-06): its kind, what kinds usually take, and what was learned. */
 
@@ -117,4 +118,41 @@ test('every call run here is timed and learned, in its project; refused and back
   const times = store.get('callTimes') as Record<string, { n: number; ms: number }>
   expect(Object.keys(times)).toEqual(['work|npm run build'])
   expect(times['work|npm run build']).toMatchObject({ n: 1, ms: 8_000 })
+})
+
+test('the agent never waits on him: a call runs and returns while his store is still busy', OPTIONS, async ($, on) => {
+  let release = () => {}
+  const storeBusy = new Promise<void>(resolve => {
+    release = resolve
+  })
+  // The store, by hand: once the turn is going, any read of what he has learned hangs until released.
+  let isBusy = false
+  const store = new Map<string, unknown>(Object.entries({ moves: [...UNLOCK_ORDER], about: ASKED, seen: ONBOARDED }))
+  on('store.get', async ($, e) => {
+    if (isBusy && e.key === 'callTimes') await storeBusy
+    return { value: store.get(e.key) }
+  })
+  on('store.set', ($, e) => {
+    store.set(e.key, e.value)
+    return { value: undefined }
+  })
+  on('store.delete', ($, e) => {
+    store.delete(e.key)
+    return { value: undefined }
+  })
+  on('store.keys', () => ({ value: [...store.keys()] }))
+  let ran = 0
+  on('tool.call', { tool: 'Bash' }, () => {
+    ran += 1
+    return { result: { stdout: 'ok', stderr: '' } }
+  })
+  world(on, TINY, 'own-store')
+  await $.session.start(SESSION)
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  isBusy = true
+  const result = await $.tool.call({ tool: 'Bash', command: 'npm run build' })
+  expect(ran).toBe(1)
+  expect(result).toMatchObject({ result: { stdout: 'ok' } })
+  expect(store.get('callTimes')).toBeUndefined()
+  release()
 })

@@ -131,7 +131,7 @@ import {
 } from './portrait'
 import { bandFilmSvg } from './film'
 import { callKind, expectedMs, learn } from './durations'
-import type { CallTimes } from './durations'
+import type { CallKind, CallTimes } from './durations'
 import { PEEK_AWAKE_MS, peekChangeIn, peekGrid, PEEK_POSES, peekText, PEEK_WIDTH } from './peek'
 import type { PeekPose } from './peek'
 import type { Fit, IdleBeat, IdleStep, Pose, PortraitSize, Timeline, Walk } from './portrait'
@@ -310,6 +310,8 @@ const coach: {
   project: string
   callSeq: number
   callsRunning: Map<number, number>
+  /** What was learned of call times, once read (the store is written behind each call, never in front). */
+  callTimes: CallTimes | undefined
   /** The band portrait's cells as last drawn (before the breath), and whether his breath is in. */
   portraitCells: { cells: string; size: PortraitSize } | null
   isBreathIn: boolean
@@ -400,6 +402,7 @@ const coach: {
   project: '',
   callSeq: 0,
   callsRunning: new Map(),
+  callTimes: undefined,
   portraitCells: null,
   isBreathIn: false,
   isPaneBreathIn: false,
@@ -2265,6 +2268,7 @@ async function eraseAll($: EngineInterface) {
   await clearBand($)
   for (const info of STORE_KEYS) await save($, info.key, undefined)
   coach.installId = null
+  coach.callTimes = undefined
   $.ui.toast(line('reply-erased', { day }))
   await refreshStatus($)
 }
@@ -3539,11 +3543,28 @@ type GitOperation = { commit?: unknown; pr?: { action: string } }
 
 /** The sign a tool call gives of a long task, once per turn and only on a turn that could cue. */
 async function watchCall<R>($: EngineInterface, tool: string, input: Record<string, unknown>, run: () => Promise<R>): Promise<R> {
-  // Every call is timed (hooks/durations.ts): what it is expected to take, and then what it took, learned.
-  const kind = input.run_in_background === true ? null : callKind(tool, input, coach.project)
-  const expected = kind === null ? undefined : expectedMs(kind, await load<CallTimes>($, 'callTimes', {}))
-  const startedAt = await now($)
+  // The agent's call starts first: nothing of Swolomon's (his guess, his sign, his learning) waits in front
+  // of it or between its result and the agent. He watches beside it.
+  const running = run()
+  const watching = watchStart($, tool, input)
+  let result: R | undefined
+  try {
+    result = await running
+    return result
+  } finally {
+    void watching.then(watch => watchEnd($, watch, result)).catch(() => {})
+  }
+}
+
+/** One call being watched: what it is, when it started, and its slow-step timer. */
+type Watch = { id: number; kind: CallKind | null; startedAt: number; slow: Timer | null }
+
+/** A call has started: his guess at how long it runs, and the turn's sign from it (hooks/durations.ts). */
+async function watchStart($: EngineInterface, tool: string, input: Record<string, unknown>): Promise<Watch> {
   const id = (coach.callSeq += 1)
+  const startedAt = await now($)
+  const kind = input.run_in_background === true ? null : callKind(tool, input, coach.project)
+  const expected = kind === null ? undefined : expectedMs(kind, await callTimes($))
   if (expected !== undefined) coach.callsRunning.set(id, startedAt + expected)
   let slow: Timer | null = null
   if ((coach.turnCanCue || coach.turnCanStretch || coach.turnCanNudge || coach.turnCanRemind || coach.turnCanStill) && !coach.hasStrongSign) {
@@ -3553,18 +3574,24 @@ async function watchCall<R>($: EngineInterface, tool: string, input: Record<stri
     if (sign !== null) await noticeLongTask($, sign)
     else slow = timer($, 'turn', SLOW_STEP_MS, () => void noticeLongTask($, { reason: 'slow-step' }))
   }
-  try {
-    const result = await run()
-    // A denied call ran nothing: nothing to learn from it.
-    if (kind !== null && (result as { deny?: unknown }).deny === undefined) {
-      const at = await now($)
-      await save($, 'callTimes', learn(await load<CallTimes>($, 'callTimes', {}), kind.key, at - startedAt, at))
-    }
-    return result
-  } finally {
-    slow?.cancel()
-    coach.callsRunning.delete(id)
-  }
+  return { id, kind, startedAt, slow }
+}
+
+/** A call has ended: what it took, learned (a denied or failed-to-run call ran nothing, so teaches nothing). */
+async function watchEnd($: EngineInterface, watch: Watch, result: unknown): Promise<void> {
+  watch.slow?.cancel()
+  coach.callsRunning.delete(watch.id)
+  if (watch.kind === null || result === undefined || (result as { deny?: unknown }).deny !== undefined) return
+  const at = await now($)
+  // Read fresh (other sessions learn too), off the call's path, so it costs the agent nothing.
+  coach.callTimes = learn(await load<CallTimes>($, 'callTimes', {}), watch.kind.key, at - watch.startedAt, at)
+  await save($, 'callTimes', coach.callTimes)
+}
+
+/** What was learned of call times, for a guess: read from the store once, then kept fresh by watchEnd. */
+async function callTimes($: EngineInterface): Promise<CallTimes> {
+  coach.callTimes ??= await load<CallTimes>($, 'callTimes', {})
+  return coach.callTimes
 }
 
 /** What the slowest call still running is expected to take yet, ms; undefined with none running. */
@@ -3605,6 +3632,7 @@ export const register: Register = (on, options) => {
 
   on('session.start', async ($, e, next) => {
     coach.home = (await $.env.get('HOME')) ?? ''
+    coach.callTimes = undefined
     coach.project = e.cwd.split(/[\\/]/).filter(part => part !== '').at(-1) ?? ''
     await $.command.register({
       name: 'workout',
