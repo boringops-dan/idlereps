@@ -65,7 +65,17 @@ test('now and then between lines, each regular; never on a set, never at the min
 
 test('the desktop film leaves them out', () => {
   const film = bandFilm({ sprite: SPRITE, size: 'full', isWin: false, moves: ['curl'], beats: 200 })
-  const cameos = new Set(beats('band').flatMap(b => b.steps.flatMap(s => ('cameo' in s ? [JSON.stringify(cameoGrid(SPRITE, SPRITE, s.cameo))] : []))))
+  // The frames where a regular shows (at the square's edges they are out of it, and it is just him).
+  const cameos = new Set(
+    beats('band').flatMap(b =>
+      b.steps.flatMap(s => {
+        if (!('cameo' in s)) return []
+        const grid = JSON.stringify(cameoGrid(SPRITE, SPRITE, s.cameo))
+        return grid === JSON.stringify(decodeFrame(SPRITE, s.cameo.pose)) ? [] : [grid]
+      }),
+    ),
+  )
+  expect(cameos.size).toBeGreaterThan(0)
   expect(film.loop.length).toBeGreaterThan(0)
   expect(film.loop.some(shot => cameos.has(JSON.stringify(shot.grid)))).toBe(false)
 })
