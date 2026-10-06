@@ -311,11 +311,12 @@ const SET_BEATS: readonly BeatDef[] = [
 /** The shortest and longest wait before a beat. */
 export const IDLE_WAIT_MS = { min: 2500, max: 5500 } as const
 
-const hash = (x: number) => ((Math.imul(x + 1, 2654435761) >>> 0) % 10007) / 10007
+/** A number in [0, 1) for an integer: the same for the same x, scattered from one x to the next. */
+export const hashUnit = (x: number): number => ((Math.imul(x + 1, 2654435761) >>> 0) % 10007) / 10007
 
 /** The wait before the n-th idle beat: the same for the same n, whatever the beat. */
 export const idleWait = (n: number, isWin = false): number =>
-  isWin ? Math.round(IDLE_WAIT_MS.min + ((n * 997) % 2000)) : Math.round(IDLE_WAIT_MS.min + hash(n * 2 + 1) * (IDLE_WAIT_MS.max - IDLE_WAIT_MS.min))
+  isWin ? Math.round(IDLE_WAIT_MS.min + ((n * 997) % 2000)) : Math.round(IDLE_WAIT_MS.min + hashUnit(n * 2 + 1) * (IDLE_WAIT_MS.max - IDLE_WAIT_MS.min))
 
 /**
  * The n-th idle beat: the same for the same n (tests and replays), varied from one to the next. `moves` are
@@ -326,9 +327,9 @@ export function idleBeat(n: number, size: PortraitSize, isWin = false, moves: re
   if (isWin) return { wait, steps: TWINKLE, rest: 'flex' }
   const pool = (mode === 'set' ? SET_BEATS : BEATS).filter(beat => (size === 'full' || beat.isFullOnly !== true) && (beat.steps !== undefined || moves.length > 0))
   const total = pool.reduce((sum, beat) => sum + beat.weight, 0)
-  let pick = hash(n * 2) * total
+  let pick = hashUnit(n * 2) * total
   const beat = pool.find(b => (pick -= b.weight) < 0) ?? pool[0]!
-  return { wait, steps: beat.steps ?? [{ move: moves[Math.floor(hash(n * 3 + 7) * moves.length)]!, ms: 0 }], rest: 'idle' }
+  return { wait, steps: beat.steps ?? [{ move: moves[Math.floor(hashUnit(n * 3 + 7) * moves.length)]!, ms: 0 }], rest: 'idle' }
 }
 
 /** The 16 × 16 square with him walking in it: in profile, facing either way, wherever the walk has him. */

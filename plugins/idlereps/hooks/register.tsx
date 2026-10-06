@@ -49,7 +49,7 @@ import {
   replayBand,
   setBand,
 } from './bands'
-import { celebrationById, celebrationFor, isTooSlow } from './celebrate'
+import { celebrationById, celebrationFor, HIGH_FIVE, isTooSlow } from './celebrate'
 import { agentDoing, COACH_NAME, emphasisRuns, fill, plainOf, pickAddress, COMMUNITY_URL, FEEDBACK_URL, line, progressDots, REASON_LINE, TELEMETRY_URL, usesAgent, whatsNewLine } from './copy'
 import type { LineContext, LineId } from './copy'
 import { appendHistory, daysShowedUp, isMovement, movedSeconds, rankFor, RANKS, setsThisWeek } from './history'
@@ -127,9 +127,9 @@ import {
   walkGrid,
   BLINK_MS,
 } from './portrait'
-import { PEEK_AWAKE_MS, peekChangeIn, peekGrid, peekText, PEEK_WIDTH } from './peek'
+import { PEEK_AWAKE_MS, peekChangeIn, peekGrid, PEEK_POSES, peekText, PEEK_WIDTH } from './peek'
 import type { PeekPose } from './peek'
-import type { Fit, IdleStep, Pose, PortraitSize, Timeline, Walk } from './portrait'
+import type { Fit, IdleBeat, IdleStep, Pose, PortraitSize, Timeline, Walk } from './portrait'
 import { backupOf, BACKUP_KEYS, backupPathOf, csvPathOf, historyCsv, parseBackup } from './data'
 import { PUSH_NAMES, STARTER_ANSWERS, generateProgram, stretchFor } from './programs'
 import { addInterval, shareLine, workedMs } from './worktime'
@@ -305,8 +305,12 @@ const coach: {
   cueDueAt: number | null
   /** The peek: where it is drawn, the pose it shows, and whether its loop is running. */
   peekAt: string | null
-  peekPose: PeekPose
-  isPeeking: boolean
+  /** The eyes last blitted, so a redraw shows them where they are. */
+  peekCells: string | null
+  /** The running eye loop's number (null: none), and the count they are numbered by. */
+  peekLoop: number | null
+  peekSeq: number
+  isPeekNear: boolean
   /** Until when he stays awake with no turn running; then he dozes, eyes shut, until the next turn. */
   peekAwakeUntil: number
   peekTextTimer: Timer | null
@@ -381,8 +385,10 @@ const coach: {
   setMove: undefined,
   cueDueAt: null,
   peekAt: null,
-  peekPose: 'idle',
-  isPeeking: false,
+  peekCells: null,
+  peekLoop: null,
+  peekSeq: 0,
+  isPeekNear: false,
   peekAwakeUntil: 0,
   peekTextTimer: null,
   deferred: null,
@@ -464,7 +470,7 @@ function scheduleCue($: EngineInterface, ms: number) {
 // The peek (hooks/peek.ts): his eyes above the prompt when nothing else is there.
 
 /** Each peek pose's cells, encoded once per load. */
-const PEEK_CELLS = Object.fromEntries((['idle', 'blink', 'glanceL', 'glanceR', 'lookYou', 'wink', 'smirk'] as const).map(pose => [pose, encodeCells(peekGrid(SPRITE, pose))])) as Record<PeekPose, string>
+const PEEK_CELLS = Object.fromEntries(PEEK_POSES.map(pose => [pose, encodeCells(peekGrid(SPRITE, pose))])) as Record<PeekPose, string>
 
 /** Whether he peeks now: approved art, not Quiet, a plan, not paused, onboarded, and the slot empty. */
 async function peekWanted($: EngineInterface): Promise<boolean> {
@@ -491,55 +497,49 @@ async function refreshPeek($: EngineInterface) {
   coach.peekTextTimer?.cancel()
   const wait = peekChangeIn({ isWorking: coach.isTurnRunning, cueDueAt: coach.cueDueAt, now: at, awakeUntil: coach.peekAwakeUntil })
   coach.peekTextTimer = wait === null ? null : timer($, 'peek', wait, () => void refreshPeek($))
+  coach.isPeekNear = next.isNear
+  // Asleep: his eyes shut (drawn from `isDozing`), and the loop that moved them ends.
   if (!isAwake) {
-    coach.isPeeking = false
-    coach.peekPose = 'blink'
-    if (coach.peekAt !== null) void blitPeek($, 'blink')
+    stopPeekLoop()
     return
   }
-  if (coach.isPeeking) return
-  coach.isPeeking = true
-  coach.peekPose = 'idle'
-  if (coach.peekAt !== null) void blitPeek($, 'idle')
-  if (coach.options.coachAnimation) peekBeat($, 0)
+  startPeekLoop($)
 }
 
 function hidePeek() {
   cancelTimers('peek')
   coach.peekTextTimer = null
-  coach.isPeeking = false
   coach.peekAt = null
-  coach.peekPose = 'idle'
+  stopPeekLoop()
 }
 
-/** One beat of his eyes: blinks and glances; the next set close, he stares at you between blinks. */
-function peekBeat($: EngineInterface, n: number) {
-  timer($, 'peek', idleWait(n), () =>
-    void (async () => {
-      if (!coach.isPeeking) return
-      const near = (await read($, peek))?.isNear === true
-      const beat = idleBeat(n, 'mini')
-      const steps: { pose: PeekPose; ms: number }[] = near
-        ? [{ pose: 'blink', ms: BLINK_MS }, { pose: 'lookYou', ms: 0 }]
-        : [...beat.steps.flatMap(step => ('pose' in step && step.pose in PEEK_CELLS ? [{ pose: step.pose as PeekPose, ms: step.ms }] : [])), { pose: 'idle' as const, ms: 0 }]
-      let at = 0
-      for (const step of steps) {
-        timer($, 'peek', at, () => {
-          if (coach.isPeeking) void blitPeek($, step.pose)
-        })
-        at += step.ms
-      }
-      timer($, 'peek', at, () => {
-        if (coach.isPeeking) peekBeat($, n + 1)
-      })
-    })(),
-  )
+function stopPeekLoop() {
+  coach.peekLoop = null
+  coach.peekCells = null
 }
 
-async function blitPeek($: EngineInterface, pose: PeekPose) {
-  coach.peekPose = pose
+/**
+ * His eyes, beat by beat (the idle loop at the mini size, cropped to the peek): blinks and glances; the next
+ * set close, he stares at you between blinks. Once it is drawn, and only while animated.
+ */
+function startPeekLoop($: EngineInterface) {
+  if (coach.peekLoop !== null || coach.peekAt === null || !coach.options.coachAnimation) return
+  const seq = ++coach.peekSeq
+  coach.peekLoop = seq
+  idleLoop($, 'peek', {
+    size: () => (coach.peekAt === null ? undefined : 'mini'),
+    isWin: false,
+    alive: () => coach.peekLoop === seq,
+    blit: cells => void blitPeek($, cells),
+    beatOf: n => (coach.isPeekNear ? { wait: idleWait(n), steps: [{ pose: 'blink', ms: BLINK_MS }], rest: 'lookYou' } : idleBeat(n, 'mini')),
+    cellsOf: (pose: Pose) => PEEK_CELLS[pose as PeekPose] ?? PEEK_CELLS.idle,
+  })
+}
+
+async function blitPeek($: EngineInterface, cells: string) {
+  coach.peekCells = cells
   if (coach.peekAt === null) return
-  await $.ui.blit({ requestId: coach.peekAt, key: 'swolomon-eyes', cells: PEEK_CELLS[pose], columns: PEEK_WIDTH, rows: 1 }).catch(() => undefined)
+  await $.ui.blit({ requestId: coach.peekAt, key: 'swolomon-eyes', cells, columns: PEEK_WIDTH, rows: 1 }).catch(() => undefined)
 }
 
 /** The peek drawn above the prompt: his brows and eyes, and the word beside them. Terminal only. */
@@ -549,9 +549,11 @@ async function drawPeek($: EngineInterface, surface: RenderSurface, requestId: s
   if (shown === null) return null
   const { Box, Raster, Text } = elements
   coach.peekAt = requestId
+  if (!shown.isDozing) startPeekLoop($)
+  const cells = shown.isDozing ? PEEK_CELLS.blink : (coach.peekCells ?? PEEK_CELLS[shown.isNear ? 'lookYou' : 'idle'])
   return (
     <Box flexDirection="row">
-      <Raster key="swolomon-eyes" columns={PEEK_WIDTH} rows={1} cells={PEEK_CELLS[shown.isDozing ? 'blink' : shown.isNear && coach.peekPose === 'idle' ? 'lookYou' : coach.peekPose]} />
+      <Raster key="swolomon-eyes" columns={PEEK_WIDTH} rows={1} cells={cells} />
       {shown.text === '' ? null : <Box key="peek-gap" width={2} />}
       {shown.text === '' ? null : (
         <Text key="peek-text" dimColor>
@@ -761,7 +763,7 @@ async function clearBand($: EngineInterface) {
 /** Starts a band's lines typing, when it has lines and animation is on; the band carries the run's key. */
 async function startTalk($: EngineInterface, spec: BandSpec): Promise<BandSpec> {
   coach.isShiny = spec.isShiny === true
-  coach.setMove = spec.kind === 'set' && spec.cue !== undefined ? (moveForExercise(spec.cue.exercise.name) ?? undefined) : undefined
+  coach.setMove = spec.kind === 'set' ? spec.act : undefined
   if (coach.isShiny) await sawShiny($)
   coach.talkTimeline = null
   coach.pose = 'idle'
@@ -1027,6 +1029,10 @@ type IdleOptions = {
   blit: (cells: string, size: PortraitSize) => void
   /** On a set band: the set's own move, which he does with you between watching you (set beats). */
   setMove?: string
+  /** The n-th beat, where the loop picks its own (the peek); else `idleBeat`'s. */
+  beatOf?: (n: number) => IdleBeat
+  /** A pose's cells, where the loop draws a crop of him (the peek's eyes); else the portrait's frame. */
+  cellsOf?: (pose: Pose) => string
 }
 
 /**
@@ -1034,7 +1040,7 @@ type IdleOptions = {
  * blitted in turn. A beat with no portrait drawn (a redraw too narrow for him) is skipped, not the end: he
  * carries on once there is room again. A frame is only blitted to the size it was made for.
  */
-function idleLoop($: EngineInterface, owner: 'band' | 'pane', opts: IdleOptions) {
+function idleLoop($: EngineInterface, owner: 'band' | 'pane' | 'peek', opts: IdleOptions) {
   // The moves he may do: those collected, the flexes aside (the wins keep those); read once per loop.
   let moves: string[] | undefined
   const beat = (n: number) =>
@@ -1046,15 +1052,16 @@ function idleLoop($: EngineInterface, owner: 'band' | 'pane', opts: IdleOptions)
           beat(n + 1)
           return
         }
-        moves ??= opts.isWin
-          ? []
-          : opts.setMove !== undefined
-            ? // On a set: the set's move twice as often as a flex he has.
-              [opts.setMove, opts.setMove, ...collected(await load<string[]>($, 'moves', [])).filter(move => move.family === 'flex').map(move => move.id)]
-            : collected(await load<string[]>($, 'moves', [])).filter(move => move.family !== 'flex').map(move => move.id)
-        const { steps, rest } = idleBeat(n, size, opts.isWin, size === 'full' ? moves : [], opts.setMove === undefined ? 'band' : 'set')
+        if (moves === undefined) {
+          const have = opts.isWin || size !== 'full' ? [] : collected(await load<string[]>($, 'moves', []))
+          // On a set: the set's move twice as often as a flex he has; else his moves, the flexes aside.
+          moves = opts.setMove !== undefined ? [opts.setMove, opts.setMove, ...have.filter(m => m.family === 'flex').map(m => m.id)] : have.filter(m => m.family !== 'flex').map(m => m.id)
+        }
+        const { steps, rest } = opts.beatOf?.(n) ?? idleBeat(n, size, opts.isWin, size === 'full' ? moves : [], opts.setMove === undefined ? 'band' : 'set')
+        const cellsOf = opts.cellsOf ?? ((pose: Pose) => FRAMES[frameFor(size, pose)])
+        const frames = steps.flatMap(step => (opts.cellsOf === undefined ? idleFrames(step, size) : 'pose' in step ? [{ cells: cellsOf(step.pose), ms: step.ms }] : []))
         let at = 0
-        for (const frame of [...steps.flatMap(step => idleFrames(step, size)), { cells: FRAMES[frameFor(size, rest)], ms: 0 }]) {
+        for (const frame of [...frames, { cells: cellsOf(rest), ms: 0 }]) {
           timer($, owner, at, () => {
             if (opts.alive() && opts.size() === size) opts.blit(frame.cells, size)
           })
@@ -1721,12 +1728,8 @@ async function recordSet($: EngineInterface, outcome: { result: 'done' | 'skip';
       const progress = result.patch.set.progress as Progress
       const workout = plan.workouts[progress.workout]
       // Every set done is celebrated (owner, 2026-10-06); a new best always with the high five. Quiet: not.
-      const celebration =
-        outcome.result !== 'done' || coach.options.coachChat === 'quiet'
-          ? undefined
-          : isBest
-            ? (celebrationById('high-five') ?? celebrationFor(result.inverse.id))
-            : celebrationFor(result.inverse.id)
+      const isCelebrated = outcome.result === 'done' && coach.options.coachChat !== 'quiet'
+      const celebration = !isCelebrated ? undefined : isBest ? HIGH_FIVE : celebrationFor(result.inverse.id)
       await placeBand(
         $,
         loggedBand(result.effects.logged ?? '', result.inverse.id, {
@@ -1772,15 +1775,14 @@ async function highFive($: EngineInterface) {
   if (shown?.kind !== 'logged') return
   const day = await today($)
   const celebration = shown.celebration === undefined ? undefined : celebrationById(shown.celebration.id)
-  // Held out: take it (or be too slow for it, the once).
-  if (celebration !== undefined && celebration.kind === 'offer' && (shown.celebration?.stage === 'offered' || shown.celebration?.stage === 'dodged')) {
-    const next = pressCelebration(shown, celebration, { tooSlow: line('too-slow', { day }), landed: line(celebration.landed ?? 'high-five', { day }) })
-    if (next.celebration?.stage === 'landed') await save($, 'highFives', (await load($, 'highFives', 0)) + 1)
-    await replaceBand($, next)
-    return
-  }
-  await save($, 'highFives', (await load($, 'highFives', 0)) + 1)
-  await replaceBand($, highFiveOf(shown, line('high-five', { day })))
+  const isHeldOut = celebration?.kind === 'offer' && (shown.celebration?.stage === 'offered' || shown.celebration?.stage === 'dodged')
+  // Held out: take it (or be too slow for it, the once); else the plain high five.
+  const next =
+    celebration !== undefined && isHeldOut
+      ? pressCelebration(shown, celebration, { tooSlow: line('too-slow', { day }), landed: line(celebration.landed ?? 'high-five', { day }) })
+      : highFiveOf(shown, line('high-five', { day }))
+  if (next.celebration?.stage !== 'dodged') await save($, 'highFives', (await load($, 'highFives', 0)) + 1)
+  await replaceBand($, next)
 }
 
 /** A set done: his prep moves on with it (hooks/prep.ts), and he says so at its turns. */
@@ -3245,15 +3247,14 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
   const surface = site.surface
   const numbered = (hotkey: string, label: string) =>
     surface === 'terminal' ? ({ hotkey, label, plain: true } as const) : ({ hotkey, label: `${hotkey} · ${label}` } as const)
-  // Three spaces between buttons; two when that is what leaves room for his full portrait (below).
-  let gapWidth = 3
   const isTimed = spec.cue === undefined ? false : (targetOf(spec.cue.exercise.reps)?.isTimed ?? false)
   const isBand = spec.cue?.exercise.band !== undefined
   const labelOf = (id: string) => {
+    const named = spec.labels?.[id]
+    if (named !== undefined) return named
     if (spec.kind === 'edit' && (id === 'fewer' || id === 'more')) return stepperLabel(id, isTimed)
     if (spec.kind === 'edit' && (id === 'lighter' || id === 'heavier')) return loadLabel(id, isBand)
     if (spec.kind === 'question' && spec.question !== undefined && id !== 'pass') return spec.question.labels[ANSWER_IDS.indexOf(id as (typeof ANSWER_IDS)[number])] ?? id
-    if (spec.kind === 'logged' && id === 'highfive' && spec.celebration !== undefined) return celebrationById(spec.celebration.id)?.label ?? actionOf(spec.kind, id).label
     if (spec.kind === 'reschedule' && spec.move !== undefined) return id === 'move' ? `Move to ${weekdayShortName(spec.move.to)}` : `Keep ${weekdayShortName(spec.move.from)}`
     return actionOf(spec.kind, id).label
   }
@@ -3291,24 +3292,15 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
       spec.inline === true ? widthOf(spec.body.at(-1) ?? '') + 3 + buttonColumns : buttonColumns + widthOf(spec.trailing ?? []),
     )
   }
-  const fitWith = (columns: number): Fit =>
-    fitPortrait({
-      wanted: spec.portrait ?? 'none',
-      surface,
-      approved: SPRITE.approved,
-      maxRows: site.maxRows,
-      bodyColumns: site.bodyColumns,
-      bandRows: bandRows(spec),
-      textColumns: columns,
-      sprite: SPRITE,
-    })
-  let textColumns = columnsWith(3)
-  let fit: Fit = fitWith(textColumns)
-  if (fit !== 'full' && fitWith(columnsWith(2)) === 'full') {
-    gapWidth = 2
-    textColumns = columnsWith(2)
-    fit = 'full'
-  }
+  const rowsOfBand = bandRows(spec)
+  const fitWith = (columns: number, bodyColumns = site.bodyColumns): Fit =>
+    fitPortrait({ wanted: spec.portrait ?? 'none', surface, approved: SPRITE.approved, maxRows: site.maxRows, bodyColumns, bandRows: rowsOfBand, textColumns: columns, sprite: SPRITE })
+  // Three spaces between buttons; two when that is what leaves room for his full portrait.
+  const roomy = columnsWith(3)
+  const tight = columnsWith(2)
+  const gapWidth = fitWith(roomy) !== 'full' && fitWith(tight) === 'full' ? 2 : 3
+  const textColumns = gapWidth === 2 ? tight : roomy
+  const fit: Fit = fitWith(textColumns)
   const buttons = spec.actions.map((id, i) => {
     const action = actionOf(spec.kind, id)
     return (
@@ -3442,14 +3434,7 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
     )
   }
   // He was wanted, and only the window's width kept him out: he says so, once a day.
-  if (
-    fit === 'none' &&
-    surface === 'terminal' &&
-    'Raster' in elements &&
-    fitPortrait({ wanted: spec.portrait ?? 'none', surface, approved: SPRITE.approved, maxRows: site.maxRows, bodyColumns: Infinity, bandRows: bandRows(spec), textColumns, sprite: SPRITE }) !== 'none'
-  ) {
-    void lookForRoom($)
-  }
+  if (fit === 'none' && 'Raster' in elements && fitWith(textColumns, Infinity) !== 'none') void lookForRoom($)
   if (fit === 'none' || !('Raster' in elements)) return <Box flexDirection="column">{rows}</Box>
 
   const { Raster } = elements

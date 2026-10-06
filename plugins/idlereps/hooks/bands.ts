@@ -514,6 +514,7 @@ export function loggedBand(
   else if (opts.gain !== undefined) parts.push({ text: 'more' in opts.gain ? ` · ↑${opts.gain.more} on last time` : ' · heavier than last time', tone: 'accent' })
   if (opts.today !== undefined) parts.push({ text: ` · ${opts.today.done} of ${opts.today.total} today`, tone: 'muted', truncate: true })
   const cel = opts.celebration
+  const stage = cel?.celebration.kind === 'offer' ? ('offered' as const) : ('shown' as const)
   return {
     kind: 'logged',
     ...(opts.coach === undefined ? {} : { coach: [opts.coach] }),
@@ -523,12 +524,9 @@ export function loggedBand(
           // A new best or a skip keeps its own line; the celebration still plays.
           ...(opts.coach === undefined ? { coach: [cel.line] } : {}),
           portrait: 'full' as const,
-          act: gestureOf(cel.celebration, cel.celebration.kind === 'offer' ? 'offered' : 'shown'),
-          celebration: {
-            id: cel.celebration.id,
-            stage: cel.celebration.kind === 'offer' ? ('offered' as const) : ('shown' as const),
-            ...(cel.isTooSlow ? { isTooSlow: true as const } : {}),
-          },
+          act: gestureOf(cel.celebration, stage),
+          celebration: { id: cel.celebration.id, stage, ...(cel.isTooSlow ? { isTooSlow: true as const } : {}) },
+          ...(cel.celebration.label === undefined ? {} : { labels: { highfive: cel.celebration.label } }),
         }),
     body: [parts],
     // The first set ever: what happens next, once.
@@ -541,7 +539,7 @@ export function loggedBand(
 
 /** High five (owner, 2026-10-03): the logged line stays, and he slaps one out of the screen; Undo stays too. */
 export function highFiveOf(logged: BandSpec, coachLine: string): BandSpec {
-  const { celebration: _was, ...rest } = logged
+  const { celebration: _was, labels: _named, ...rest } = logged
   return { ...rest, coach: [coachLine], portrait: 'full', act: 'high-five', tall: true, actions: logged.actions.filter(id => id !== 'highfive') }
 }
 

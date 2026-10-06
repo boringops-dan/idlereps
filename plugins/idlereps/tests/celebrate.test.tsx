@@ -23,7 +23,8 @@ test('every celebration has its gestures drawn, its lines, and a label; all of t
   const ids = new Set(Array.from({ length: 5000 }, (_, i) => celebrationFor(i + 1).id))
   expect([...ids].sort()).toEqual(CELEBRATIONS.map(c => c.id).sort())
   for (const c of CELEBRATIONS) {
-    expect([c.id, c.label.length > 0]).toEqual([c.id, true])
+    // An offered one names its button; a shown one keeps the plain High five.
+    expect([c.id, c.kind === 'offer' ? (c.label ?? '').length > 0 : c.label === undefined]).toEqual([c.id, true])
     for (const stage of c.kind === 'offer' ? (['offered', 'landed'] as const) : (['shown'] as const)) {
       const move = moveById(gestureOf(c, stage))
       expect([c.id, stage, move !== undefined]).toEqual([c.id, stage, true])
@@ -61,7 +62,7 @@ test('a set done: Swolomon on the band, his celebration in the line, the button 
   await $.command.run(workout('done'))
   const band = await bandOf($)
   expect(band.hasPortrait).toBe(true)
-  const shown = CELEBRATIONS.find(c => band.buttons.some(b => b.key === 'highfive' && b.label === c.label) && band.rows.some(r => [0, 1].some(v => r === plainOf(line(c.line, { day: TODAY + v })))))
+  const shown = CELEBRATIONS.find(c => band.buttons.some(b => b.key === 'highfive' && b.label === (c.label ?? 'High five')) && band.rows.some(r => [0, 1].some(v => r === plainOf(line(c.line, { day: TODAY + v })))))
   expect(shown).toBeDefined()
   expect(band.buttons.map(b => b.key)).toEqual(['highfive', 'undo'])
 })

@@ -10,15 +10,16 @@ import type { Grid, Pose } from './portrait'
 import type { Sprite } from './swolomon-sprite'
 
 /** The portrait's pixel rows the peek shows (brows, eyes: one cell row) and its columns (the face). */
-export const PEEK_ROWS = [5, 6] as const
-export const PEEK_COLUMNS = { from: 3, to: 13 } as const
+const PEEK_ROWS = [5, 6] as const
+const PEEK_COLUMNS = { from: 3, to: 13 } as const
 export const PEEK_WIDTH = PEEK_COLUMNS.to - PEEK_COLUMNS.from
 
 /** Under this long to the next set, he is looking right at you. */
 export const PEEK_NEAR_MS = 60_000
 
 /** The poses the peek draws: those whose brows and eyes differ. */
-export type PeekPose = Extract<Pose, 'idle' | 'blink' | 'glanceL' | 'glanceR' | 'lookYou' | 'wink' | 'smirk'>
+export const PEEK_POSES = ['idle', 'blink', 'glanceL', 'glanceR', 'lookYou', 'wink', 'smirk'] as const satisfies readonly Pose[]
+export type PeekPose = (typeof PEEK_POSES)[number]
 
 /** A pose's brows and eyes, cropped from its full frame. */
 export function peekGrid(sprite: Sprite, pose: PeekPose): Grid {

@@ -9,13 +9,15 @@
  */
 
 import type { LineId } from './copy'
+import { hashUnit } from './portrait'
+import type { BandSpec } from '../types'
 
 export type Celebration = {
   id: string
   /** `offer`: he holds it out and waits for 1; `show`: he does it at once. */
   kind: 'offer' | 'show'
-  /** The button that takes it (offered), else the plain high five. */
-  label: string
+  /** The button that takes it (offered); the shown ones keep the plain High five. */
+  label?: string
   /** His line as it starts: holding it out, or doing it. */
   line: LineId
   /** His line once it lands (offered only). */
@@ -37,34 +39,35 @@ export const CELEBRATIONS: readonly Celebration[] = [
   { id: 'head-pat', kind: 'offer', label: 'Lean in', line: 'cel-head-pat', landed: 'cel-head-pat-landed' },
   { id: 'secret-handshake', kind: 'offer', label: 'Handshake', line: 'cel-secret-handshake', landed: 'cel-secret-handshake-landed' },
   { id: 'pinky-swear', kind: 'offer', label: 'Pinky swear', line: 'cel-pinky-swear', landed: 'cel-pinky-swear-landed' },
-  { id: 'confetti', kind: 'show', label: 'High five', line: 'cel-confetti' },
-  { id: 'slow-clap', kind: 'show', label: 'High five', line: 'cel-slow-clap' },
-  { id: 'golf-clap', kind: 'show', label: 'High five', line: 'cel-golf-clap' },
-  { id: 'thumbs-up', kind: 'show', label: 'High five', line: 'cel-thumbs-up' },
-  { id: 'salute', kind: 'show', label: 'High five', line: 'cel-salute' },
-  { id: 'bow', kind: 'show', label: 'High five', line: 'cel-bow' },
-  { id: 'point', kind: 'show', label: 'High five', line: 'cel-point' },
-  { id: 'happy-feet', kind: 'show', label: 'High five', line: 'cel-happy-feet' },
-  { id: 'mic-drop', kind: 'show', label: 'High five', line: 'cel-mic-drop' },
-  { id: 'raise-roof', kind: 'show', label: 'High five', line: 'cel-raise-roof' },
-  { id: 'chefs-kiss', kind: 'show', label: 'High five', line: 'cel-chefs-kiss' },
-  { id: 'fireworks', kind: 'show', label: 'High five', line: 'cel-fireworks' },
+  { id: 'confetti', kind: 'show', line: 'cel-confetti' },
+  { id: 'slow-clap', kind: 'show', line: 'cel-slow-clap' },
+  { id: 'golf-clap', kind: 'show', line: 'cel-golf-clap' },
+  { id: 'thumbs-up', kind: 'show', line: 'cel-thumbs-up' },
+  { id: 'salute', kind: 'show', line: 'cel-salute' },
+  { id: 'bow', kind: 'show', line: 'cel-bow' },
+  { id: 'point', kind: 'show', line: 'cel-point' },
+  { id: 'happy-feet', kind: 'show', line: 'cel-happy-feet' },
+  { id: 'mic-drop', kind: 'show', line: 'cel-mic-drop' },
+  { id: 'raise-roof', kind: 'show', line: 'cel-raise-roof' },
+  { id: 'chefs-kiss', kind: 'show', line: 'cel-chefs-kiss' },
+  { id: 'fireworks', kind: 'show', line: 'cel-fireworks' },
 ]
 
 /** One in this many offered fives is too slow, the first time. */
 export const TOO_SLOW_ODDS = 6
 
-const hash = (x: number) => (Math.imul(x + 0x9e37, 2654435761) >>> 0) % 1_000_003
-
 /** The set's celebration: the same for the same record (redraws and tests agree), varied set to set. */
 export function celebrationFor(undoId: number): Celebration {
-  return CELEBRATIONS[hash(undoId) % CELEBRATIONS.length] ?? CELEBRATIONS[0]!
+  return CELEBRATIONS[Math.floor(hashUnit(undoId) * CELEBRATIONS.length)] ?? HIGH_FIVE
 }
 
 /** Whether this record's five gets pulled away the first time. */
 export function isTooSlow(celebration: Celebration, undoId: number): boolean {
-  return celebration.isFive === true && hash(undoId * 7 + 3) % TOO_SLOW_ODDS === 0
+  return celebration.isFive === true && hashUnit(undoId * 7 + 3) < 1 / TOO_SLOW_ODDS
 }
+
+/** The high five: a new best's, always. */
+export const HIGH_FIVE: Celebration = CELEBRATIONS[0]!
 
 export const celebrationById = (id: string): Celebration | undefined => CELEBRATIONS.find(c => c.id === id)
 
@@ -76,4 +79,4 @@ export function gestureOf(celebration: Celebration, stage: CelebrationStage): st
 }
 
 /** Where a logged band's celebration is: held out, pulled away (too slow), landed, or just done (shown). */
-export type CelebrationStage = 'offered' | 'dodged' | 'landed' | 'shown'
+type CelebrationStage = NonNullable<BandSpec['celebration']>['stage']

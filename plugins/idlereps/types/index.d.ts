@@ -244,6 +244,8 @@ export type BandSpec = {
   extras?: string[]
   /** Rows drawn under the buttons. */
   footer?: string[]
+  /** A Button's label where this band names it its own way (a celebration's `Low five`); else the action's. */
+  labels?: Record<string, string>
   /** Action ids, drawn as Buttons in this order. */
   actions: string[]
   /** Draw the buttons on the last body row instead of a row of their own. */
