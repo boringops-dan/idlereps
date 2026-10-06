@@ -127,6 +127,7 @@ import {
   walkGrid,
   BLINK_MS,
 } from './portrait'
+import { bandFilmSvg } from './film'
 import { PEEK_AWAKE_MS, peekChangeIn, peekGrid, PEEK_POSES, peekText, PEEK_WIDTH } from './peek'
 import type { PeekPose } from './peek'
 import type { Fit, IdleBeat, IdleStep, Pose, PortraitSize, Timeline, Walk } from './portrait'
@@ -1119,6 +1120,21 @@ async function lookForRoom($: EngineInterface) {
   } finally {
     coach.isLookingForRoom = false
   }
+}
+
+/** Films already made this load, by what they show (the moves collected among it). */
+const FILMS = new Map<string, string>()
+
+/** His film for the desktop (hooks/film.ts): the act once, then idling with the moves he has; made once. */
+async function filmFor($: EngineInterface, opts: { size: PortraitSize; isWin: boolean; act?: string; setMove?: string }): Promise<string> {
+  const have = opts.isWin || opts.size !== 'full' ? [] : collected(await load<string[]>($, 'moves', []))
+  // On a set, the set's move and his flexes; else his moves, the flexes aside (as the terminal's idling).
+  const moves = have.filter(move => (opts.setMove !== undefined) === (move.family === 'flex')).map(move => move.id)
+  const key = JSON.stringify([opts.size, opts.isWin, opts.act, opts.setMove, moves])
+  const made = FILMS.get(key) ?? bandFilmSvg({ sprite: SPRITE, ...opts, moves })
+  if (FILMS.size > 32) FILMS.clear()
+  FILMS.set(key, made)
+  return made
 }
 
 /** Blits cells to the band's portrait, at the size it is drawn; a refused blit is ignored. */
@@ -3399,9 +3415,15 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
     const { Svg } = elements
     const pose: Pose = isTalking ? said.pose : spec.isWin === true ? 'flex' : 'idle'
     const pixels = svgSize === 'full' ? SVG_PIXELS.full * SPRITE.width : SVG_PIXELS.mini * SPRITE.miniSize
+    // Once his line is out, he lives in the picture: his act, then his idling, animated by the SVG itself.
+    const isLineOut = !isTalking || (spec.coach ?? []).every((text, i) => (said.shown[i] ?? Infinity) >= plainOf(text).length)
+    const film =
+      coach.options.coachAnimation && isLineOut
+        ? await filmFor($, { size: svgSize, isWin: spec.isWin === true, ...(spec.act === undefined ? {} : { act: spec.act }), ...(spec.kind === 'set' && spec.act !== undefined ? { setMove: spec.act } : {}) })
+        : null
     return (
       <Box flexDirection="row" alignItems={svgSize === 'full' ? 'center' : 'flex-start'}>
-        <Svg key="swolomon" source={SVGS[frameFor(svgSize, pose)]} alt={COACH_NAME} width={pixels} height={pixels} />
+        <Svg key="swolomon" source={film ?? SVGS[frameFor(svgSize, pose)]} alt={COACH_NAME} width={pixels} height={pixels} {...(film === null ? {} : { isInteractive: true })} />
         <Box key="portrait-gap" width={PORTRAIT_GAP} />
         <Box key="text" flexDirection="column">
           {rows}
@@ -3794,10 +3816,11 @@ export const register: Register = (on, options) => {
     if (hasSvg && 'Svg' in elements) {
       const { Svg } = elements
       const pixels = SVG_PIXELS.full * SPRITE.width
+      const film = coach.options.coachAnimation ? await filmFor($, { size: 'full', isWin: view.isWin }) : null
       return (
         <Box flexDirection="column">
           <Box key="portrait-row" flexDirection="row">
-            <Svg key="swolomon" source={SVGS[view.isWin ? 'flex' : 'idle']} alt={COACH_NAME} width={pixels} height={pixels} />
+            <Svg key="swolomon" source={film ?? SVGS[view.isWin ? 'flex' : 'idle']} alt={COACH_NAME} width={pixels} height={pixels} {...(film === null ? {} : { isInteractive: true })} />
             <Box key="portrait-gap" width={PORTRAIT_GAP} />
             {top}
           </Box>

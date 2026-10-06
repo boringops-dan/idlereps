@@ -433,6 +433,11 @@ const hex = (colour: number) => `#${colour.toString(16).padStart(6, '0')}`
 export function svgOf(sprite: Sprite, name: FrameName | MiniFrameName): string {
   const grid = decodeFrame(sprite, name)
   const width = grid[0]?.length ?? 0
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${grid.length}" shape-rendering="crispEdges">${rectsOf(grid)}</svg>`
+}
+
+/** A grid's pixels as SVG rects, one per run of a colour along a row. */
+export function rectsOf(grid: Grid): string {
   const rects: string[] = []
   grid.forEach((row, y) => {
     let x = 0
@@ -444,5 +449,5 @@ export function svgOf(sprite: Sprite, name: FrameName | MiniFrameName): string {
       x = end
     }
   })
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${grid.length}" shape-rendering="crispEdges">${rects.join('')}</svg>`
+  return rects.join('')
 }
