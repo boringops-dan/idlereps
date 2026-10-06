@@ -659,8 +659,12 @@ export const LINES = [
   // Swolomon: his seasons (hooks/season.ts): the day's hello in costume, and banter on the set band.
   { id: 'season-birthday', voice: 'swolomon', variants: ["It's my birthday, {mate}! Party hat's on. Cake counts as protein, right?"] },
   { id: 'season-birthday-banter', voice: 'swolomon', variants: ['Birthday reps, {mate}. One for every year. I lost count.', 'Best birthday gift? This set, {mate}.'] },
-  { id: 'season-halloween', voice: 'swolomon', variants: ["Happy Halloween, {mate}! I'm a witch. A very swole witch.", 'Trick or treat, {mate}. The trick is showing up. So is the treat.'] },
-  { id: 'season-halloween-banter', voice: 'swolomon', variants: ['Boo, {mate}. Did I scare the reps out of you?', 'Pumpkin spice and heavy iron, {mate}.', 'Cast a spell on these reps, {mate}.'] },
+  { id: 'season-halloween', voice: 'swolomon', variants: ['Happy Halloween, {mate}! I came as your agent. Shades, earpiece, antenna.', 'Guess who I am, {mate}. Your agent! I think. What does it do again?'] },
+  {
+    id: 'season-halloween-banter',
+    voice: 'swolomon',
+    variants: ["Beep boop, {mate}. That's what your agent says, right?", 'Is your agent a spy or a robot, {mate}? I went with both.', 'Costume check, {mate}: am I doing your agent right?'],
+  },
   { id: 'season-new-year', voice: 'swolomon', variants: ['Happy New Year, {mate}! No resolutions needed. You already show up.'] },
   { id: 'season-new-year-banter', voice: 'swolomon', variants: ['First reps of the year, {mate}. Look at us go.', 'The party hat stays on for every set, {mate}.'] },
   { id: 'season-winter', voice: 'swolomon', variants: ["Happy holidays, {mate}! Santa asked me to check the list. You're on it."] },

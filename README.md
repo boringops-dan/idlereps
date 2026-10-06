@@ -203,7 +203,7 @@ exercise, how far it's come in the last two months, the same weekday three weeks
 you're back to after a while, or the one you skipped last time (no grudge). Each kind at most once a day.
 A week, a month, 100 days and a year after your first set, he marks the day.
 
-**Holidays.** He dresses for them, in his portrait, his moves and his walks: a witch hat for Halloween (Oct 24 to 31), a
+**Holidays.** He dresses for them, in his portrait, his moves and his walks: a costume for Halloween (Oct 24 to 31: your agent, as he imagines one: shades, earpiece, antenna, suit), a
 Santa hat (Dec 18 to 26), party hats for New Year (Dec 31 to Jan 2) and his birthday (Oct 20), a heart on
 Valentine's, a green top hat on St Patrick's, and nose-and-glasses on April Fools'. He says hello in
 costume once a season, and his banter on your sets is the season's.

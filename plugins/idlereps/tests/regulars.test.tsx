@@ -39,13 +39,15 @@ test('behind him: his pixels untouched, theirs only where he is see-through, and
 })
 
 test('in costume he wears it; they do not', () => {
-  const witch = SEASONS.find(s => s.id === 'halloween')!.outfit
+  const agent = SEASONS.find(s => s.id === 'halloween')!.outfit
   const step: Cameo = { who: 'deadlift-doris', walk: { frame: 'walkA', facing: 'right', x: 10, y: 0 }, pose: 'idle' }
-  const purple = SPRITE.palette.p as number
-  const dressedGrid = cameoGrid(dressed(SPRITE, witch), SPRITE, step)
-  expect(dressedGrid.flat().includes(purple)).toBe(true)
-  // Doris's tank is purple too, but dimmed behind him: never his hat's purple at full strength outside his hat.
-  expect(cameoGrid(SPRITE, SPRITE, step).flat().includes(purple)).toBe(false)
+  const navy = SPRITE.palette.n as number
+  // His suit, at full strength; behind him, out of costume, nothing of it.
+  expect(cameoGrid(dressed(SPRITE, agent), SPRITE, step).flat().includes(navy)).toBe(true)
+  expect(cameoGrid(SPRITE, SPRITE, step).flat().includes(navy)).toBe(false)
+  // Doris, dressed or not, is the same Doris.
+  const theirs = (grid: ReturnType<typeof cameoGrid>) => grid.map((row, r) => row.filter((_, c) => decodeFrame(dressed(SPRITE, agent), 'idle')[r]?.[c] === null && decodeFrame(SPRITE, 'idle')[r]?.[c] === null))
+  expect(theirs(cameoGrid(dressed(SPRITE, agent), SPRITE, step))).toEqual(theirs(cameoGrid(SPRITE, SPRITE, step)))
 })
 
 test('now and then between lines, each regular; never on a set, never at the mini size; then he names them', () => {

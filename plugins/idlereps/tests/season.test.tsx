@@ -16,7 +16,8 @@ import { BAND, OPTIONS, SESSION, TINY, workout, world } from './world'
 
 const dayOf = (month: number, date: number, year = 2026) => dayNumberOf(Date.UTC(year, month - 1, date, 12))
 const noonOf = (month: number, date: number, year = 2026) => Date.UTC(year, month - 1, date, 12)
-const PURPLE = SPRITE.palette.p as number
+/** His Halloween suit's navy: on none of his bust frames out of costume. */
+const NAVY = SPRITE.palette.n as number
 
 test('the calendar: each season on its days, none between, New Year across the year’s end', () => {
   expect(seasonOf(dayOf(10, 20))?.id).toBe('birthday')
@@ -56,22 +57,23 @@ test('his moves wear it too: every move decodes dressed; the hat comes off with 
   for (const { outfit } of SEASONS) {
     for (const move of [...MOVES, ...GESTURES]) expect(() => encodeMove(dressed(SPRITE, outfit), move.id, drawMove(move, outfit))).not.toThrow()
   }
-  const witch = SEASONS.find(s => s.id === 'halloween')!.outfit
+  const agent = SEASONS.find(s => s.id === 'halloween')!.outfit
   const curl = moveById('curl')!.poses[0]!
-  expect(drawFigure(curl, witch).join('')).toContain('p')
-  expect(drawFigure(curl).join('')).not.toContain('p')
-  expect(drawFigure({ ...curl, head: { ...curl.head!, bare: true } }, witch).join('')).not.toContain('p')
-  // Facing either way, the same hat, mirrored.
-  const right = drawFigure({ ...curl, head: { ...curl.head!, facing: 'right' } }, witch).join('')
-  const left = drawFigure({ ...curl, head: { ...curl.head!, facing: 'left' } }, witch).join('')
-  expect(right).toContain('p')
-  expect(left).toContain('p')
+  // His shades and antenna over his head; off with the laurel.
+  expect(drawFigure(curl, agent).join('\n')).toContain('kkkkkk')
+  expect(drawFigure(curl).join('\n')).not.toContain('kkkkkk')
+  expect(drawFigure({ ...curl, head: { ...curl.head!, bare: true } }, agent)).toEqual(drawFigure({ ...curl, head: { ...curl.head!, bare: true } }))
+  // Facing either way, dressed, and mirrored.
+  for (const facing of ['right', 'left'] as const) {
+    const turnedHead = { ...curl, head: { ...curl.head!, facing } }
+    expect(drawFigure(turnedHead, agent)).not.toEqual(drawFigure(turnedHead))
+  }
 })
 
 test('the desktop film wears it', () => {
-  const witch = SEASONS.find(s => s.id === 'halloween')!.outfit
-  const film = bandFilmSvg({ sprite: dressed(SPRITE, witch), size: 'full', isWin: false, act: 'curl', moves: ['curl'] })
-  expect(film).toContain(`#${PURPLE.toString(16).padStart(6, '0')}`)
+  const agent = SEASONS.find(s => s.id === 'halloween')!.outfit
+  const opts = { size: 'full' as const, isWin: false, act: 'curl', moves: ['curl'] }
+  expect(bandFilmSvg({ sprite: dressed(SPRITE, agent), ...opts })).not.toBe(bandFilmSvg({ sprite: SPRITE, ...opts }))
 })
 
 test('the set band’s banter is the season’s, in season', () => {
@@ -81,7 +83,7 @@ test('the set band’s banter is the season’s, in season', () => {
   expect(duringSetLineId({ ...cue, step: 1 } as Cue, seasonOf(dayOf(10, 31)))).toBe('set-cheer')
 })
 
-test('Halloween: he wears the witch hat on the band, and says so once that season', OPTIONS, async ($, on) => {
+test('Halloween: he comes as your agent (his idea of one) on the band, and says so once that season', OPTIONS, async ($, on) => {
   const today = dayOf(10, 31)
   const { w, clock } = world(on, TINY, { lastSeenOn: today - 1 }, { now: noonOf(10, 31) })
   await $.session.start(SESSION)
@@ -89,7 +91,7 @@ test('Halloween: he wears the witch hat on the band, and says so once that seaso
   await $.command.run(workout('flex'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   const raster = (await ui.find({ key: 'swolomon' })) as unknown as { props: { cells: string; columns: number } }
-  expect(decodeCells(raster.props.cells, raster.props.columns).flat().some(cell => cell === PURPLE)).toBe(true)
+  expect(decodeCells(raster.props.cells, raster.props.columns).flat().some(cell => cell === NAVY)).toBe(true)
   await ui.unmount()
   // Next day, still Halloween: the usual hello, not the season's again.
   w.toasts.length = 0

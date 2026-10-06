@@ -35,12 +35,58 @@ const PARTY: Outfit = {
   headProfile: { rows: ['...g..', '..ubu.'], x: 0, y: -1 },
 }
 
-const WITCH: Outfit = {
-  id: 'witch',
-  portrait: { rows: ['.......pP.......', '.....ppppP......', '__.pooooooooP.__', 'ppppppppppppppPP'], x: 0, y: 0 },
-  profile: { rows: ['........pP......', '......ppppP.....', '___.ooooooooP...', '.pppppppppppppP.'], x: 0, y: 0 },
-  head: { rows: ['..pP..', '.oooo.', 'pppppP'], x: 0, y: -1 },
-  headProfile: { rows: ['..pP..', '.oooo.', 'pppppP'], x: 0, y: -1 },
+/**
+ * Halloween (owner, 2026-10-06: "he should dress up as an AI agent for Halloween but still not know what it
+ * is"): his idea of one. A spy's shades and earpiece, a robot's antenna, a suit and tie; laurel off.
+ */
+const AGENT: Outfit = {
+  id: 'agent',
+  portrait: {
+    rows: [
+      '.......r........',
+      '.......I........',
+      '___....I.....___',
+      '___hhhhhhhhhh___',
+      '................',
+      '................',
+      '....kkkkkkkk....',
+      '.............k..',
+      '.............I..',
+      '..............I.',
+      '.............I..',
+      '................',
+      '..nnnnwrrwnnnn..',
+      '.nnnnnwrrwnnnnn.',
+      'nnnnnnwrrwnnnnnn',
+      'nnnnnnwwrwnnnnnn',
+    ],
+    x: 0,
+    y: 0,
+  },
+  profile: {
+    rows: [
+      '........r.......',
+      '........I.......',
+      '............h...',
+      '..hhhhhhhhhhhh..',
+      '................',
+      '................',
+      '..........kkkk..',
+      '...k............',
+      '...I............',
+      '................',
+      '................',
+      '................',
+      '......nnnnn.....',
+      '....nnnwrnnn....',
+      '...nnnnwrnnnn...',
+      '...nnnnwrnnnnn..',
+    ],
+    x: 0,
+    y: 0,
+  },
+  head: { rows: ['..r...', '..I...', '......', 'hhhhhh', 'kkkkkk'], x: 0, y: -2 },
+  headProfile: { rows: ['...r..', '...I..', '......', 'hhhhhh', '..kkkk'], x: 0, y: -2 },
 }
 
 const SANTA: Outfit = {
@@ -80,7 +126,7 @@ const DISGUISE: Outfit = {
 /** The calendar, in order of precedence where two overlap: [month 1–12, first day, last day]. */
 const CALENDAR: readonly { season: Season; from: readonly [number, number]; to: readonly [number, number] }[] = [
   { season: { id: 'birthday', outfit: PARTY, greeting: 'season-birthday', banter: 'season-birthday-banter' }, from: [10, 20], to: [10, 20] },
-  { season: { id: 'halloween', outfit: WITCH, greeting: 'season-halloween', banter: 'season-halloween-banter' }, from: [10, 24], to: [10, 31] },
+  { season: { id: 'halloween', outfit: AGENT, greeting: 'season-halloween', banter: 'season-halloween-banter' }, from: [10, 24], to: [10, 31] },
   { season: { id: 'new-year', outfit: PARTY, greeting: 'season-new-year', banter: 'season-new-year-banter' }, from: [12, 31], to: [1, 2] },
   { season: { id: 'winter', outfit: SANTA, greeting: 'season-winter', banter: 'season-winter-banter' }, from: [12, 18], to: [12, 26] },
   { season: { id: 'valentines', outfit: HEARTS, greeting: 'season-valentines', banter: 'season-valentines-banter' }, from: [2, 13], to: [2, 14] },
