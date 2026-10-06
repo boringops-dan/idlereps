@@ -131,13 +131,14 @@ import {
   BLINK_MS,
   BREATH_HALF_MS,
   breathedIn,
+  cameoGrid,
 } from './portrait'
 import { bandFilmSvg } from './film'
 import { callKind, expectedMs, learn } from './durations'
 import type { CallKind, CallTimes } from './durations'
 import { PEEK_AWAKE_MS, peekChangeIn, peekGrid, PEEK_POSES, peekText, PEEK_WIDTH } from './peek'
 import type { PeekPose } from './peek'
-import type { Fit, IdleBeat, IdleStep, Pose, PortraitSize, Timeline, Walk } from './portrait'
+import type { Cameo, Fit, IdleBeat, IdleStep, Pose, PortraitSize, Timeline, Walk } from './portrait'
 import { backupOf, BACKUP_KEYS, backupPathOf, csvPathOf, historyCsv, parseBackup } from './data'
 import { PUSH_NAMES, STARTER_ANSWERS, generateProgram, stretchFor } from './programs'
 import { addInterval, shareLine, workedMs } from './worktime'
@@ -241,6 +242,8 @@ type Art = {
   breaths: ReadonlyMap<string, string>
   /** Each place on his walks, encoded once (the walks are the beats' own, so the same objects every time). */
   walkCells: Map<Walk, string>
+  /** Each place of a regular passing behind him, the same way. */
+  cameoCells: Map<Cameo, string>
 }
 
 function artOf(outfit: Outfit | null): Art {
@@ -254,6 +257,7 @@ function artOf(outfit: Outfit | null): Art {
     peekCells: Object.fromEntries(PEEK_POSES.map(pose => [pose, encodeCells(peekGrid(sprite, pose))])) as Art['peekCells'],
     breaths: new Map((['idle', 'flex', 'miniIdle'] as const).map(name => [frames[name], breathedIn(frames[name], name === 'miniIdle' ? sprite.miniSize : sprite.width)])),
     walkCells: new Map(),
+    cameoCells: new Map(),
   }
 }
 
@@ -1124,6 +1128,14 @@ function idleWhileShowing($: EngineInterface, key: number, isWin: boolean) {
       void blitPortrait($, cells)
     },
     ...(coach.setMove === undefined ? {} : { setMove: coach.setMove }),
+    // A regular passing: he names them, as an aside (not Quiet).
+    onAside: id => {
+      if (coach.options.coachChat === 'quiet') return
+      void (async () => {
+        await setAside($, key, line(id, { day: await today($) }))
+        timer($, 'band', ASIDE_MS, () => void setAside($, key, undefined))
+      })().catch(() => undefined)
+    },
   })
 }
 
@@ -1142,7 +1154,12 @@ type IdleOptions = {
   beatOf?: (n: number) => IdleBeat
   /** A pose's cells, where the loop draws a crop of him (the peek's eyes); else the portrait's frame. */
   cellsOf?: (pose: Pose) => string
+  /** His word in a beat (a regular passing): where the loop's portrait has his lines to say it beside. */
+  onAside?: (id: LineId) => void
 }
+
+/** What an idle beat shows, in turn: cells for a while, or his word. */
+type IdleFrame = { cells: string; ms: number } | { aside: LineId; ms: number }
 
 /**
  * Idle beats, each after its wait, for as long as the loop is alive: the frames a beat resolves to, each
@@ -1168,11 +1185,13 @@ function idleLoop($: EngineInterface, owner: 'band' | 'pane' | 'peek', opts: Idl
         }
         const { steps, rest } = opts.beatOf?.(n) ?? idleBeat(n, size, opts.isWin, size === 'full' ? moves : [], opts.setMove === undefined ? 'band' : 'set')
         const cellsOf = opts.cellsOf ?? ((pose: Pose) => art.frames[frameFor(size, pose)])
-        const frames = steps.flatMap(step => (opts.cellsOf === undefined ? idleFrames(step, size) : 'pose' in step ? [{ cells: cellsOf(step.pose), ms: step.ms }] : []))
+        const frames: IdleFrame[] = steps.flatMap(step => (opts.cellsOf === undefined ? idleFrames(step, size) : 'pose' in step ? [{ cells: cellsOf(step.pose), ms: step.ms }] : []))
         let at = 0
         for (const frame of [...frames, { cells: cellsOf(rest), ms: 0 }]) {
           timer($, owner, at, () => {
-            if (opts.alive() && opts.size() === size) opts.blit(frame.cells, size)
+            if (!opts.alive() || opts.size() !== size) return
+            if ('aside' in frame) opts.onAside?.(frame.aside)
+            else opts.blit(frame.cells, size)
           })
           at += frame.ms
         }
@@ -1195,9 +1214,15 @@ async function betweenMoves($: EngineInterface, have: readonly Move[]): Promise<
   return have.filter(m => m.family !== 'flex').map(m => m.id)
 }
 
-/** An idle step as the cells to show and for how long: a pose, a place on a walk, or a move's poses. */
-function idleFrames(step: IdleStep, size: PortraitSize): { cells: string; ms: number }[] {
+/** An idle step as what to show and for how long: a pose, a place on a walk, a move's poses, a regular passing, his word. */
+function idleFrames(step: IdleStep, size: PortraitSize): IdleFrame[] {
   if ('pose' in step) return [{ cells: art.frames[frameFor(size, step.pose)], ms: step.ms }]
+  if ('aside' in step) return [{ aside: step.aside, ms: step.ms }]
+  if ('cameo' in step) {
+    const cells = art.cameoCells.get(step.cameo) ?? encodeCells(cameoGrid(art.sprite, SPRITE, step.cameo))
+    art.cameoCells.set(step.cameo, cells)
+    return [{ cells, ms: step.ms }]
+  }
   if ('walk' in step) {
     const cells = art.walkCells.get(step.walk) ?? encodeCells(walkGrid(art.sprite, step.walk))
     art.walkCells.set(step.walk, cells)

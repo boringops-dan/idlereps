@@ -688,6 +688,10 @@ export const LINES = [
   { id: 'live-commit', voice: 'swolomon', variants: ['Your agent racked it, {mate}. Clean lockout.', 'Your agent locked it in, {mate}. Nice.'] },
   { id: 'live-pr', voice: 'swolomon', variants: ['Your agent hit a PR, {mate}! A personal record, right?', 'A PR for your agent, {mate}! I knew it had it in it.'] },
   { id: 'live-install', voice: 'swolomon', variants: ["Your agent's loading plates, {mate}. Lots of plates.", "Your agent's unpacking its gym bag, {mate}."] },
+  // Swolomon: the regulars walking past behind him (hooks/regulars.ts), named as they go.
+  { id: 'cameo-big-greg', voice: 'swolomon', variants: ["That's Big Greg, {mate}. Shake number five.", 'Big Greg, {mate}. Looking for the shaker again.'] },
+  { id: 'cameo-deadlift-doris', voice: 'swolomon', variants: ['Deadlift Doris, {mate}. Another PR, probably.', "Doris! Don't stare, {mate}. Doris is counting."] },
+  { id: 'cameo-cardio-kevin', voice: 'swolomon', variants: ['Cardio Kevin, {mate}. Off the bike? A first.', 'Kevin, {mate}. Still warming up since Tuesday.'] },
 ] as const satisfies readonly LineEntry[]
 
 export type LineId = (typeof LINES)[number]['id']

@@ -39,7 +39,8 @@ function moveShots(sprite: Sprite, id: string): Shot[] {
 
 /**
  * A band's film: its act (a move, at full size) once, then FILM_BEATS idle beats on a loop; on a set, the set
- * beats with its move. Walks are left out (each step of one is a frame of its own, too many for the source).
+ * beats with its move. Walks and the regulars passing are left out (each step of one is a frame of its own,
+ * too many for the source).
  */
 export function bandFilm(opts: {
   sprite: Sprite
@@ -57,7 +58,7 @@ export function bandFilm(opts: {
   const loop: Shot[] = []
   for (let n = 0, taken = 0; taken < (opts.beats ?? FILM_BEATS) && n < 200; n += 1) {
     const picked = idleBeat(n, size, isWin, moves, opts.setMove === undefined ? 'band' : 'set')
-    if (picked.steps.some(step => 'walk' in step)) continue
+    if (picked.steps.some(step => 'walk' in step || 'cameo' in step)) continue
     const isMoveDue = moves.length > 0 && taken % FILM_MOVE_EVERY === FILM_MOVE_EVERY - 1 && !picked.steps.some(step => 'move' in step)
     const beat = isMoveDue ? { ...picked, steps: [{ move: moves[Math.floor(taken / FILM_MOVE_EVERY) % moves.length] ?? '', ms: 0 }] } : picked
     taken += 1

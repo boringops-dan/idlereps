@@ -3,6 +3,9 @@
  * whether a portrait fits the band. Pure.
  */
 
+import type { LineId } from './copy'
+import { regularById, REGULARS, regularWalk } from './regulars'
+import type { Regular } from './regulars'
 import type { EntranceFrameName, FrameName, MiniFrameName, Sprite } from './swolomon-sprite'
 
 export type Grid = (number | null)[][]
@@ -260,8 +263,14 @@ export function frameAt(timeline: Timeline, t: number, isWin: boolean): Frame {
 /** Where he is in his square while walking: the profile frame, which way, and its left edge and bob. */
 export type Walk = { frame: 'walkA' | 'walkB'; facing: 'left' | 'right'; x: number; y: number }
 
-/** One step of an idle beat: a pose of the bust, a place on a walk, or one of his moves played through. */
-export type IdleStep = { pose: Pose; ms: number } | { walk: Walk; ms: number } | { move: string; ms: number }
+/** A regular walking past behind him (regulars.ts): who, where on their walk, and where his eyes are. */
+export type Cameo = { who: string; walk: Walk; pose: Pose }
+
+/**
+ * One step of an idle beat: a pose of the bust, a place on a walk, one of his moves played through, a
+ * regular passing behind him, or his word (an aside) on it.
+ */
+export type IdleStep = { pose: Pose; ms: number } | { walk: Walk; ms: number } | { move: string; ms: number } | { cameo: Cameo; ms: number } | { aside: LineId; ms: number }
 
 /** One idle beat: a wait, then its steps in turn, then back to rest (idle, or the flex on a win). */
 export type IdleBeat = { wait: number; steps: readonly IdleStep[]; rest: Pose }
@@ -296,6 +305,20 @@ function stroll(side: Walk['facing']): IdleStep[] {
   return [turned(side, 300), ...walking(side, 0, far), { walk: { frame: 'walkA', facing: side, x: far, y: 0 }, ms: 700 }, ...walking(back, far, 0), turned(back, 250)]
 }
 
+/**
+ * A regular walking past behind him, one side to the other, his eyes following; then he names them. Their
+ * walk is his stroll's pace; he is in front, so only what his square leaves open shows them.
+ */
+function cameo(regular: Regular, from: Walk['facing']): IdleStep[] {
+  const facing = from === 'left' ? 'right' : 'left'
+  const [start, end] = facing === 'right' ? [-16, 16] : [16, -16]
+  const steps = walking(facing, start, end).flatMap(step => ('walk' in step ? [{ cameo: { who: regular.id, walk: step.walk, pose: eyesOn(step.walk.x) }, ms: step.ms }] : []))
+  return [{ pose: from === 'left' ? 'glanceL' : 'glanceR', ms: 500 }, ...steps, { aside: regular.line, ms: 0 }, { pose: 'lookYou', ms: 900 }]
+}
+
+/** His eyes on someone at x behind him: left of centre, glancing left; right of it, right. */
+const eyesOn = (x: number): Pose => (x < 0 ? 'glanceL' : 'glanceR')
+
 /** A beat's steps; none for a move beat, its move picked per beat from the moves given. */
 type BeatDef = { weight: number; steps?: readonly IdleStep[]; isFullOnly?: true }
 
@@ -319,6 +342,8 @@ const BEATS: readonly BeatDef[] = [
   { weight: 2, steps: stroll('right'), isFullOnly: true },
   // A few reps of something, right there: one of his moves.
   { weight: 3, isFullOnly: true },
+  // Now and then a regular walks past behind him (a few minutes apart, on average).
+  ...REGULARS.map((regular, i) => ({ weight: 0.4, steps: cameo(regular, i % 2 === 0 ? 'left' : 'right'), isFullOnly: true as const })),
 ]
 
 /**
@@ -361,6 +386,26 @@ export function idleBeat(n: number, size: PortraitSize, isWin = false, moves: re
   const beat = pool.find(b => (pick -= b.weight) < 0) ?? pool[0]!
   return { wait, steps: beat.steps ?? [{ move: moves[Math.floor(hashUnit(n * 3 + 7) * moves.length)]!, ms: 0 }], rest: 'idle' }
 }
+
+/**
+ * A regular passing behind him: his frame for the pose in front, and their walk (regulars.ts), in the shade,
+ * wherever his frame is see-through. `him` is the sprite he is drawn from (dressed or not); they are drawn from `base`.
+ */
+export function cameoGrid(him: Sprite, base: Sprite, step: Cameo): Grid {
+  const regular = regularById(step.who)
+  const front = decodeFrame(him, step.pose)
+  if (regular === undefined) return front
+  const rows = regularWalk(base, regular, step.walk.frame)
+  const back = walkGrid({ ...base, frames: { ...base.frames, [step.walk.frame]: rows } }, step.walk)
+  return front.map((row, r) => row.map((cell, c) => cell ?? dimmed(back[r]?.[c] ?? null)))
+}
+
+/** How bright the regulars are behind him: in the shade of the gym, so they never read as part of him. */
+const BEHIND = 0.55
+
+/** A colour in the shade (null stays see-through). */
+const dimmed = (cell: number | null): number | null =>
+  cell === null ? null : (Math.round(((cell >> 16) & 255) * BEHIND) << 16) | (Math.round(((cell >> 8) & 255) * BEHIND) << 8) | Math.round((cell & 255) * BEHIND)
 
 /** The 16 × 16 square with him walking in it: in profile, facing either way, wherever the walk has him. */
 export function walkGrid(sprite: Sprite, walk: Walk): Grid {
