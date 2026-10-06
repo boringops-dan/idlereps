@@ -88,7 +88,7 @@ test('Halloween: he wears the witch hat on the band, and says so once that seaso
   expect(w.toasts).toContain(line('season-halloween', { day: today }))
   await $.command.run(workout('flex'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  const raster = (await ui.find({ key: 'swolomon' })) as { props: { cells: string; columns: number } }
+  const raster = (await ui.find({ key: 'swolomon' })) as unknown as { props: { cells: string; columns: number } }
   expect(decodeCells(raster.props.cells, raster.props.columns).flat().some(cell => cell === PURPLE)).toBe(true)
   await ui.unmount()
   // Next day, still Halloween: the usual hello, not the season's again.
