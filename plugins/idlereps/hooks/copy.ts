@@ -682,6 +682,12 @@ export const LINES = [
   { id: 'prep-diet', voice: 'swolomon', variants: ['Meal prep for {competition}, {mate}. Chicken, rice, more chicken.'] },
   { id: 'prep-posing', voice: 'swolomon', variants: ['Posing practice for {competition}, {mate}. Watch me between sets.'] },
   { id: 'prep-peak', voice: 'swolomon', variants: ['Peak week, {mate}. {competition} is close. I can taste the trophy.'] },
+  // Swolomon: live, as your agent's calls land (hooks/reactions.ts), read his way.
+  { id: 'live-tests-pass', voice: 'swolomon', variants: ['Green lights for your agent, {mate}. Clean reps.', 'Your agent nailed that set, {mate}!'] },
+  { id: 'live-tests-fail', voice: 'swolomon', variants: ['Your agent missed a rep, {mate}. Happens to the best.', 'Red lights, {mate}. Your agent needs a spotter.'] },
+  { id: 'live-commit', voice: 'swolomon', variants: ['Your agent racked it, {mate}. Clean lockout.', 'Your agent locked it in, {mate}. Nice.'] },
+  { id: 'live-pr', voice: 'swolomon', variants: ['Your agent hit a PR, {mate}! A personal record, right?', 'A PR for your agent, {mate}! I knew it had it in it.'] },
+  { id: 'live-install', voice: 'swolomon', variants: ["Your agent's loading plates, {mate}. Lots of plates.", "Your agent's unpacking its gym bag, {mate}."] },
 ] as const satisfies readonly LineEntry[]
 
 export type LineId = (typeof LINES)[number]['id']

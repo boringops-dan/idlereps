@@ -58,6 +58,8 @@ import { sittingMs, STILL_MS } from './still'
 import { expectedWaitMs, keptTurns, waitSize } from './waits'
 import { greetingOf } from './greeting'
 import { anniversaryOf, callbackFor } from './callbacks'
+import { mayReact, PEEK_REACTION_MS, REACTION_LINE, startReaction } from './reactions'
+import type { Reaction } from './reactions'
 import { asidesAllowed, engagementOf, extrasCap, recordOutcome, spend, START_ATTENTION } from './attention'
 import type { Attention, Chat } from './attention'
 import { EMPTY_CARD, stamp } from './punch'
@@ -355,6 +357,10 @@ const coach: {
   project: string
   callSeq: number
   callsRunning: Map<number, number>
+  /** His reactions this turn (hooks/reactions.ts), when the last was, and one showing in the peek. */
+  turnReactions: Set<Reaction>
+  lastReactionAt: number | null
+  peekReaction: { text: string; until: number } | null
   /** What was learned of call times, once read (the store is written behind each call, never in front). */
   callTimes: CallTimes | undefined
   /** The band portrait's cells as last drawn (before the breath), and whether his breath is in. */
@@ -447,6 +453,9 @@ const coach: {
   project: '',
   callSeq: 0,
   callsRunning: new Map(),
+  turnReactions: new Set(),
+  lastReactionAt: null,
+  peekReaction: null,
   callTimes: undefined,
   portraitCells: null,
   isBreathIn: false,
@@ -555,12 +564,13 @@ async function refreshPeek($: EngineInterface) {
   }
   const at = await now($)
   const isAwake = coach.isTurnRunning || at < coach.peekAwakeUntil
-  const next = peekText({ isWorking: coach.isTurnRunning, cueDueAt: coach.cueDueAt, now: at, isDozing: !isAwake })
+  const reaction = coach.peekReaction !== null && coach.peekReaction.until > at ? coach.peekReaction : null
+  const next = peekText({ isWorking: coach.isTurnRunning, cueDueAt: coach.cueDueAt, now: at, isDozing: !isAwake, ...(reaction === null ? {} : { reaction: reaction.text }) })
   const shown = await read($, peek)
   if (shown?.text !== next.text || shown?.isNear !== next.isNear || shown?.isDozing !== next.isDozing) await update($, peek, () => next)
   // One timer for the next time the word changes (a minute ticks over, the set comes near, he dozes off).
   coach.peekTextTimer?.cancel()
-  const wait = peekChangeIn({ isWorking: coach.isTurnRunning, cueDueAt: coach.cueDueAt, now: at, awakeUntil: coach.peekAwakeUntil })
+  const wait = peekChangeIn({ isWorking: coach.isTurnRunning, cueDueAt: coach.cueDueAt, now: at, awakeUntil: coach.peekAwakeUntil, ...(reaction === null ? {} : { reactionUntil: reaction.until }) })
   coach.peekTextTimer = wait === null ? null : timer($, 'peek', wait, () => void refreshPeek($))
   coach.isPeekNear = next.isNear
   // Asleep: his eyes shut (drawn from `isDozing`), and the loop that moved them ends.
@@ -1065,6 +1075,30 @@ async function firstAside($: EngineInterface): Promise<{ id: LineId; ctx: Record
     if (n >= 5) return { id: 'aside-showed-up', ctx: { n }, mark: 'remember' }
   }
   return null
+}
+
+/** A word from him on what a call just did (hooks/reactions.ts): an aside on the band, else in the peek. */
+async function react($: EngineInterface, reaction: Reaction) {
+  if (!coach.isTurnRunning || coach.options.coachChat === 'quiet' || !art.sprite.approved) return
+  const at = await now($)
+  if (!mayReact(reaction, coach.turnReactions, coach.lastReactionAt, at)) return
+  const text = line(REACTION_LINE[reaction], { day: (await today($)) + coach.turnReactions.size })
+  const shown = await read($, band)
+  if (shown !== null) {
+    // On a band, only once his own line is out.
+    const said = await read($, talk)
+    if (said === null || said.key !== shown.talkKey || said.isEntering === true) return
+    coach.turnReactions.add(reaction)
+    coach.lastReactionAt = at
+    await setAside($, said.key, text)
+    timer($, 'band', ASIDE_MS, () => void setAside($, said.key, undefined))
+    return
+  }
+  if ((await read($, peek)) === null) return
+  coach.turnReactions.add(reaction)
+  coach.lastReactionAt = at
+  coach.peekReaction = { text, until: at + PEEK_REACTION_MS }
+  await refreshPeek($)
 }
 
 async function setAside($: EngineInterface, key: number, aside: string | undefined) {
@@ -3771,6 +3805,7 @@ export const register: Register = (on, options) => {
   on('turn.start', async ($, e, next) => {
     coach.isTurnRunning = true
     coach.turnStartedAt = await now($)
+    coach.turnReactions = new Set()
     // A session left open past midnight wears the new day's outfit.
     await dressForToday($)
     coach.toolCalls = 0
@@ -3822,6 +3857,9 @@ export const register: Register = (on, options) => {
       coach.turnMisread = misread
       setCallMisread($, misread)
     }
+    // An install starting gets his word as it starts, beside the call, never in front of it.
+    const starting = startReaction(factsOf(tool, input, 0))
+    if (starting !== null) void react($, starting).catch(() => undefined)
     let result: Awaited<ReturnType<typeof next>>
     try {
       result = await watchCall($, tool, input, () => next(e))
@@ -3834,7 +3872,10 @@ export const register: Register = (on, options) => {
     if (tool === 'Bash' && result.deny === undefined) {
       const op = result.isError === undefined ? (result.result as { gitOperation?: GitOperation }).gitOperation : undefined
       const outcome = outcomeOf(factsOf(tool, input, 0), { isError: result.isError === true, commit: op?.commit !== undefined, pr: op?.pr?.action === 'created' })
-      if (outcome !== null) coach.turnOutcome = turnOutcome(coach.turnOutcome, outcome)
+      if (outcome !== null) {
+        coach.turnOutcome = turnOutcome(coach.turnOutcome, outcome)
+        void react($, outcome).catch(() => undefined)
+      }
     }
     return result
   })

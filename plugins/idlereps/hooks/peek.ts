@@ -31,8 +31,14 @@ export function peekGrid(sprite: Sprite, pose: PeekPose): Grid {
 export const PEEK_AWAKE_MS = 2 * 60_000
 
 /** What the peek says beside his eyes, and whether the next set is close enough for him to stare. */
-export function peekText(opts: { isWorking: boolean; cueDueAt: number | null; now: number; isDozing?: boolean }): { text: string; isNear: boolean; isDozing: boolean } {
+export function peekText(opts: { isWorking: boolean; cueDueAt: number | null; now: number; isDozing?: boolean; reaction?: string }): {
+  text: string
+  isNear: boolean
+  isDozing: boolean
+} {
   const { isWorking, cueDueAt, now } = opts
+  // A word on what your agent just did (hooks/reactions.ts) wakes him, for as long as it shows.
+  if (opts.reaction !== undefined) return { text: opts.reaction, isNear: false, isDozing: false }
   if (opts.isDozing === true && !isWorking) return { text: 'z z z', isNear: false, isDozing: true }
   if (isWorking && cueDueAt !== null && cueDueAt > now) {
     const left = cueDueAt - now
@@ -45,9 +51,16 @@ export function peekText(opts: { isWorking: boolean; cueDueAt: number | null; no
 
 /**
  * When the peek's word next changes, in ms, or null when nothing will change it but an event: the minute
- * ticking over, the set coming near, or (with no turn running) the moment he dozes off.
+ * ticking over, the set coming near, (with no turn running) the moment he dozes off, or a reaction ending.
  */
-export function peekChangeIn(opts: { isWorking: boolean; cueDueAt: number | null; now: number; awakeUntil: number }): number | null {
+export function peekChangeIn(opts: { isWorking: boolean; cueDueAt: number | null; now: number; awakeUntil: number; reactionUntil?: number }): number | null {
+  const { now } = opts
+  const word = peekWordChangeIn(opts)
+  if (opts.reactionUntil === undefined || opts.reactionUntil <= now) return word
+  return word === null ? opts.reactionUntil - now : Math.min(word, opts.reactionUntil - now)
+}
+
+function peekWordChangeIn(opts: { isWorking: boolean; cueDueAt: number | null; now: number; awakeUntil: number }): number | null {
   const { isWorking, cueDueAt, now, awakeUntil } = opts
   if (!isWorking) return awakeUntil > now ? awakeUntil - now : null
   if (cueDueAt === null || cueDueAt <= now) return null
