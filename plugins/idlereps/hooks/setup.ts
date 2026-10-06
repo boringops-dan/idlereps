@@ -48,7 +48,8 @@ export const TELEMETRY_COPY =
   'Counts like sets done and workouts rated, with a random id. Never your exercises, plan, files or prompts. ' +
   'Change it any time in the plugin settings.'
 
-export type Choice = { label: string; apply: (state: SetupState) => SetupState }
+/** `hotkey`: its own key, where the answer is a count (3 days is `3`); else its place in the list. */
+export type Choice = { label: string; hotkey?: string; apply: (state: SetupState) => SetupState }
 
 const answer = (patch: Partial<Answers>) => (state: SetupState): SetupState => ({
   ...state,
@@ -240,6 +241,7 @@ export function screenOf(state: SetupState, planPath: string): Screen {
         title: 'How many days a week?',
         choices: options.map(({ days, label }) => ({
           label,
+          hotkey: String(days),
           apply: s => {
             const keepsSchedule = s.answers.daysPerWeek === days
             const next = answer({ daysPerWeek: days })(s)

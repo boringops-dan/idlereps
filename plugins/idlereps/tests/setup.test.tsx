@@ -103,7 +103,25 @@ test('screen 0 offers the three paths; Push / Pull / Legs skips the goal and off
   expect(await pane.find({ type: 'Text', text: 'How many days a week?' })).toBeDefined()
   expect((await pane.find({ key: 'choice-1' }))?.props.label).toBe('3 (each day once)')
   expect((await pane.find({ key: 'choice-2' }))?.props.label).toBe('6 (each day twice)')
+  // A count's key is the count itself: 3 for three days, not 1.
+  expect((await pane.find({ key: 'choice-1' }))?.props.hotkey).toBe('3')
+  expect((await pane.find({ key: 'choice-2' }))?.props.hotkey).toBe('6')
   expect(await pane.find({ key: 'choice-3' })).toBeUndefined()
+  await pane.unmount()
+})
+
+test('a designed plan asks 2 to 5 days, each on its own number', OPTIONS, async ($, on) => {
+  world(on, null, ACKED)
+  await $.session.start(SESSION)
+  await $.command.run(workout('setup'))
+  const pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...SETUP })
+  await pane.press({ key: 'choice-2' })
+  for (let i = 0; i < 4; i += 1) await pane.press(i === 1 ? { key: 'continue' } : { key: 'choice-1' })
+  expect(await pane.find({ type: 'Text', text: 'How many days a week?' })).toBeDefined()
+  for (const [i, days] of ['2', '3', '4', '5'].entries()) {
+    const choice = await pane.find({ key: `choice-${i + 1}` })
+    expect([choice?.props.label, choice?.props.hotkey]).toEqual([days, days])
+  }
   await pane.unmount()
 })
 

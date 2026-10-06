@@ -4042,7 +4042,7 @@ export const register: Register = (on, options) => {
     } else {
       const choices = (screen.choices ?? []).map((choice, i) => ({
         key: `choice-${i + 1}`,
-        hotkey: String(i + 1),
+        hotkey: choice.hotkey ?? String(i + 1),
         label: choice.label,
         isPrimary: i === (screen.primary ?? -1),
         onPress: () => setupChoose($, i),
