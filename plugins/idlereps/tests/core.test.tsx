@@ -103,13 +103,13 @@ test('ACTIONS is D11 for the bands and panes Phase A draws (with Replay: 1 Let\'
     'program 1 Quick start',
     'program 2 Build it with me',
     'program 3 I have my own',
-    'program b Back',
-    'byoplan b Back',
+    'program 0 Back',
+    'byoplan 1 Back',
     'remind 1 Upper',
     'remind 2 Lower',
     'remind 3 Cardio',
     'remind 4 Other',
-    'remind l Later',
+    'remind 5 Later',
     'remind 0 Not today',
     'spotme 1 You got this!',
     'spotme 2 Not now',
@@ -118,9 +118,9 @@ test('ACTIONS is D11 for the bands and panes Phase A draws (with Replay: 1 Let\'
     'question 2 Answer',
     'question 3 Answer',
     'question 4 Answer',
-    'question p Pass',
+    'question 0 Pass',
     'still 1 Stood up',
-    'still l Later',
+    'still 2 Later',
     'where 1 At a desk',
     'where 2 At home, no gear',
     'where 3 With weights',
@@ -153,7 +153,7 @@ test('ACTIONS is D11 for the bands and panes Phase A draws (with Replay: 1 Let\'
     'edit 3 reps >',
     'edit 4 < weight',
     'edit 5 weight >',
-    'logged h High five',
+    'logged 1 High five',
     'logged 0 Undo',
     'rating 1 Easy',
     'rating 2 Good',
@@ -201,6 +201,10 @@ test('ACTIONS is D11 for the bands and panes Phase A draws (with Replay: 1 Let\'
     expect([kind, new Set(keys).size]).toEqual([kind, keys.length])
   }
   for (const action of ACTIONS) expect(/^[0-9a-z]$/.test(action.hotkey)).toBe(true)
+  // From the prompt only a bare digit presses a band's Button (the engine's AbovePrompt): a letter there would
+  // be typed into the prompt. Letters are for panes, which take keys while focused.
+  const PANES = new Set(['safety', 'byo'])
+  expect(ACTIONS.filter(a => !PANES.has(a.kind) && !/^[0-9]$/.test(a.hotkey)).map(a => `${a.kind} ${a.hotkey}`)).toEqual([])
 })
 
 // ---------------------------------------------------------------------------------------------------------

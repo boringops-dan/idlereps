@@ -216,7 +216,11 @@ test('fit: only on the terminal, only approved art, never wrapping the text, nev
   expect(fitPortrait({ ...base, bodyColumns: 85 })).toBe('none')
   // A band window of 7 rows: no room for 8 rows of portrait.
   expect(fitPortrait({ ...base, maxRows: 7 })).toBe('mini')
-  expect(fitPortrait({ ...base, wanted: 'mini', bandRows: 2 })).toBe('none')
+  // A band that names the mini head still gets the full portrait where it fits (owner, 2026-10-06).
+  expect(fitPortrait({ ...base, wanted: 'mini' })).toBe('full')
+  expect(fitPortrait({ ...base, wanted: 'mini', bodyColumns: 95 })).toBe('mini')
+  // Too few rows of its own for the mini head, and no room for the full one: the name tag.
+  expect(fitPortrait({ ...base, wanted: 'mini', bandRows: 2, bodyColumns: 95 })).toBe('none')
   expect(fitPortrait({ ...base, wanted: 'none' })).toBe('none')
 })
 
@@ -241,16 +245,20 @@ test('the intro draws the full portrait on a wide terminal, and an SVG of it on 
   await desktop.unmount()
 })
 
-test('the ask band and the speaking set band draw the mini head; a silent set band none', OPTIONS, async ($, on) => {
+test('the ask band and the speaking set band draw the full portrait where it fits; a silent set band none', OPTIONS, async ($, on) => {
   const { clock } = world(on, TINY)
   await $.session.start(SESSION)
   await $.turn.start({ text: 'go', turnId: 't1' })
   await clock.advance(30_000)
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   const head = async () => ((await ui.find({ key: 'swolomon' })) as { props: { columns: number } } | undefined)?.props.columns
-  expect(await head()).toBe(6)
+  expect(await head()).toBe(16)
+  // A band window of 7 rows has no room for the full 8: the mini head.
+  const short = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND, props: { ...BAND.props, maxRows: 7 } })
+  expect(((await short.find({ key: 'swolomon' })) as { props: { columns: number } } | undefined)?.props.columns).toBe(6)
+  await short.unmount()
   await ui.press({ key: 'start' })
-  expect(await head()).toBe(6)
+  expect(await head()).toBe(16)
   await ui.press({ key: 'done' })
   await $.command.run(workout('now'))
   expect(await ui.find({ key: 'done' })).toBeDefined()
@@ -1184,7 +1192,7 @@ test('the logged line: today’s count, and a new best with Swolomon’s line', 
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   expect(drawnRows(await ui.drawn())).toEqual([
     `${COACH_NAME}: ${line('new-best', { day: TODAY })}`,
-    '✓ Logged Push-ups 10 reps · new best · 1 of 2 today   h: High five   0: Undo',
+    '✓ Logged Push-ups 10 reps · new best · 1 of 2 today   1: High five   0: Undo',
   ])
   await ui.unmount()
 })

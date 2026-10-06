@@ -290,6 +290,8 @@ const coach: {
   isAnswering: boolean
   /** The band showing is a shiny one (hooks/shiny.ts): every blit to its portrait recoloured. */
   isShiny: boolean
+  /** A where-am-I toast on its way, so a burst of redraws sends one. */
+  isLookingForRoom: boolean
   /** A timer band waiting for the prompt to empty (the gate's clause (c)). */
   deferred: BandSpec | null
   /** The first-run band was put off for this session (Not now). */
@@ -357,6 +359,7 @@ const coach: {
   unprompted: null,
   isAnswering: false,
   isShiny: false,
+  isLookingForRoom: false,
   deferred: null,
   isIntroDismissed: false,
   isStatusOpen: false,
@@ -939,6 +942,19 @@ async function sawShiny($: EngineInterface) {
   const n = (await load($, 'shinies', 0)) + 1
   await save($, 'shinies', n)
   if (n === 1) $.ui.toast(line('shiny-first', { day: await today($) }))
+}
+
+/** Too narrow for his portrait: "where am I?", once a day. */
+async function lookForRoom($: EngineInterface) {
+  if (coach.isLookingForRoom) return
+  coach.isLookingForRoom = true
+  try {
+    if (!(await isDue($, 'where-am-i', 'day'))) return
+    await markSeen($, 'where-am-i')
+    $.ui.toast(line('where-am-i', { day: await today($) }))
+  } finally {
+    coach.isLookingForRoom = false
+  }
 }
 
 /** Blits cells to the band's portrait, at the size it is drawn; a refused blit is ignored. */
@@ -3229,6 +3245,15 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
         </Box>
       </Box>
     )
+  }
+  // He was wanted, and only the window's width kept him out: he says so, once a day.
+  if (
+    fit === 'none' &&
+    surface === 'terminal' &&
+    'Raster' in elements &&
+    fitPortrait({ wanted: spec.portrait ?? 'none', surface, approved: SPRITE.approved, maxRows: site.maxRows, bodyColumns: Infinity, bandRows: bandRows(spec), textColumns, sprite: SPRITE }) !== 'none'
+  ) {
+    void lookForRoom($)
   }
   if (fit === 'none' || !('Raster' in elements)) return <Box flexDirection="column">{rows}</Box>
 

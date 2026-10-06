@@ -44,7 +44,7 @@ test('a quiet turn: his question, its answers as the buttons; an answer is kept 
   const band = await longTurn($, clock)
   expect(band.keys).toEqual(['a', 'b', 'c', 'pass'])
   expect(band.text).toContain(line('ask-owl', { day: TODAY }))
-  expect(band.text).toContain('1: Morning   2: Night owl   3: Depends   p: Pass')
+  expect(band.text).toContain('1: Morning   2: Night owl   3: Depends   0: Pass')
   await $.command.run(workout('b'))
   expect(store.get('about')).toEqual({ owl: 1 })
   expect(w.toasts.at(-1)).toMatch(/Noted|Writing that|remember/)

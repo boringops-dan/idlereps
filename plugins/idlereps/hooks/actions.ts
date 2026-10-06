@@ -27,15 +27,15 @@ export const ACTIONS: readonly Action[] = [
   { kind: 'program', id: 'quickstart', hotkey: '1', label: 'Quick start', isPrimary: true },
   { kind: 'program', id: 'setup', hotkey: '2', label: 'Build it with me' },
   { kind: 'program', id: 'own', hotkey: '3', label: 'I have my own' },
-  { kind: 'program', id: 'back', hotkey: 'b', label: 'Back' },
-  { kind: 'byoplan', id: 'back', hotkey: 'b', label: 'Back', isPrimary: true },
+  { kind: 'program', id: 'back', hotkey: '0', label: 'Back' },
+  { kind: 'byoplan', id: 'back', hotkey: '1', label: 'Back', isPrimary: true },
 
   // Just remind me: a set of their own, logged by what it worked; or later, or not today.
   { kind: 'remind', id: 'upper', hotkey: '1', label: 'Upper', isPrimary: true },
   { kind: 'remind', id: 'lower', hotkey: '2', label: 'Lower' },
   { kind: 'remind', id: 'cardio', hotkey: '3', label: 'Cardio' },
   { kind: 'remind', id: 'other', hotkey: '4', label: 'Other' },
-  { kind: 'remind', id: 'later', hotkey: 'l', label: 'Later' },
+  { kind: 'remind', id: 'later', hotkey: '5', label: 'Later' },
   { kind: 'remind', id: 'skipday', hotkey: '0', label: 'Not today' },
 
   // Spot me: he is stuck on his last rep.
@@ -50,11 +50,11 @@ export const ACTIONS: readonly Action[] = [
   { kind: 'question', id: 'b', hotkey: '2', label: 'Answer' },
   { kind: 'question', id: 'c', hotkey: '3', label: 'Answer' },
   { kind: 'question', id: 'd', hotkey: '4', label: 'Answer' },
-  { kind: 'question', id: 'pass', hotkey: 'p', label: 'Pass' },
+  { kind: 'question', id: 'pass', hotkey: '0', label: 'Pass' },
 
   // Sitting a long while: stand up with him.
   { kind: 'still', id: 'stood', hotkey: '1', label: 'Stood up', isPrimary: true },
-  { kind: 'still', id: 'later', hotkey: 'l', label: 'Later' },
+  { kind: 'still', id: 'later', hotkey: '2', label: 'Later' },
 
   { kind: 'where', id: 'desk', hotkey: '1', label: 'At a desk', isPrimary: true },
   { kind: 'where', id: 'home', hotkey: '2', label: 'At home, no gear' },
@@ -100,7 +100,7 @@ export const ACTIONS: readonly Action[] = [
   { kind: 'edit', id: 'lighter', hotkey: '4', label: '< weight' },
   { kind: 'edit', id: 'heavier', hotkey: '5', label: 'weight >' },
 
-  { kind: 'logged', id: 'highfive', hotkey: 'h', label: 'High five' },
+  { kind: 'logged', id: 'highfive', hotkey: '1', label: 'High five' },
   { kind: 'logged', id: 'undo', hotkey: '0', label: 'Undo' },
 
   { kind: 'rating', id: 'easy', hotkey: '1', label: 'Easy' },

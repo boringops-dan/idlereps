@@ -146,7 +146,9 @@ export const PORTRAIT_GAP = 2
 /**
  * Which portrait a band draws (§1.11 Fit): only on the terminal, only approved art, never taller than the
  * band may be, and only when the widest text row still fits beside it without wrapping (so no row is ever
- * pushed out of the band's window, buttons included).
+ * pushed out of the band's window, buttons included). Any band with a portrait gets the full one when it
+ * fits (owner, 2026-10-06: "if I have the width space, then I'd like the full Swolomon"); the mini head is
+ * the fallback, not a size a band asks for.
  */
 export function fitPortrait(opts: {
   wanted: Fit
@@ -161,7 +163,7 @@ export function fitPortrait(opts: {
   const { wanted, surface, approved, maxRows, bodyColumns, bandRows, textColumns, sprite } = opts
   if (wanted === 'none' || surface !== 'terminal' || !approved) return 'none'
   const fits = (columns: number, rows: number) => maxRows >= Math.max(rows, bandRows) && bodyColumns >= columns + PORTRAIT_GAP + textColumns
-  if (wanted === 'full' && fits(sprite.width, sprite.height / 2)) return 'full'
+  if (fits(sprite.width, sprite.height / 2)) return 'full'
   if (bandRows >= sprite.miniSize / 2 && fits(sprite.miniSize, sprite.miniSize / 2)) return 'mini'
   return 'none'
 }

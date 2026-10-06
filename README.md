@@ -120,9 +120,9 @@ What each band's numbers do:
 | Band | Buttons |
 |---|---|
 | First run | `1` Quick start (or Keep my plan) · `2` Just remind me · `3` Build my own · `4` Not now |
-| Build my own | `1` Quick start · `2` Build it with me · `3` I have my own · `b` Back |
+| Build my own | `1` Quick start · `2` Build it with me · `3` I have my own · `0` Back |
 | Where do you train? (Quick start) | `1` At a desk · `2` At home, no gear · `3` With weights |
-| Do a set (Just remind me) | `1` Upper · `2` Lower · `3` Cardio · `4` Other · `l` Later · `0` Not today |
+| Do a set (Just remind me) | `1` Upper · `2` Lower · `3` Cardio · `4` Other · `5` Later · `0` Not today |
 | New move unlocked | `1` Nice · `2` Again · `0` Undo |
 | Rest-day stretch | `1` Done · `2` Not now |
 | Ready for a workout? | `1` Start · `2` Later · `3` Not today · `4` Just half |
@@ -196,7 +196,7 @@ pane at night he's asleep), and notices when you open a project he hasn't seen y
 
 **Spot him.** Every few days he's the one stuck on his last rep. `1: You got this!` and he gets it up.
 
-**High five.** After a logged set, press `h`.
+**High five.** After a logged set, press `1`.
 
 **Shiny.** About one band in a hundred, he shows up in gold. Screenshots welcome.
 

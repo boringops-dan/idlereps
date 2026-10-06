@@ -217,6 +217,16 @@ export const LINES = [
   { id: 'dance-locked', voice: 'swolomon', variants: ['Not ready to show you that one yet, {mate}. {n} more sets.'] },
   // High five on a logged set.
   { id: 'high-five', voice: 'swolomon', variants: ['Up top, {mate}!', 'Yes, {mate}! Felt that one in my soul.', 'Clean contact, {mate}. Textbook.', 'Ow. Worth it, {mate}.'] },
+  // A band wanted his portrait, but the band is too narrow for it beside the text (once a day).
+  {
+    id: 'where-am-i',
+    voice: 'swolomon',
+    variants: [
+      "Hey, where am I? This gym's too narrow, {mate}. Widen it and I'm back.",
+      "It's dark in here, {mate}. Push the walls out a bit and I'll show.",
+      "Squeezed out, {mate}. Make the room wider, I don't fit through the door.",
+    ],
+  },
   // The shiny Swolomon (hooks/shiny.ts): the first one ever.
   { id: 'shiny-first', voice: 'swolomon', variants: ["Don't look at me, {mate}. I'm... sparkling. One in a hundred."] },
   // His competitions (hooks/prep.ts): your sets are his prep; he competes between your sessions.
