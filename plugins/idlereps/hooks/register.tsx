@@ -125,7 +125,10 @@ import {
   TICK_MS,
   timelineOf,
   walkGrid,
+  BLINK_MS,
 } from './portrait'
+import { PEEK_AWAKE_MS, peekChangeIn, peekGrid, peekText, PEEK_WIDTH } from './peek'
+import type { PeekPose } from './peek'
 import type { Fit, IdleStep, Pose, PortraitSize, Timeline, Walk } from './portrait'
 import { backupOf, BACKUP_KEYS, backupPathOf, csvPathOf, historyCsv, parseBackup } from './data'
 import { PUSH_NAMES, STARTER_ANSWERS, generateProgram, stretchFor } from './programs'
@@ -174,6 +177,7 @@ const pending = atom({ plugin: 'idlereps', key: 'pending' } as const, [])
 const setup = atom({ plugin: 'idlereps', key: 'setup' } as const, null)
 const statusView = atom({ plugin: 'idlereps', key: 'statusView' } as const, null)
 const talk = atom({ plugin: 'idlereps', key: 'talk' } as const, null)
+const peek = atom({ plugin: 'idlereps', key: 'peek' } as const, null)
 
 const SETUP_PANE = 'workout-setup'
 const STATUS_PANE = 'workout-status'
@@ -237,7 +241,7 @@ function microMoveOf(spec: BandSpec): Move | undefined {
 /** The theme's own colours for each tone, so light and dark themes both read (muted is the dim style). */
 const TONE_COLOUR: Record<Exclude<Tone, 'muted'>, string> = { accent: 'warning', good: 'success', aside: 'suggestion' }
 
-type Owner = 'band' | 'turn' | 'session' | 'pane'
+type Owner = 'band' | 'turn' | 'session' | 'pane' | 'peek'
 
 /** Per-load state; a hot reload starts it over (timers go with the old environment). */
 const coach: {
@@ -297,6 +301,15 @@ const coach: {
   isLookingForRoom: boolean
   /** The set band's own move, for his set beats; undefined on any other band. */
   setMove: string | undefined
+  /** When the pending cue fires; null with none pending. */
+  cueDueAt: number | null
+  /** The peek: where it is drawn, the pose it shows, and whether its loop is running. */
+  peekAt: string | null
+  peekPose: PeekPose
+  isPeeking: boolean
+  /** Until when he stays awake with no turn running; then he dozes, eyes shut, until the next turn. */
+  peekAwakeUntil: number
+  peekTextTimer: Timer | null
   /** A timer band waiting for the prompt to empty (the gate's clause (c)). */
   deferred: BandSpec | null
   /** The first-run band was put off for this session (Not now). */
@@ -334,7 +347,7 @@ const coach: {
   home: '',
   planCache: null,
   brokenKey: null,
-  timers: { band: [], turn: [], session: [], pane: [] },
+  timers: { band: [], turn: [], session: [], pane: [], peek: [] },
   cueTimer: null,
   idleTimer: null,
   midnightTimer: null,
@@ -366,6 +379,12 @@ const coach: {
   isShiny: false,
   isLookingForRoom: false,
   setMove: undefined,
+  cueDueAt: null,
+  peekAt: null,
+  peekPose: 'idle',
+  isPeeking: false,
+  peekAwakeUntil: 0,
+  peekTextTimer: null,
   deferred: null,
   isIntroDismissed: false,
   isStatusOpen: false,
@@ -420,15 +439,127 @@ function cancelTimers(owner: Owner) {
 function stopCue() {
   coach.cueTimer?.cancel()
   coach.cueTimer = null
+  coach.cueDueAt = null
 }
 
 /** Cues after `ms` this turn, unless one is already pending. */
 function scheduleCue($: EngineInterface, ms: number) {
   if (coach.cueTimer !== null) return
-  coach.cueTimer = timer($, 'turn', ms, () => {
+  const made = timer($, 'turn', ms, () => {
     coach.cueTimer = null
+    coach.cueDueAt = null
     void showDueCue($)
   })
+  coach.cueTimer = made
+  // The peek counts down to it.
+  void (async () => {
+    const at = await now($)
+    if (coach.cueTimer !== made) return
+    coach.cueDueAt = at + ms
+    await refreshPeek($)
+  })().catch(() => undefined)
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// The peek (hooks/peek.ts): his eyes above the prompt when nothing else is there.
+
+/** Each peek pose's cells, encoded once per load. */
+const PEEK_CELLS = Object.fromEntries((['idle', 'blink', 'glanceL', 'glanceR', 'lookYou', 'wink', 'smirk'] as const).map(pose => [pose, encodeCells(peekGrid(SPRITE, pose))])) as Record<PeekPose, string>
+
+/** Whether he peeks now: approved art, not Quiet, a plan, not paused, onboarded, and the slot empty. */
+async function peekWanted($: EngineInterface): Promise<boolean> {
+  if (!SPRITE.approved || coach.options.coachChat === 'quiet') return false
+  if ((await read($, band)) !== null) return false
+  if (await load($, 'paused', false)) return false
+  if (await isOnboardingDue($)) return false
+  return (await loadPlan($)) !== null
+}
+
+/** Shows, updates or hides the peek; his eyes move while he is awake, and he dozes off a while after a turn. */
+async function refreshPeek($: EngineInterface) {
+  if (!(await peekWanted($))) {
+    hidePeek()
+    if ((await read($, peek)) !== null) await update($, peek, () => null)
+    return
+  }
+  const at = await now($)
+  const isAwake = coach.isTurnRunning || at < coach.peekAwakeUntil
+  const next = peekText({ isWorking: coach.isTurnRunning, cueDueAt: coach.cueDueAt, now: at, isDozing: !isAwake })
+  const shown = await read($, peek)
+  if (shown?.text !== next.text || shown?.isNear !== next.isNear || shown?.isDozing !== next.isDozing) await update($, peek, () => next)
+  // One timer for the next time the word changes (a minute ticks over, the set comes near, he dozes off).
+  coach.peekTextTimer?.cancel()
+  const wait = peekChangeIn({ isWorking: coach.isTurnRunning, cueDueAt: coach.cueDueAt, now: at, awakeUntil: coach.peekAwakeUntil })
+  coach.peekTextTimer = wait === null ? null : timer($, 'peek', wait, () => void refreshPeek($))
+  if (!isAwake) {
+    coach.isPeeking = false
+    coach.peekPose = 'blink'
+    if (coach.peekAt !== null) void blitPeek($, 'blink')
+    return
+  }
+  if (coach.isPeeking) return
+  coach.isPeeking = true
+  coach.peekPose = 'idle'
+  if (coach.peekAt !== null) void blitPeek($, 'idle')
+  if (coach.options.coachAnimation) peekBeat($, 0)
+}
+
+function hidePeek() {
+  cancelTimers('peek')
+  coach.peekTextTimer = null
+  coach.isPeeking = false
+  coach.peekAt = null
+  coach.peekPose = 'idle'
+}
+
+/** One beat of his eyes: blinks and glances; the next set close, he stares at you between blinks. */
+function peekBeat($: EngineInterface, n: number) {
+  timer($, 'peek', idleWait(n), () =>
+    void (async () => {
+      if (!coach.isPeeking) return
+      const near = (await read($, peek))?.isNear === true
+      const beat = idleBeat(n, 'mini')
+      const steps: { pose: PeekPose; ms: number }[] = near
+        ? [{ pose: 'blink', ms: BLINK_MS }, { pose: 'lookYou', ms: 0 }]
+        : [...beat.steps.flatMap(step => ('pose' in step && step.pose in PEEK_CELLS ? [{ pose: step.pose as PeekPose, ms: step.ms }] : [])), { pose: 'idle' as const, ms: 0 }]
+      let at = 0
+      for (const step of steps) {
+        timer($, 'peek', at, () => {
+          if (coach.isPeeking) void blitPeek($, step.pose)
+        })
+        at += step.ms
+      }
+      timer($, 'peek', at, () => {
+        if (coach.isPeeking) peekBeat($, n + 1)
+      })
+    })(),
+  )
+}
+
+async function blitPeek($: EngineInterface, pose: PeekPose) {
+  coach.peekPose = pose
+  if (coach.peekAt === null) return
+  await $.ui.blit({ requestId: coach.peekAt, key: 'swolomon-eyes', cells: PEEK_CELLS[pose], columns: PEEK_WIDTH, rows: 1 }).catch(() => undefined)
+}
+
+/** The peek drawn above the prompt: his brows and eyes, and the word beside them. Terminal only. */
+async function drawPeek($: EngineInterface, surface: RenderSurface, requestId: string, elements: ElementTable) {
+  if (surface !== 'terminal' || !('Raster' in elements)) return null
+  const shown = await read($, peek)
+  if (shown === null) return null
+  const { Box, Raster, Text } = elements
+  coach.peekAt = requestId
+  return (
+    <Box flexDirection="row">
+      <Raster key="swolomon-eyes" columns={PEEK_WIDTH} rows={1} cells={PEEK_CELLS[shown.isDozing ? 'blink' : shown.isNear && coach.peekPose === 'idle' ? 'lookYou' : coach.peekPose]} />
+      {shown.text === '' ? null : <Box key="peek-gap" width={2} />}
+      {shown.text === '' ? null : (
+        <Text key="peek-text" dimColor>
+          {shown.text}
+        </Text>
+      )}
+    </Box>
+  )
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -536,6 +667,7 @@ async function writePlan($: EngineInterface, plan: Plan) {
   const showing = await read($, band)
   if (showing !== null && showing.kind !== 'logged') await clearBand($)
   await refreshStatus($)
+  await refreshPeek($)
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -570,6 +702,7 @@ async function placeBand($: EngineInterface, given: BandSpec) {
   const placed = await startTalk($, spec)
   await update($, band, () => placed)
   await syncBandPane($)
+  await refreshPeek($)
   if (spec.kind === 'logged') timer($, 'band', LOGGED_MS, () => void expireBand($, spec))
 }
 
@@ -587,6 +720,7 @@ async function replaceBand($: EngineInterface, spec: BandSpec) {
   const placed = await startTalk($, spec)
   await update($, band, () => placed)
   await syncBandPane($)
+  await refreshPeek($)
   if (spec.kind === 'logged') timer($, 'band', LOGGED_MS, () => void expireBand($, placed))
 }
 
@@ -612,7 +746,10 @@ async function clearBand($: EngineInterface) {
   await update($, band, () => null)
   await syncBandPane($)
   const { next, pending: rest } = nextFromPending(await read($, pending))
-  if (next === undefined) return
+  if (next === undefined) {
+    await refreshPeek($)
+    return
+  }
   await update($, pending, () => rest)
   await offerBand($, next, 'timer')
 }
@@ -2824,6 +2961,7 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
     await save($, 'paused', true)
     stopCue()
     await refreshStatus($)
+    await refreshPeek($)
     return line('reply-pause', { day })
   }
   if (arg === 'resume') {
@@ -2831,6 +2969,7 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
     await save($, 'paused', undefined)
     await armIdle($)
     await refreshStatus($)
+    await refreshPeek($)
     return line('reply-resume', { day })
   }
   // Your data (§1.12 item 5): these work with or without a plan.
@@ -3425,6 +3564,8 @@ export const register: Register = (on, options) => {
     await refreshStatus($)
     await armIdle($)
     await armMidnight($)
+    coach.peekAwakeUntil = (await now($)) + PEEK_AWAKE_MS
+    await refreshPeek($)
     return next(e)
   })
 
@@ -3463,6 +3604,7 @@ export const register: Register = (on, options) => {
     if ((coach.turnCanCue || coach.turnCanStretch || coach.turnCanNudge || coach.turnCanRemind || coach.turnCanStill) && (showing === null || showing.kind === 'logged')) {
       scheduleCue($, cueDelayMs(turnWaitMs(isBig), await load<number | undefined>($, 'nextCueAt', undefined), coach.turnStartedAt))
     }
+    await refreshPeek($)
     return next(e)
   })
 
@@ -3525,6 +3667,8 @@ export const register: Register = (on, options) => {
     cancelTimers('turn')
     coach.deferred = null
     await armIdle($)
+    coach.peekAwakeUntil = (await now($)) + PEEK_AWAKE_MS
+    await refreshPeek($)
     return next(e)
   })
 
@@ -3547,7 +3691,8 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e)
     const site = { surface: e.surface, requestId: e.requestId, maxRows: e.props.maxRows, bodyColumns: e.props.bodyColumns, isWorking: e.props.isWorking }
-    return (await drawBand($, site, $.ui.resolve(e))) ?? next(e)
+    const elements = $.ui.resolve(e)
+    return (await drawBand($, site, elements)) ?? (await drawPeek($, e.surface, e.requestId, elements)) ?? next(e)
   })
 
   // Where no attached surface draws the band above the prompt (VS Code), the band is this pane.

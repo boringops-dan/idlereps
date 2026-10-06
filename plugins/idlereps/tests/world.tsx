@@ -50,11 +50,12 @@ export const OPTIONS = { options: { cueEvery: '15', cueAfter: '30', coachAnimati
 /** As OPTIONS, with Swolomon animated: typing, moves, idling, asides. */
 export const ANIMATED = { options: { ...OPTIONS.options, coachAnimation: true } } as const
 
-/** Every blit, with where it went and the columns it was drawn at. */
-export function blitLog(on: On) {
-  const blits: { requestId: string; cells: string; columns: number }[] = []
+/** Every blit (but the peek's eyes, unless `withPeek`), with where it went and the columns it was drawn at. */
+export function blitLog(on: On, opts: { withPeek?: boolean } = {}) {
+  const blits: { requestId: string; key: string; cells: string; columns: number }[] = []
   on('ui.blit', ($, e) => {
-    if ('cells' in e) blits.push({ requestId: e.requestId, cells: e.cells, columns: e.columns ?? 0 })
+    // The peek's eyes (hooks/peek.ts) have their own tests; the rest are about the bands.
+    if ('cells' in e && (opts.withPeek === true || e.key !== 'swolomon-eyes')) blits.push({ requestId: e.requestId, key: e.key, cells: e.cells, columns: e.columns ?? 0 })
     return { value: {} }
   })
   return blits

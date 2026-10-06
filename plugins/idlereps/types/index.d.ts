@@ -329,6 +329,8 @@ declare module 'claude-code' {
       setup: SetupState | null
       statusView: StatusView | null
       talk: Talk | null
+      /** The peek (hooks/peek.ts): his eyes above the prompt when nothing else is there, and its word. */
+      peek: { text: string; isNear: boolean; isDozing: boolean } | null
     }
   }
 }

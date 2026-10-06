@@ -45,11 +45,13 @@ async function finishWorkout($: Engine) {
   }
 }
 
+/** The band's rows; `['no band']` when none of ours is up (the engine's own, or only Swolomon peeking). */
 async function bandRows($: Engine): Promise<string[]> {
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
+  const isPeek = (await ui.find({ key: 'swolomon-eyes' })) !== undefined
   const rows = drawnRows(await ui.drawn())
   await ui.unmount()
-  return rows
+  return isPeek || (rows.length === 1 && rows[0] === 'prompt') ? ['no band'] : rows
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -158,7 +160,7 @@ test('no check-in after the second workout, nor once it was asked', OPTIONS, asy
   await $.session.start(SESSION)
   await finishWorkout($)
   await $.command.run(workout('good'))
-  expect(await bandRows($)).toEqual(['prompt'])
+  expect(await bandRows($)).toEqual(['no band'])
 })
 
 test('asked once ever: a seen check-in never comes back', OPTIONS, async ($, on) => {
@@ -167,7 +169,7 @@ test('asked once ever: a seen check-in never comes back', OPTIONS, async ($, on)
   await $.session.start(SESSION)
   await finishWorkout($)
   await $.command.run(workout('good'))
-  expect(await bandRows($)).toEqual(['prompt'])
+  expect(await bandRows($)).toEqual(['no band'])
 })
 
 for (const [id, answer] of [['love', 'love'], ['fine', 'fine'], ['notforme', 'notforme']] as const) {
@@ -180,7 +182,7 @@ for (const [id, answer] of [['love', 'love'], ['fine', 'fine'], ['notforme', 'no
     await $.command.run(workout(id))
     expect(w.toasts).toContain(line('pulse-thanks', { day: TODAY }))
     // The send never holds up the key: it lands in the background.
-    expect(await bandRows($)).toEqual(['prompt'])
+    expect(await bandRows($)).toEqual(['no band'])
     await $.command.run(workout('status'))
     expect(sent.map(s => s.body)).toEqual([expect.objectContaining({ kind: 'pulse', answer })])
     expect(Object.keys(sent[0]?.body ?? {}).sort()).toEqual(['answer', 'installId', 'kind', 'pluginVersion', 'surface'])
@@ -196,7 +198,7 @@ test('answer 4 sends nothing and says how to say more', OPTIONS, async ($, on) =
   await $.command.run(workout('tellmore'))
   expect(sent).toEqual([])
   expect(w.toasts).toContain(line('pulse-more', { day: TODAY, url: COMMUNITY_URL }))
-  expect(await bandRows($)).toEqual(['prompt'])
+  expect(await bandRows($)).toEqual(['no band'])
 })
 
 test('a failed check-in send is quiet: still hidden, still thanked', OPTIONS, async ($, on) => {
@@ -207,7 +209,7 @@ test('a failed check-in send is quiet: still hidden, still thanked', OPTIONS, as
   await $.command.run(workout('good'))
   await $.command.run(workout('love'))
   expect(w.toasts).toContain(line('pulse-thanks', { day: TODAY }))
-  expect(await bandRows($)).toEqual(['prompt'])
+  expect(await bandRows($)).toEqual(['no band'])
 })
 
 test('a check-in answer with no check-in showing does nothing', OPTIONS, async ($, on) => {
