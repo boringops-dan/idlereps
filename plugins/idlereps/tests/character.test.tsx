@@ -245,7 +245,7 @@ test('the intro draws the full portrait on a wide terminal, and an SVG of it on 
   await desktop.unmount()
 })
 
-test('the ask band and the speaking set band draw the full portrait where it fits; a silent set band none', OPTIONS, async ($, on) => {
+test('the ask band and every set band draw the full portrait where it fits (each set has his line now)', OPTIONS, async ($, on) => {
   const { clock } = world(on, TINY)
   await $.session.start(SESSION)
   await $.turn.start({ text: 'go', turnId: 't1' })
@@ -262,7 +262,7 @@ test('the ask band and the speaking set band draw the full portrait where it fit
   await ui.press({ key: 'done' })
   await $.command.run(workout('now'))
   expect(await ui.find({ key: 'done' })).toBeDefined()
-  expect(await head()).toBeUndefined()
+  expect(await head()).toBe(16)
   await ui.unmount()
 })
 

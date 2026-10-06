@@ -8,7 +8,8 @@ import type { Celebration } from './celebrate'
 import type { BandKind, BandLine, BandPart, BandSpec, Cue, Draft, ExerciseMemory, LongTaskReason, Plan, RatingBasis, Weekday } from '../types'
 import { actionIdsOf } from './actions'
 import { ANSWER_IDS } from './questions'
-import { introLines, line, REASON_LINE, replayLines, SAFETY_SENTENCES, setHeader } from './copy'
+import { introLines, isLineId, line, REASON_LINE, replayLines, SAFETY_SENTENCES, setHeader } from './copy'
+import { moveForExercise } from './moves'
 import type { LineContext, LineId } from './copy'
 import { describeAmount, setSeconds, setsOf, shortWorkoutName, targetOf, timeWords } from './plan'
 import { PUSH_NAMES } from './programs'
@@ -372,6 +373,18 @@ export function firstSetLineId(cue: Cue, plan: Plan, day: number, reason: LongTa
   if (/\b(Legs|Lower)\b/.test(cue.workoutName)) return 'leg-day'
   if ((((day * 7 + 3) % 10) + 10) % 10 === 0) return 'regulars'
   return 'set'
+}
+
+/**
+ * Swolomon's line on every other set band (owner, 2026-10-06): in turn by the set's step, a form cue for its
+ * move (when it has one), a cheer, banter. Stable for a set, varied set to set.
+ */
+export function duringSetLineId(cue: Cue): LineId {
+  const move = moveForExercise(cue.exercise.name)
+  const form = move === null ? undefined : (`form-${move}` as LineId)
+  const turn = cue.step % 3
+  if (turn === 0 && form !== undefined && isLineId(form)) return form
+  return turn === 2 ? 'set-banter' : 'set-cheer'
 }
 
 /** The context the ask-first, pick-up and day-toast lines fill from. */

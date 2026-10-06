@@ -264,14 +264,14 @@ test('every exercise move draws tiny: 8 × 6, his colours, and the poses differ'
   }
 })
 
-/** Today's first set (Swolomon speaks), Done, then the next set (silent). */
+/** Today's first set (Swolomon speaks), Done, then the next set (silent: Quiet, owner 2026-10-06). */
 async function silentSet($: Engine) {
   await $.command.run(workout('start'))
   await $.command.run(workout('done'))
   await $.command.run(workout('now'))
 }
 
-test('a silent set: the tiny Swolomon beside it does the exercise, then holds still', ANIMATED, async ($, on) => {
+test('a silent set (Quiet): the tiny Swolomon beside it does the exercise, then holds still', { options: { ...ANIMATED.options, coachChat: 'quiet' } }, async ($, on) => {
   const { clock } = world(on, TINY)
   const blits = blitLog(on)
   await $.session.start(SESSION)
@@ -303,7 +303,7 @@ test('the set Swolomon speaks on keeps his talking head, not the tiny one', ANIM
   await ui.unmount()
 })
 
-test('not animated: the tiny Swolomon stands in the start position, no blits', OPTIONS, async ($, on) => {
+test('not animated (Quiet): the tiny Swolomon stands in the start position, no blits', { options: { ...OPTIONS.options, coachChat: 'quiet' } }, async ($, on) => {
   const { clock } = world(on, TINY)
   const blits = blitLog(on)
   await $.session.start(SESSION)

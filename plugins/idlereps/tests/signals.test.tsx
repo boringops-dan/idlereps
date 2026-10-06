@@ -163,7 +163,7 @@ test('a sign after the turn ended shows no reason on the next turn', OPTIONS, as
   await ui.unmount()
 })
 
-test('Start after a sign: the first set opens with the reason; the next set is silent', OPTIONS, async ($, on) => {
+test('Start after a sign: the first set opens with the reason; the next set has its own line', OPTIONS, async ($, on) => {
   const { clock } = world(on, TINY)
   await $.session.start(SESSION)
   await $.turn.start({ text: 'go', turnId: 't1' })
@@ -175,7 +175,8 @@ test('Start after a sign: the first set opens with the reason; the next set is s
   await ui.press({ key: 'done' })
   await clock.advance(15 * 60_000)
   expect(await ui.find({ type: 'Text', text: /set 2 of 2/ })).toBeDefined()
-  expect(await speaks(ui)).toBe(false)
+  expect(await speaks(ui)).toBe(true)
+  expect(await ui.find({ type: 'Text', text: line('reason-helpers', { day: TODAY }) })).toBeUndefined()
   await ui.unmount()
   expect(JSON.stringify(await $.command.run(workout('status')))).toMatch(/set 2 of 2/)
 })

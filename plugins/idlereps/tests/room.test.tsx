@@ -78,7 +78,7 @@ test('the desktop draws him as a picture: never a where-am-I', OPTIONS, async ($
   expect(said(w.toasts)).toBe(0)
 })
 
-test('a band with no portrait at all (a silent set) never asks where he is', OPTIONS, async ($, on) => {
+test('a band with no portrait at all (a silent set, Quiet) never asks where he is', { options: { ...OPTIONS.options, coachChat: 'quiet' } }, async ($, on) => {
   const { w } = world(on, TINY, { seen: { hint: { at: 1, n: 3 } } })
   await $.session.start(SESSION)
   await $.command.run(workout('start'))

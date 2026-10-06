@@ -65,6 +65,55 @@ export const LINES = [
     voice: 'swolomon',
     variants: ["Let's eat, {mate}.", '{coach} decrees this set, {mate}. Go.', 'Light work, {mate}. You got this.'],
   },
+  // Every set after the first (owner, 2026-10-06: "while someone is doing a set he should be encouraging
+  // them, watching their form, flexing himself"): a form cue for the set's move, a cheer, or banter.
+  { id: 'form-squat', voice: 'swolomon', variants: ['Chest up, knees out, {mate}. Sit back.', 'Heels down, {mate}. Like sitting on a throne.'] },
+  { id: 'form-push-up', voice: 'swolomon', variants: ['Body like a board, {mate}. Chest down.', 'Elbows tucked, {mate}. Lower slow.'] },
+  { id: 'form-plank', voice: 'swolomon', variants: ['Squeeze everything, {mate}. Be a table.', 'Hips level, {mate}. No sagging.'] },
+  { id: 'form-lunge', voice: 'swolomon', variants: ['Back knee kisses the floor, {mate}.', 'Tall chest, {mate}. Step and drop.'] },
+  { id: 'form-jumping-jacks', voice: 'swolomon', variants: ['Light feet, {mate}. Like a happy star.', 'Arms all the way up, {mate}!'] },
+  { id: 'form-curl', voice: 'swolomon', variants: ['Elbows pinned, {mate}. No swinging.', 'Slow down, {mate}. Squeeze at the top.'] },
+  { id: 'form-press', voice: 'swolomon', variants: ['Ribs down, {mate}. Reach for the sky.', 'Lock it out, {mate}. All the way.'] },
+  { id: 'form-pull-up', voice: 'swolomon', variants: ['Shoulders down, {mate}. Chest to the bar.', 'Hang tall, {mate}. Pull like you mean it.'] },
+  { id: 'form-row', voice: 'swolomon', variants: ['Pull to the hip, {mate}. Squeeze the back.', 'Flat back, {mate}. Elbow to the sky.'] },
+  { id: 'form-deadlift', voice: 'swolomon', variants: ['Hips back, flat back, {mate}.', 'Push the floor away, {mate}.'] },
+  { id: 'form-bridge', voice: 'swolomon', variants: ['Squeeze at the top, {mate}. Hold it.', 'Heels in, hips high, {mate}.'] },
+  { id: 'form-calf-raise', voice: 'swolomon', variants: ['All the way up, {mate}. Tippy toes.', 'Slow down, {mate}. Feel the stretch.'] },
+  { id: 'form-dip', voice: 'swolomon', variants: ['Elbows back, {mate}. Down to ninety.', 'Shoulders away from the ears, {mate}.'] },
+  { id: 'form-burpee', voice: 'swolomon', variants: ['Down, out, in, up, {mate}. Flow.', 'Breathe, {mate}. One at a time.'] },
+  { id: 'form-wall-sit', voice: 'swolomon', variants: ['Thighs flat, {mate}. Back on the wall.', 'Breathe through it, {mate}. Hold.'] },
+  { id: 'form-side-bend', voice: 'swolomon', variants: ['Slide down the side, {mate}. Stay square.', 'Slow and long, {mate}.'] },
+  { id: 'form-band-pull-apart', voice: 'swolomon', variants: ['Squeeze the shoulder blades, {mate}.', 'Arms long, {mate}. Pull it wide.'] },
+  { id: 'form-superman', voice: 'swolomon', variants: ['Lift and hold, {mate}. Fly.', 'Long arms, long legs, {mate}.'] },
+  { id: 'form-march', voice: 'swolomon', variants: ['Knees high, {mate}! March!', 'Pump the arms, {mate}.'] },
+  { id: 'form-stretch', voice: 'swolomon', variants: ['Breathe into it, {mate}. No bouncing.', 'Easy, {mate}. Just a nice long reach.'] },
+  { id: 'form-dead-bug', voice: 'swolomon', variants: ['Low back flat, {mate}. Slow arms.', 'Opposite arm, opposite leg, {mate}.'] },
+  {
+    id: 'set-cheer',
+    voice: 'swolomon',
+    variants: [
+      'Watching you, {mate}. Looking strong.',
+      "That's it, {mate}. Smooth reps.",
+      'Swolomon believes in you, {mate}.',
+      'Every rep counts, {mate}.',
+      'Strong and steady, {mate}.',
+      'You got this one, {mate}.',
+      'Breathe, {mate}. Then go.',
+      'This is the good part, {mate}.',
+    ],
+  },
+  {
+    id: 'set-banter',
+    voice: 'swolomon',
+    variants: [
+      "Swolomon's doing one with you, {mate}.",
+      'Look at those reps, {mate}. Poetry.',
+      'Swolomon flexes in support, {mate}.',
+      'Taking notes, {mate}. Good ones.',
+      'Quick set, {mate}. Then back to it.',
+      'Beat last time, {mate}. Swolomon dares you.',
+    ],
+  },
   {
     id: 'skip',
     voice: 'swolomon',
@@ -606,6 +655,9 @@ export const LINES = [
 export type LineId = (typeof LINES)[number]['id']
 
 const INDEX: ReadonlyMap<string, number> = new Map(LINES.map((entry, i) => [entry.id, i]))
+
+/** Whether a computed id names a line in the registry. */
+export const isLineId = (id: string): id is LineId => INDEX.has(id)
 
 export const entryOf = (id: LineId): LineEntry => LINES[INDEX.get(id) ?? 0] as LineEntry
 

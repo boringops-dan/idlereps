@@ -83,7 +83,9 @@ test('voice: a line that starts while another is still being read is skipped, ne
   // Done reading: the next line, the workout's end, is read.
   await $.command.run(workout('now'))
   await $.command.run(workout('skip'))
-  expect(spoken).toEqual([line('set', { day: TODAY }), line('workout-done', { day: TODAY, workout: 'A' })])
+  // The next set's own line (every set has one now), then the workout's end.
+  expect([spoken[0], spoken.length, spoken.at(-1)]).toEqual([line('set', { day: TODAY }), 3, line('workout-done', { day: TODAY, workout: 'A' })])
+  expect(spoken).not.toContain(line('skip', { day: TODAY }))
 })
 
 test('voice works with the animation off too: the line is still read', SOUND('voice', { coachAnimation: false }), async ($, on) => {

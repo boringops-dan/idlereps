@@ -3,7 +3,7 @@ import type { Engine } from 'claude-code/testing'
 
 import { celebrationById, celebrationFor, CELEBRATIONS, gestureOf, isTooSlow, TOO_SLOW_ODDS } from '../hooks/celebrate'
 import { highFiveOf, loggedBand, pressCelebration } from '../hooks/bands'
-import { line } from '../hooks/copy'
+import { line, plainOf } from '../hooks/copy'
 import { CELEBRATION_MOVES, moveById, moveMs } from '../hooks/moves'
 import { drawFigure } from '../hooks/figure'
 import { ANIMATED, BAND, blitLog, cellsOf, drawnRows, NOON, OPTIONS, ownStore, SESSION, TINY, TODAY, workout, world } from './world'
@@ -61,7 +61,7 @@ test('a set done: Swolomon on the band, his celebration in the line, the button 
   await $.command.run(workout('done'))
   const band = await bandOf($)
   expect(band.hasPortrait).toBe(true)
-  const shown = CELEBRATIONS.find(c => band.buttons.some(b => b.key === 'highfive' && b.label === c.label) && band.rows.some(r => [0, 1].some(v => r === line(c.line, { day: TODAY + v }))))
+  const shown = CELEBRATIONS.find(c => band.buttons.some(b => b.key === 'highfive' && b.label === c.label) && band.rows.some(r => [0, 1].some(v => r === plainOf(line(c.line, { day: TODAY + v })))))
   expect(shown).toBeDefined()
   expect(band.buttons.map(b => b.key)).toEqual(['highfive', 'undo'])
 })

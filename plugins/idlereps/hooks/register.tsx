@@ -12,6 +12,7 @@ import {
   askLineId,
   bandRows,
   cueLineContext,
+  duringSetLineId,
   firstSetLineId,
   editBand,
   flexBand,
@@ -294,6 +295,8 @@ const coach: {
   isShiny: boolean
   /** A where-am-I toast on its way, so a burst of redraws sends one. */
   isLookingForRoom: boolean
+  /** The set band's own move, for his set beats; undefined on any other band. */
+  setMove: string | undefined
   /** A timer band waiting for the prompt to empty (the gate's clause (c)). */
   deferred: BandSpec | null
   /** The first-run band was put off for this session (Not now). */
@@ -362,6 +365,7 @@ const coach: {
   isAnswering: false,
   isShiny: false,
   isLookingForRoom: false,
+  setMove: undefined,
   deferred: null,
   isIntroDismissed: false,
   isStatusOpen: false,
@@ -620,6 +624,7 @@ async function clearBand($: EngineInterface) {
 /** Starts a band's lines typing, when it has lines and animation is on; the band carries the run's key. */
 async function startTalk($: EngineInterface, spec: BandSpec): Promise<BandSpec> {
   coach.isShiny = spec.isShiny === true
+  coach.setMove = spec.kind === 'set' && spec.cue !== undefined ? (moveForExercise(spec.cue.exercise.name) ?? undefined) : undefined
   if (coach.isShiny) await sawShiny($)
   coach.talkTimeline = null
   coach.pose = 'idle'
@@ -870,6 +875,7 @@ function idleWhileShowing($: EngineInterface, key: number, isWin: boolean) {
       coach.moveFrame = size === 'full' ? cells : null
       void blitPortrait($, cells)
     },
+    ...(coach.setMove === undefined ? {} : { setMove: coach.setMove }),
   })
 }
 
@@ -877,7 +883,14 @@ function idleWhileShowing($: EngineInterface, key: number, isWin: boolean) {
  * How an idle loop reads its portrait: its size as drawn now (none while a redraw has no room for it), whether
  * it is still wanted, and how to blit to it.
  */
-type IdleOptions = { size: () => PortraitSize | undefined; isWin: boolean; alive: () => boolean; blit: (cells: string, size: PortraitSize) => void }
+type IdleOptions = {
+  size: () => PortraitSize | undefined
+  isWin: boolean
+  alive: () => boolean
+  blit: (cells: string, size: PortraitSize) => void
+  /** On a set band: the set's own move, which he does with you between watching you (set beats). */
+  setMove?: string
+}
 
 /**
  * Idle beats, each after its wait, for as long as the loop is alive: the frames a beat resolves to, each
@@ -896,8 +909,13 @@ function idleLoop($: EngineInterface, owner: 'band' | 'pane', opts: IdleOptions)
           beat(n + 1)
           return
         }
-        moves ??= opts.isWin ? [] : collected(await load<string[]>($, 'moves', [])).filter(move => move.family !== 'flex').map(move => move.id)
-        const { steps, rest } = idleBeat(n, size, opts.isWin, size === 'full' ? moves : [])
+        moves ??= opts.isWin
+          ? []
+          : opts.setMove !== undefined
+            ? // On a set: the set's move twice as often as a flex he has.
+              [opts.setMove, opts.setMove, ...collected(await load<string[]>($, 'moves', [])).filter(move => move.family === 'flex').map(move => move.id)]
+            : collected(await load<string[]>($, 'moves', [])).filter(move => move.family !== 'flex').map(move => move.id)
+        const { steps, rest } = idleBeat(n, size, opts.isWin, size === 'full' ? moves : [], opts.setMove === undefined ? 'band' : 'set')
         let at = 0
         for (const frame of [...steps.flatMap(step => idleFrames(step, size)), { cells: FRAMES[frameFor(size, rest)], ms: 0 }]) {
           timer($, owner, at, () => {
@@ -1054,12 +1072,17 @@ async function setBandFor($: EngineInterface, cue: Cue, coachText: string | unde
   const day = await today($)
   const showHint = await isDue($, 'hint', { count: 3 })
   if (showHint) await markSeen($, 'hint')
-  return setBand(cue, {
-    ...(coachText === undefined ? {} : { coach: coachText }),
+  // He is on every set (owner, 2026-10-06): a form cue, a cheer or banter when no other line leads. Not Quiet.
+  const said = coachText ?? (coach.options.coachChat === 'quiet' ? undefined : line(duringSetLineId(cue), { day: day + cue.step }))
+  const spec = setBand(cue, {
+    ...(said === undefined ? {} : { coach: said }),
     ...(memory === undefined ? {} : { memory }),
     showHint,
     hint: line('hint', { day }),
   })
+  // Once his line is out, he shows the set's exercise in the full portrait, then lives in it.
+  const demo = moveForExercise(cue.exercise.name)
+  return said === undefined || demo === null ? spec : { ...spec, act: demo }
 }
 
 /** A cue's timer went off: the next set when today's workout was agreed to, else the question. */

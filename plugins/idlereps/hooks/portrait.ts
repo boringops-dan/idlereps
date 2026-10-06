@@ -291,6 +291,23 @@ const BEATS: readonly BeatDef[] = [
   { weight: 3, isFullOnly: true },
 ]
 
+/**
+ * While you do a set (owner, 2026-10-06: "encouraging them, watching their form, flexing himself"): mostly
+ * watching you, approving, and doing the set with you or flexing; blinking throughout.
+ */
+const SET_BEATS: readonly BeatDef[] = [
+  { weight: 4, steps: [{ pose: 'blink', ms: BLINK_MS }] },
+  { weight: 1, steps: [{ pose: 'blink', ms: BLINK_MS }, { pose: 'idle', ms: 120 }, { pose: 'blink', ms: BLINK_MS }] },
+  { weight: 1, steps: [{ pose: 'glanceL', ms: 600 }] },
+  { weight: 1, steps: [{ pose: 'glanceR', ms: 600 }] },
+  // Watching your form, then approving of it.
+  { weight: 4, steps: [{ pose: 'lookYou', ms: 1600 }], isFullOnly: true },
+  { weight: 3, steps: [{ pose: 'lookYou', ms: 900 }, { pose: 'smirk', ms: 900 }], isFullOnly: true },
+  { weight: 2, steps: [{ pose: 'lookYou', ms: 1000 }, { pose: 'wink', ms: 350 }], isFullOnly: true },
+  // Doing it with you, or flexing at you.
+  { weight: 6, isFullOnly: true },
+]
+
 /** The shortest and longest wait before a beat. */
 export const IDLE_WAIT_MS = { min: 2500, max: 5500 } as const
 
@@ -304,10 +321,10 @@ export const idleWait = (n: number, isWin = false): number =>
  * The n-th idle beat: the same for the same n (tests and replays), varied from one to the next. `moves` are
  * the moves he may do between lines (none: no move beats); a win only twinkles.
  */
-export function idleBeat(n: number, size: PortraitSize, isWin = false, moves: readonly string[] = []): IdleBeat {
-  const wait = idleWait(n, isWin)
+export function idleBeat(n: number, size: PortraitSize, isWin = false, moves: readonly string[] = [], mode: 'band' | 'set' = 'band'): IdleBeat {
+  const wait = mode === 'set' ? Math.round(idleWait(n) * 0.6) : idleWait(n, isWin)
   if (isWin) return { wait, steps: TWINKLE, rest: 'flex' }
-  const pool = BEATS.filter(beat => (size === 'full' || beat.isFullOnly !== true) && (beat.steps !== undefined || moves.length > 0))
+  const pool = (mode === 'set' ? SET_BEATS : BEATS).filter(beat => (size === 'full' || beat.isFullOnly !== true) && (beat.steps !== undefined || moves.length > 0))
   const total = pool.reduce((sum, beat) => sum + beat.weight, 0)
   let pick = hash(n * 2) * total
   const beat = pool.find(b => (pick -= b.weight) < 0) ?? pool[0]!

@@ -315,11 +315,12 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(['logged, first ever', await rows()]).toEqual(['logged, first ever', surface === 'terminal' ? 3 : 4])
     // A later set is silent; no form note after the first set; the hint still shows (bands 2 and 3).
     await $.command.run(workout('now'))
-    expect(['set silent', await rows()]).toEqual(['set silent', 5])
+    // Later sets have his line too now (owner, 2026-10-06): one row more.
+    expect(['set, later', await rows()]).toEqual(['set, later', 6])
     await ui.press({ key: 'skip' })
     expect(['logged after a skip', await rows()]).toEqual(['logged after a skip', 2])
     await $.command.run(workout('now'))
-    expect(['set silent', await rows()]).toEqual(['set silent', 5])
+    expect(['set, later', await rows()]).toEqual(['set, later', 6])
     await ui.press({ key: 'done' })
     // The plan's one week-8 workout: finishing it crosses the week's finish line, a tall band (§1.10b).
     expect(['rating, week done', (await rows()) <= 8]).toEqual(['rating, week done', true])
@@ -327,7 +328,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
   })
 }
 
-test('a silent set band without the note or hint is 4 rows, the blank above its buttons', OPTIONS, async ($, on) => {
+test('a silent set band (Quiet) without the note or hint is 4 rows, the blank above its buttons', { options: { ...OPTIONS.options, coachChat: 'quiet' } }, async ($, on) => {
   world(on, TINY, { seen: { hint: { at: 1, n: 3 } } })
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
@@ -364,13 +365,14 @@ test('/workout now on a day not yet started counts as Start and speaks', OPTIONS
   await ui.unmount()
 })
 
-test('/workout now after today was started is silent', OPTIONS, async ($, on) => {
+test('/workout now after today was started: his set line, not the Start line; Quiet: silent', OPTIONS, async ($, on) => {
   world(on, TINY, { startedOn: TODAY })
   await $.session.start(SESSION)
   await $.command.run(workout('now'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   expect(await ui.find({ key: 'done' })).toBeDefined()
-  expect(await coachRow(ui)).toBe(false)
+  expect(await coachRow(ui)).toBe(true)
+  expect(await ui.find({ type: 'Text', text: line('set', { day: TODAY }) })).toBeUndefined()
   await ui.unmount()
 })
 
@@ -383,7 +385,7 @@ test('a set started yesterday is a new Start today and speaks again', OPTIONS, a
   await ui.unmount()
 })
 
-test('the set Undo brings back is silent, and so is /workout today mid-workout', OPTIONS, async ($, on) => {
+test('the set Undo brings back is silent in Quiet, and so is /workout today mid-workout', { options: { ...OPTIONS.options, coachChat: 'quiet' } }, async ($, on) => {
   world(on, { ...TINY, workouts: [{ name: 'A', exercises: [{ name: 'Push-ups', reps: '10 reps', sets: 3 }] }] })
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
