@@ -6,7 +6,7 @@ import { flexBand } from '../hooks/bands'
 import { drawMove, moveById, moveForExercise, moveMs, MOVES, poseAt } from '../hooks/moves'
 import { collected, STARTER_MOVES, UNLOCK_ORDER } from '../hooks/collection'
 import { drawMicro, MICRO_HEIGHT, MICRO_WIDTH } from '../hooks/figure'
-import { encodeCells, encodeMicro, encodeMove, encodeSprite, idleBeat, walkGrid } from '../hooks/portrait'
+import { breathedIn, encodeCells, encodeMicro, encodeMove, encodeSprite, idleBeat, walkGrid } from '../hooks/portrait'
 import { DESK_STRETCHES, generateProgram, LIBRARY } from '../hooks/programs'
 import { SPRITE } from '../hooks/swolomon-sprite'
 import { ANIMATED, BAND, blitLog, cellsOf, drawnRows, OPTIONS, SESSION, STATUS, TINY, TODAY, workout, world } from './world'
@@ -132,7 +132,8 @@ test('/workout flex: once the line is out he does the reel’s move, then holds 
   await clock.advance(30_000)
   const after = blits.slice(settled).map(b => b.cells)
   expect(after.length).toBeGreaterThan(0)
-  expect(after.every(c => c === FRAMES.flex || c === FRAMES.flexB)).toBe(true)
+  // His breath too: the flex a pixel up and back.
+  expect(after.every(c => c === FRAMES.flex || c === FRAMES.flexB || c === breathedIn(FRAMES.flex, SPRITE.width))).toBe(true)
   expect(after).toContain(FRAMES.flexB)
   await ui.unmount()
 })
@@ -200,7 +201,7 @@ test('the status pane: a moment after it opens, he demonstrates the next set’s
   expect(idling.length).toBeGreaterThan(0)
   const walks = Array.from({ length: 400 }, (_, n) => idleBeat(n, 'full')).flatMap(beat => beat.steps.flatMap(step => ('walk' in step ? [encodeCells(walkGrid(SPRITE, step.walk))] : [])))
   const moves = MOVES.filter(move => move.family !== 'flex').flatMap(move => cellsOf(move.id))
-  const own = new Set([...Object.values(FRAMES), ...walks, ...moves])
+  const own = new Set([...Object.values(FRAMES), ...walks, ...moves, breathedIn(FRAMES.idle, SPRITE.width)])
   expect(idling.every(c => own.has(c))).toBe(true)
   expect(idling.some(c => !Object.values(FRAMES).includes(c))).toBe(true)
   await pane.press({ key: 'close' })

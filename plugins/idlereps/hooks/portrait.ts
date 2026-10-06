@@ -100,6 +100,36 @@ function fromBase64(text: string): Uint8Array {
   return bytes
 }
 
+/** Encoded cells back to their pixels, `columns` wide: the inverse of `encodeCells`. */
+export function decodeCells(cells: string, columns: number): Grid {
+  const bytes = fromBase64(cells)
+  const view = new DataView(bytes.buffer)
+  const count = Math.floor(bytes.length / 12)
+  const grid: Grid = []
+  for (let i = 0; i < count; i += 1) {
+    const x = i % columns
+    const y = Math.floor(i / columns) * 2
+    const glyph = view.getUint32(i * 12, true)
+    const fg = view.getUint32(i * 12 + 4, true)
+    const bg = view.getUint32(i * 12 + 8, true)
+    grid[y] ??= []
+    grid[y + 1] ??= []
+    const colour = (c: number) => (c === DEFAULT_COLOUR ? null : c)
+    grid[y]![x] = glyph === UPPER_HALF ? colour(fg) : null
+    grid[y + 1]![x] = glyph === UPPER_HALF ? colour(bg) : glyph === LOWER_HALF ? colour(fg) : null
+  }
+  return grid
+}
+
+/** Cells of him a pixel up, his breath in: the top row off, a clear row under. Pure, cached by the caller. */
+export function breathedIn(cells: string, columns: number): string {
+  const grid = decodeCells(cells, columns)
+  return encodeCells([...grid.slice(1), new Array<number | null>(columns).fill(null)])
+}
+
+/** The breath's half: in for this long, out for this long (the desktop film's too). */
+export const BREATH_HALF_MS = 1200
+
 /** Encoded cells with their colours swapped by `map` (a colour it does not name stays): the shiny Swolomon. */
 export function recolour(cells: string, map: ReadonlyMap<number, number>): string {
   const bytes = fromBase64(cells)

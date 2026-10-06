@@ -8,6 +8,7 @@ import { START, cueFor } from '../hooks/plan'
 import {
   decodeFrame,
   encodeCells,
+  breathedIn,
   encodeSprite,
   ENTRANCE_MS,
   entranceAt,
@@ -429,7 +430,10 @@ test('animated: a win twinkles only at full size; squeezed, it waits, and twinkl
   const squeezed = await mountAt($, 84)
   const paused = blits.length
   await clock.advance(30_000)
-  expect(blits.slice(paused).every(b => b.columns === SPRITE.width)).toBe(true)
+  // Squeezed, no twinkle: only his breathing at the head's size.
+  const miniIdle = encodeSprite(SPRITE).miniIdle
+  const miniBreath = new Set([miniIdle, breathedIn(miniIdle, SPRITE.miniSize)])
+  expect(blits.slice(paused).every(b => b.columns === SPRITE.width || miniBreath.has(b.cells))).toBe(true)
   await squeezed.unmount()
   const again = await mountAt($, 100)
   const before = blits.length

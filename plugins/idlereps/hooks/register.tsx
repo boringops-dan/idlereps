@@ -126,6 +126,8 @@ import {
   timelineOf,
   walkGrid,
   BLINK_MS,
+  BREATH_HALF_MS,
+  breathedIn,
 } from './portrait'
 import { bandFilmSvg } from './film'
 import { PEEK_AWAKE_MS, peekChangeIn, peekGrid, PEEK_POSES, peekText, PEEK_WIDTH } from './peek'
@@ -302,6 +304,11 @@ const coach: {
   isLookingForRoom: boolean
   /** The set band's own move, for his set beats; undefined on any other band. */
   setMove: string | undefined
+  /** The band portrait's cells as last drawn (before the breath), and whether his breath is in. */
+  portraitCells: { cells: string; size: PortraitSize } | null
+  isBreathIn: boolean
+  /** The status pane's breath. */
+  isPaneBreathIn: boolean
   /** When the pending cue fires; null with none pending. */
   cueDueAt: number | null
   /** The peek: where it is drawn, the pose it shows, and whether its loop is running. */
@@ -384,6 +391,9 @@ const coach: {
   isShiny: false,
   isLookingForRoom: false,
   setMove: undefined,
+  portraitCells: null,
+  isBreathIn: false,
+  isPaneBreathIn: false,
   cueDueAt: null,
   peekAt: null,
   peekCells: null,
@@ -764,6 +774,8 @@ async function clearBand($: EngineInterface) {
 /** Starts a band's lines typing, when it has lines and animation is on; the band carries the run's key. */
 async function startTalk($: EngineInterface, spec: BandSpec): Promise<BandSpec> {
   coach.isShiny = spec.isShiny === true
+  coach.isBreathIn = false
+  coach.portraitCells = null
   coach.setMove = spec.kind === 'set' ? spec.act : undefined
   if (coach.isShiny) await sawShiny($)
   coach.talkTimeline = null
@@ -841,6 +853,13 @@ async function tick($: EngineInterface, key: number, isWin: boolean, stop: () =>
     const shown = await read($, band)
     if (shown?.talkKey !== key) return
     if (hasAsides(shown)) void asidesWhileShowing($, key)
+    breathe($, 'band', () => coach.talkSeq === key, isIn => {
+      coach.isBreathIn = isIn
+      const size = coach.portrait?.size
+      if (size === undefined) return
+      const last = coach.portraitCells
+      void blitPortrait($, last !== null && last.size === size ? last.cells : FRAMES[frameFor(size, isWin ? 'flex' : 'idle')])
+    })
     const move = coach.talkMove === undefined ? undefined : moveById(coach.talkMove)
     if (move !== undefined && coach.portrait?.size === 'full') await playMove($, move, key, isWin)
     else if (shown.portrait !== undefined) idleWhileShowing($, key, isWin)
@@ -927,7 +946,8 @@ async function blitMicro($: EngineInterface, requestId: string, cells: string | 
 /** Blits full-portrait cells to a drawn Raster; a refused blit (it moved on) is ignored. */
 async function blitFull($: EngineInterface, requestId: string, cells: string | null) {
   if (cells === null) return
-  await $.ui.blit({ requestId, key: 'swolomon', cells, columns: SPRITE.width, rows: PORTRAIT_ROWS }).catch(() => undefined)
+  const breathing = requestId === coach.panePortrait && coach.isPaneBreathIn ? breathOf(cells) : cells
+  await $.ui.blit({ requestId, key: 'swolomon', cells: breathing, columns: SPRITE.width, rows: PORTRAIT_ROWS }).catch(() => undefined)
 }
 
 /** Repaints the portrait in a pose, where one is drawn; a refused blit (the band moved on) is ignored. */
@@ -1137,13 +1157,36 @@ async function filmFor($: EngineInterface, opts: { size: PortraitSize; isWin: bo
   return made
 }
 
-/** Blits cells to the band's portrait, at the size it is drawn; a refused blit is ignored. */
+/** Blits cells to the band's portrait, at the size it is drawn, as he breathes; a refused blit is ignored. */
 async function blitPortrait($: EngineInterface, cells: string) {
   const portrait = coach.portrait
   if (portrait === null) return
-  if (coach.isShiny) cells = shinyOf(cells)
+  coach.portraitCells = { cells, size: portrait.size }
   const { columns, rows } = portraitCells(SPRITE, portrait.size)
-  await $.ui.blit({ requestId: portrait.requestId, key: 'swolomon', cells, columns, rows }).catch(() => undefined)
+  const breathing = coach.isBreathIn ? breathOf(cells) : cells
+  await $.ui.blit({ requestId: portrait.requestId, key: 'swolomon', cells: coach.isShiny ? shinyOf(breathing) : breathing, columns, rows }).catch(() => undefined)
+}
+
+/** His rest frames, a pixel up: he breathes while he stands at rest (a move or a blink plays as drawn). */
+const BREATHS: ReadonlyMap<string, string> = new Map(
+  (['idle', 'flex', 'miniIdle'] as const).map(name => [FRAMES[name], breathedIn(FRAMES[name], name === 'miniIdle' ? SPRITE.miniSize : SPRITE.width)]),
+)
+const breathOf = (cells: string): string => BREATHS.get(cells) ?? cells
+
+/**
+ * His breathing (owner, 2026-10-06: "he's ALWAYS gotta have life"): while `alive`, every BREATH_HALF_MS he
+ * draws breath in or out, and what he shows is drawn again a pixel up or back, whatever he is doing.
+ */
+function breathe($: EngineInterface, owner: Owner, alive: () => boolean, redraw: (isIn: boolean) => void) {
+  let isIn = false
+  ticker($, owner, BREATH_HALF_MS, stop => {
+    if (!alive()) {
+      stop()
+      return
+    }
+    isIn = !isIn
+    redraw(isIn)
+  })
 }
 
 async function expireBand($: EngineInterface, spec: BandSpec) {
@@ -3150,6 +3193,10 @@ function playPaneMove($: EngineInterface, move: Move | undefined) {
 
 /** The pane's Swolomon lives in his square too, once his move is done, while the pane is open. */
 function idlePane($: EngineInterface) {
+  breathe($, 'pane', () => coach.isStatusOpen, isIn => {
+    coach.isPaneBreathIn = isIn
+    if (coach.panePortrait !== null) void blitFull($, coach.panePortrait, coach.paneFrame ?? FRAMES.idle)
+  })
   idleLoop($, 'pane', {
     size: () => (coach.panePortrait === null ? undefined : 'full'),
     isWin: false,

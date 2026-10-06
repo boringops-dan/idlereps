@@ -7,7 +7,7 @@
 
 import { drawFigure } from './figure'
 import { moveById } from './moves'
-import { decodeFrame, decodeRows, frameFor, idleBeat, rectsOf } from './portrait'
+import { BREATH_HALF_MS, decodeFrame, decodeRows, frameFor, idleBeat, rectsOf } from './portrait'
 import type { Grid, Pose, PortraitSize } from './portrait'
 import type { Sprite } from './swolomon-sprite'
 
@@ -26,8 +26,8 @@ const FILM_WAIT = 0.5
 /** Every this many beats, one of his moves (when he has any), so a loop is never only blinking. */
 const FILM_MOVE_EVERY = 3
 
-/** His breathing: a pixel up and back, all the time, under everything else. */
-const BREATH_MS = 2400
+/** His breathing: a pixel up and back, all the time, under everything else (the terminal's pace). */
+const BREATH_MS = BREATH_HALF_MS * 2
 
 /** A move's poses as grids, played through its beats and reps. */
 function moveShots(sprite: Sprite, id: string): Shot[] {
