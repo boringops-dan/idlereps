@@ -196,11 +196,19 @@ pane at night he's asleep), and notices when you open a project he hasn't seen y
 
 **Spot him.** Every few days he's the one stuck on his last rep. `1: You got this!` and he gets it up.
 
-**High five.** After a logged set, press `1`.
+**Every set, celebrated.** After each set he holds something out for `1`: a high five, low five, side
+five, gimme ten, gimme seven, a fist bump, an elbow or chest bump, an air five, a head pat, the secret
+handshake, a pinky swear. Or he just goes for it: confetti, a slow clap, a mic drop, raising the roof,
+fireworks. Be ready: now and then you're too slow.
 
 **Shiny.** About one band in a hundred, he shows up in gold. Screenshots welcome.
 
-**Beside every set**, a tiny Swolomon does the exercise with you, a few reps, then holds still.
+**On every set** he's coaching: a form cue, a cheer or some banter, then he does the exercise with you,
+watches your form and flexes while you go. (On Quiet, a tiny Swolomon does a few reps beside the set.)
+
+**Between sets**, with nothing else up, his eyes peek over the prompt: blinking, glancing, counting down
+to your next set and staring right at you when it's close. A couple of minutes after your agent stops, he
+dozes off until it starts again.
 
 **What your agent is up to.** Swolomon has never heard of coding, so he reads everything your agent does
 as gym talk. A push is push-ups, a curl is curls, a build is building muscle, and tests are a fitness
