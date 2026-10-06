@@ -68,8 +68,8 @@ test('only the first sign of a turn moves the cue', OPTIONS, async ($, on) => {
   await $.tool.call({ tool: 'Agent', description: 'x', prompt: 'y', subagent_type: 'Explore' } as never)
   await clock.advance(2_000)
   expect(await ui.find({ key: 'start' })).toBeDefined()
-  // The reason is the first sign's.
-  expect(await ui.find({ type: 'Text', text: line('reason-long-run', { day: TODAY }) })).toBeDefined()
+  // The reason is the first sign's, with how long its command usually runs.
+  expect(await ui.find({ type: 'Text', text: line('reason-long-run-timed', { day: TODAY, wait: 'about a minute' }) })).toBeDefined()
   await ui.unmount()
 })
 
@@ -142,8 +142,8 @@ test('with no sign the ask band opens with the usual line, and a sign band with 
   await clock.advance(30_000)
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   expect(await ui.find({ key: 'start' })).toBeDefined()
-  for (const id of ['reason-helpers', 'reason-long-run', 'reason-slow-step', 'reason-busy', 'reason-big-ask'] as const) {
-    expect(await ui.find({ type: 'Text', text: line(id, { day: TODAY }) })).toBeUndefined()
+  for (const id of ['reason-helpers', 'reason-long-run', 'reason-long-run-timed', 'reason-slow-step', 'reason-busy', 'reason-big-ask'] as const) {
+    expect(await ui.find({ type: 'Text', text: line(id, { day: TODAY, wait: 'about a minute' }) })).toBeUndefined()
   }
   expect(await speaks(ui)).toBe(true)
   await ui.unmount()
@@ -160,6 +160,7 @@ test('a sign after the turn ended shows no reason on the next turn', OPTIONS, as
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   expect(await ui.find({ key: 'start' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: line('reason-long-run', { day: TODAY }) })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: line('reason-long-run-timed', { day: TODAY, wait: 'about a minute' }) })).toBeUndefined()
   await ui.unmount()
 })
 

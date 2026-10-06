@@ -29,6 +29,8 @@ export type WaitFacts = {
   recent: readonly number[]
   /** How long this turn has run. */
   elapsedMs: number
+  /** What the slowest call still running is expected to take yet (hooks/durations.ts): the turn lasts at least that. */
+  callWaitMs?: number
 }
 
 /** The recent turns to keep, with one more. */
@@ -43,12 +45,13 @@ const median = (xs: readonly number[]) => {
 
 /** How much longer the agent is likely to be away, ms; null when there is nothing to go on. */
 export function expectedWaitMs(facts: WaitFacts): number | null {
-  if (facts.signWaitMs !== undefined) return facts.signWaitMs
+  if (facts.signWaitMs !== undefined) return Math.max(facts.signWaitMs, facts.callWaitMs ?? 0)
   const counted = facts.recent.filter(ms => ms >= TURN_COUNTS_MS)
   // A turn that has outrun the usual is likely longer still: at least another minute.
   const usual = counted.length >= ENOUGH_TURNS ? Math.max(60_000, median(counted) - facts.elapsedMs) : null
-  if (facts.reason !== undefined && LONG_REASONS.has(facts.reason)) return Math.max(LONG_MS, usual ?? 0)
-  return usual
+  const guess = facts.reason !== undefined && LONG_REASONS.has(facts.reason) ? Math.max(LONG_MS, usual ?? 0) : usual
+  // A call still running sets the least it can be.
+  return facts.callWaitMs === undefined ? guess : Math.max(guess ?? 0, facts.callWaitMs)
 }
 
 /** What fits a wait: unknown is a set, as before. */

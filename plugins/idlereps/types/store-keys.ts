@@ -45,6 +45,7 @@ export const STORE_KEYS = [
   { key: 'spots', shape: 'times they spotted Swolomon through his last rep', inBackup: true },
   { key: 'punchCard', shape: 'PunchCard: the days stamped and the shakes earned (hooks/punch.ts)', inBackup: true },
   { key: 'gyms', shape: 'project folder names Swolomon has seen them in: a new one is a new gym', cap: 50, inBackup: false },
+  { key: 'callTimes', shape: 'CallTimes: how long each kind of call took here, learned (hooks/durations.ts)', cap: 200, inBackup: false },
   { key: 'attention', shape: 'Attention: his bands answered or ignored lately, and the extras spent today (hooks/attention.ts)', cap: 20, inBackup: false },
 ] as const satisfies readonly StoreKeyInfo[]
 

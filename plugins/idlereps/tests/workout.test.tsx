@@ -702,7 +702,7 @@ test('a test run mid-turn brings the question forward to 5 s, opening with why',
   expect(await ui.find({ key: 'start' })).toBeUndefined()
   await clock.advance(1_000)
   expect(await ui.find({ key: 'start' })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: reasonLine('reason-long-run') })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: line('reason-long-run-timed', { day: TODAY, wait: 'about a minute' }) })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: 'First up: Push-ups, 10 reps · about 45 s.' })).toBeDefined()
   await ui.unmount()
 })

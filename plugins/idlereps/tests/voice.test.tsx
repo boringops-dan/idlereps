@@ -495,7 +495,7 @@ test('ask-first slot: a sign’s reason, else pick up, else ask first', OPTIONS,
   await $.turn.start({ text: 'go', turnId: 't2' })
   await $.tool.call({ tool: 'Bash', command: 'npm test' })
   await clock.advance(5_000)
-  expect(await ui.find({ type: 'Text', text: line('reason-long-run', { day: TODAY }) })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: line('reason-long-run-timed', { day: TODAY, wait: 'about a minute' }) })).toBeDefined()
   await ui.unmount()
 })
 

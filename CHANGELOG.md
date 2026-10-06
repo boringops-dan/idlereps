@@ -12,6 +12,7 @@ update shows these lines once. **Under the hood** is everything else.
 - Meet Swolomon, your coach: every set counts toward your next rank.
 - Every set celebrated: high fives, low fives, gimme ten, confetti, and more. Don't be too slow.
 - He coaches every set, does it with you, and peeks over the prompt between sets.
+- He learns how long your project's commands take, and asks early when one will run long.
 
 ### Under the hood
 

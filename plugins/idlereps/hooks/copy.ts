@@ -183,6 +183,12 @@ export const LINES = [
     ],
   },
   {
+    // A command known (or learned) to run long: how long, said.
+    id: 'reason-long-run-timed',
+    voice: 'swolomon',
+    variants: ["Heavy set for your agent, {mate}: {wait}. One for you?", "Your agent's under the bar {wait}, {mate}. You too?"],
+  },
+  {
     id: 'reason-slow-step',
     voice: 'swolomon',
     variants: ["Your agent's grinding a long rep, {mate}. Your window's open."],

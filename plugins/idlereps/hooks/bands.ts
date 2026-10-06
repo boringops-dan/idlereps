@@ -354,10 +354,11 @@ export function askBand(cue: Cue, coachLine: string, day: number, reason: LongTa
 
 /**
  * Which line opens the ask band (§1.10c): the sign's reason (saying the wait when the agent said how long
- * it will be away), else pick up, else ask first.
+ * it will be away, or how long its command runs), else pick up, else ask first.
  */
 export function askLineId(cue: Cue, reason: LongTaskReason | undefined, waitMs?: number): LineId {
   if (reason === 'waiting' && waitMs !== undefined) return 'reason-napping'
+  if (reason === 'long-run' && waitMs !== undefined) return 'reason-long-run-timed'
   if (reason !== undefined) return REASON_LINE[reason]
   return cue.step > 1 ? ('pick-up' as const) : ('ask-first' as const)
 }

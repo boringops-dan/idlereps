@@ -4,6 +4,7 @@
  */
 
 import type { LongTaskReason } from '../types'
+import { LONG_CALL_MS } from './durations'
 
 export type { LongTaskReason }
 
@@ -66,8 +67,11 @@ export function factsOf(tool: string, input: Record<string, unknown>, tasksThisT
   return facts
 }
 
-/** The strong sign a tool call gives, if any. `callsThisTurn` includes this call. */
-export function toolSign(facts: ToolFacts, callsThisTurn: number): Sign | null {
+/**
+ * The strong sign a tool call gives, if any. `callsThisTurn` includes this call. `expectedMs`, what the call
+ * is expected to take (hooks/durations.ts), settles a command: long when it is, whatever its family.
+ */
+export function toolSign(facts: ToolFacts, callsThisTurn: number, expectedMs?: number): Sign | null {
   const { tool } = facts
   if (HELPER_TOOLS.has(tool)) return { reason: 'helpers' }
   // The agent said how long it will be away: the only exact wait there is.
@@ -75,7 +79,8 @@ export function toolSign(facts: ToolFacts, callsThisTurn: number): Sign | null {
     return { reason: 'waiting', waitMs: Math.min(3600, Math.max(60, facts.delaySeconds)) * 1000 }
   }
   if (tool === 'Monitor') return { reason: 'waiting' }
-  if (tool === 'Bash' && facts.command !== undefined && LONG_COMMAND.test(facts.command)) return { reason: 'long-run' }
+  if (tool === 'Bash' && expectedMs !== undefined && expectedMs >= LONG_CALL_MS) return { reason: 'long-run', waitMs: expectedMs }
+  if (tool === 'Bash' && expectedMs === undefined && facts.command !== undefined && LONG_COMMAND.test(facts.command)) return { reason: 'long-run' }
   if (tool === 'Bash' && (facts.timeoutMs ?? 0) >= LONG_TIMEOUT_MS) return { reason: 'long-run' }
   if (tool === 'TodoWrite' && (facts.todos ?? 0) >= PLANNED_TODOS) return { reason: 'planned' }
   if (tool === 'TaskCreate' && (facts.tasksThisTurn ?? 0) >= PLANNED_TASKS) return { reason: 'planned' }

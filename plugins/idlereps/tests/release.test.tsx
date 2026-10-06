@@ -89,6 +89,7 @@ test('the store, filled to every cap, stays under half its limit; Undo under 4 K
     spots: 999_999,
     attention: { outcomes: Array.from({ length: 20 }, () => 1), day: TODAY, spent: 999 },
     gyms: Array.from({ length: 50 }, (_, i) => `a-very-long-project-folder-name-${i}`),
+    callTimes: Object.fromEntries(Array.from({ length: 200 }, (_, i) => [`a-very-long-project-folder-name|npm run some-long-script-name-${i}`, { n: 999, ms: 3_600_000, at: NOON }])),
     punchCard: { days: Array.from({ length: 9 }, (_, i) => TODAY - i), shakes: 999_999 },
     misreadsSeen: Object.fromEntries(Array.from({ length: 60 }, (_, i) => [`a-long-reading-id-${i}`, 999_999])),
     prep: { stage: 999, from: 999_999, isReady: true, medals: Array.from({ length: 999 }, () => 'silver') },

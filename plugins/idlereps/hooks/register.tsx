@@ -130,6 +130,8 @@ import {
   breathedIn,
 } from './portrait'
 import { bandFilmSvg } from './film'
+import { callKind, expectedMs, learn } from './durations'
+import type { CallTimes } from './durations'
 import { PEEK_AWAKE_MS, peekChangeIn, peekGrid, PEEK_POSES, peekText, PEEK_WIDTH } from './peek'
 import type { PeekPose } from './peek'
 import type { Fit, IdleBeat, IdleStep, Pose, PortraitSize, Timeline, Walk } from './portrait'
@@ -304,6 +306,10 @@ const coach: {
   isLookingForRoom: boolean
   /** The set band's own move, for his set beats; undefined on any other band. */
   setMove: string | undefined
+  /** The project (its folder's name) commands are timed in; the calls running and when each should end. */
+  project: string
+  callSeq: number
+  callsRunning: Map<number, number>
   /** The band portrait's cells as last drawn (before the breath), and whether his breath is in. */
   portraitCells: { cells: string; size: PortraitSize } | null
   isBreathIn: boolean
@@ -391,6 +397,9 @@ const coach: {
   isShiny: false,
   isLookingForRoom: false,
   setMove: undefined,
+  project: '',
+  callSeq: 0,
+  callsRunning: new Map(),
   portraitCells: null,
   isBreathIn: false,
   isPaneBreathIn: false,
@@ -1579,6 +1588,10 @@ async function remindBandFor($: EngineInterface, opts: { isFirst?: boolean } = {
         ...(coach.reason === undefined ? {} : { reason: coach.reason }),
         recent: await load<number[]>($, 'turnLengths', []),
         elapsedMs: (await now($)) - coach.turnStartedAt,
+        ...(await (async () => {
+          const call = await callWaitMs($)
+          return call === undefined ? {} : { callWaitMs: call }
+        })()),
       })
     : null
   const size = waitSize(waitMs)
@@ -3526,20 +3539,39 @@ type GitOperation = { commit?: unknown; pr?: { action: string } }
 
 /** The sign a tool call gives of a long task, once per turn and only on a turn that could cue. */
 async function watchCall<R>($: EngineInterface, tool: string, input: Record<string, unknown>, run: () => Promise<R>): Promise<R> {
-  if (!(coach.turnCanCue || coach.turnCanStretch || coach.turnCanNudge || coach.turnCanRemind || coach.turnCanStill) || coach.hasStrongSign) return run()
-  coach.toolCalls += 1
-  if (tool === 'TaskCreate') coach.tasksThisTurn += 1
-  const sign = toolSign(factsOf(tool, input, coach.tasksThisTurn), coach.toolCalls)
-  if (sign !== null) {
-    await noticeLongTask($, sign)
-    return run()
+  // Every call is timed (hooks/durations.ts): what it is expected to take, and then what it took, learned.
+  const kind = input.run_in_background === true ? null : callKind(tool, input, coach.project)
+  const expected = kind === null ? undefined : expectedMs(kind, await load<CallTimes>($, 'callTimes', {}))
+  const startedAt = await now($)
+  const id = (coach.callSeq += 1)
+  if (expected !== undefined) coach.callsRunning.set(id, startedAt + expected)
+  let slow: Timer | null = null
+  if ((coach.turnCanCue || coach.turnCanStretch || coach.turnCanNudge || coach.turnCanRemind || coach.turnCanStill) && !coach.hasStrongSign) {
+    coach.toolCalls += 1
+    if (tool === 'TaskCreate') coach.tasksThisTurn += 1
+    const sign = toolSign(factsOf(tool, input, coach.tasksThisTurn), coach.toolCalls, tool === 'Bash' ? expected : undefined)
+    if (sign !== null) await noticeLongTask($, sign)
+    else slow = timer($, 'turn', SLOW_STEP_MS, () => void noticeLongTask($, { reason: 'slow-step' }))
   }
-  const slow = timer($, 'turn', SLOW_STEP_MS, () => void noticeLongTask($, { reason: 'slow-step' }))
   try {
-    return await run()
+    const result = await run()
+    // A denied call ran nothing: nothing to learn from it.
+    if (kind !== null && (result as { deny?: unknown }).deny === undefined) {
+      const at = await now($)
+      await save($, 'callTimes', learn(await load<CallTimes>($, 'callTimes', {}), kind.key, at - startedAt, at))
+    }
+    return result
   } finally {
-    slow.cancel()
+    slow?.cancel()
+    coach.callsRunning.delete(id)
   }
+}
+
+/** What the slowest call still running is expected to take yet, ms; undefined with none running. */
+async function callWaitMs($: EngineInterface): Promise<number | undefined> {
+  if (coach.callsRunning.size === 0) return undefined
+  const at = await now($)
+  return Math.max(0, ...[...coach.callsRunning.values()].map(end => end - at))
 }
 
 /** A week or more since the last set: the ask welcomes the person back, and offers half. */
@@ -3573,6 +3605,7 @@ export const register: Register = (on, options) => {
 
   on('session.start', async ($, e, next) => {
     coach.home = (await $.env.get('HOME')) ?? ''
+    coach.project = e.cwd.split(/[\\/]/).filter(part => part !== '').at(-1) ?? ''
     await $.command.register({
       name: 'workout',
       description: 'IdleReps: your workout, one set at a time while your agent works',
