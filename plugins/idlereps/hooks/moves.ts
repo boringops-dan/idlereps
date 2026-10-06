@@ -1060,7 +1060,119 @@ const struggle: Move = {
   reps: 6,
 }
 
-export const GESTURES: readonly Move[] = [highFive, hug, struggle]
+// ---------------------------------------------------------------------------------------------------------
+// Celebrations (owner, 2026-10-06: "celebrations after every set, high fives, good jobs, head pats, confetti,
+// every single stereotypical thing you can think of and then 10 more"). An offered one is two gestures: the
+// hand held out (`-offer`), and the contact once you take it. The rest he just does, at you.
+
+/** His right arm (the viewer's right) through an elbow to a hand; the left hangs. */
+const right = (elbow: P, hand: P, left: Limb = ARMS_DOWN[0]): [Limb, Limb] => [left, [SHOULDER_R, elbow, hand]]
+const UP = right([13.5, 4.5], [13.5, 1.5])
+const LOW = right([13.5, 9.5], [14.5, 12.5])
+const SIDE = right([13.5, 7], [15, 6.5])
+const TEN = arms([2.5, 4.5], [2.5, 1.5])
+const SEVEN = right([13.5, 4.5], [13.5, 1.5], [SHOULDER_L, [2.5, 8.5], [2, 6.5]])
+const FIST = right([13.5, 9], [11, 8.5])
+const ELBOW = right([14.5, 6], [11, 3.5])
+const CHEST_BACK = arms([2.5, 9], [1.5, 11.5])
+const AIR = right([14, 4], [15, 1])
+const PAT = right([14, 9], [14.5, 12])
+const PINKY = right([13.5, 7.5], [12.5, 4.5])
+
+/** A gesture of `poses` shown for `ms` each, once. */
+const gesture = (id: string, title: string, poses: Figure[], ms: readonly number[], reps = 1): Move => ({
+  id,
+  title,
+  family: 'gag',
+  poses,
+  beats: poses.map((_, i) => [i, ms[i] ?? ms.at(-1) ?? 300] as [number, number]),
+  reps,
+})
+
+/** The hand held out, bobbing a little: waiting on you. */
+const offer = (id: string, title: string, held: [Limb, Limb], expr: Expr = 'grin', other: Partial<FrontOpts> = {}): Move =>
+  gesture(`${id}-offer`, title, [front({ arms: held, expr, ...other }), front({ arms: held, expr: 'talk', y: -1, ...other })], [450, 450], 3)
+
+const lowFive = gesture('low-five', 'Low five', [front({ arms: LOW, expr: 'grin', y: 1 }), front({ arms: LOW, expr: 'talk', y: 1, fx: [{ kind: 'star', at: [13, 14] }, { kind: 'star', at: [15, 12] }] }), front({ arms: LOW, expr: 'wink' })], [350, 350, 900])
+const sideFive = gesture('side-five', 'Side five', [front({ arms: SIDE, expr: 'grin' }), front({ arms: SIDE, expr: 'talk', x: 1, fx: [{ kind: 'star', at: [15, 5] }, { kind: 'star', at: [15, 8] }] }), front({ arms: SIDE, expr: 'wink' })], [350, 350, 900])
+const gimmeTen = gesture('gimme-ten', 'Gimme ten', [front({ arms: TEN, expr: 'grin' }), front({ arms: TEN, expr: 'talk', y: -1, fx: [{ kind: 'star', at: [1, 0] }, { kind: 'star', at: [14, 0] }, { kind: 'sparkle', at: [0, 3] }, { kind: 'sparkle', at: [13, 3] }] }), front({ arms: TEN, expr: 'wink' })], [350, 400, 900])
+const gimmeSeven = gesture('gimme-seven', 'Gimme seven', [front({ arms: SEVEN, expr: 'o' }), front({ arms: SEVEN, expr: 'talk', fx: [{ kind: 'star', at: [14, 0] }] }), front({ arms: arms([2.5, 8.5], [1.5, 7]), expr: 'smirk' })], [400, 400, 1000])
+const fistBump = gesture('fist-bump', 'Fist bump', [front({ arms: FIST, expr: 'grin' }), front({ arms: FIST, expr: 'talk', fx: [{ kind: 'puff', at: [9, 8] }] }), front({ arms: right([14, 5], [15, 3]), expr: 'o', fx: [{ kind: 'sparkle', at: [12, 0] }, { kind: 'star', at: [15, 6] }] })], [350, 300, 900])
+const elbowBump = gesture('elbow-bump', 'Elbow bump', [front({ arms: ELBOW, expr: 'smirk' }), front({ arms: ELBOW, expr: 'talk', x: 1, fx: [{ kind: 'star', at: [15, 5] }] }), front({ arms: ELBOW, expr: 'wink' })], [400, 350, 900])
+const chestBump = gesture('chest-bump', 'Chest bump', [front({ arms: CHEST_BACK, expr: 'grin', y: 1 }), front({ arms: CHEST_BACK, expr: 'talk', y: -2, fx: [{ kind: 'puff', at: [6, 13] }, { kind: 'star', at: [2, 6] }, { kind: 'star', at: [13, 6] }] }), front({ arms: CHEST_BACK, expr: 'strain', y: 1 }), front({ expr: 'grin' })], [300, 350, 300, 700])
+const airFive = gesture('air-five', 'Air five', [front({ arms: AIR, expr: 'grin' }), front({ arms: right([12, 3.5], [10, 1]), expr: 'wink', fx: [{ kind: 'sparkle', at: [12, 0] }, { kind: 'puff', at: [13, 3] }] }), front({ arms: AIR, expr: 'smirk' })], [350, 450, 800])
+const headPat = gesture('head-pat', 'Head pat', [front({ arms: PAT, expr: 'grin' }), front({ arms: right([14, 9.5], [14.5, 13]), expr: 'blink', fx: [{ kind: 'heart', at: [12, 1] }] })], [300, 300], 3)
+const handshake = gesture('secret-handshake', 'Secret handshake', [front({ arms: UP, expr: 'grin' }), front({ arms: LOW, expr: 'talk', y: 1 }), front({ arms: SIDE, expr: 'grin' }), front({ arms: FIST, expr: 'talk', fx: [{ kind: 'puff', at: [9, 8] }] }), front({ arms: right([14, 5], [15, 3]), expr: 'wink', fx: [{ kind: 'note', at: [1, 1] }, { kind: 'sparkle', at: [12, 0] }] })], [300, 300, 300, 300, 900])
+const pinkySwear = gesture('pinky-swear', 'Pinky swear', [front({ arms: PINKY, expr: 'smirk' }), front({ arms: PINKY, expr: 'blink', fx: [{ kind: 'heart', at: [12, 1] }] }), front({ arms: PINKY, expr: 'wink', fx: [{ kind: 'heart', at: [12, 0] }] })], [500, 500, 900])
+const tooSlow = gesture('too-slow', 'Too slow', [front({ arms: UP, expr: 'grin' }), front({ arms: right([12.5, 9.5], [10, 11]), expr: 'smirk', fx: [{ kind: 'puff', at: [12, 1] }] }), front({ arms: right([12.5, 9.5], [10, 11]), expr: 'wink' }), front({ arms: right([12.5, 9.5], [10, 11]), expr: 'talk' })], [250, 450, 600, 600])
+
+const CONFETTI_AT: readonly P[][] = [
+  [[0, 0], [11, 1], [3, 9]],
+  [[1, 3], [11, 0], [0, 10], [11, 9]],
+  [[0, 6], [12, 4], [2, 12], [11, 12]],
+]
+const confetti = gesture('confetti', 'Confetti', CONFETTI_AT.map((spots, i) => front({ arms: TEN, expr: i === 1 ? 'talk' : 'grin', y: i === 1 ? -1 : 0, fx: spots.map(at => ({ kind: 'confetti' as const, at })) })), [350, 350, 350], 2)
+const CLAP_IN = arms([5, 9.5], [7, 8])
+const CLAP_OUT = arms([3, 9.5], [3.5, 8])
+const slowClap = gesture('slow-clap', 'Slow clap', [front({ arms: CLAP_OUT, expr: 'smirk' }), front({ arms: CLAP_IN, expr: 'blink', fx: [{ kind: 'star', at: [7, 6] }] })], [700, 400], 3)
+const golfClap = gesture('golf-clap', 'Golf clap', [front({ arms: arms([5, 9], [6.5, 8.5]), expr: 'smirk' }), front({ arms: arms([5.5, 9], [7.3, 8.5]), expr: 'smirk' })], [150, 150], 6)
+const thumbsUp = gesture('thumbs-up', 'Thumbs up', [front({ arms: arms([2.5, 9], [3, 6.5]), expr: 'grin' }), front({ arms: arms([2.5, 9], [3, 6]), expr: 'wink', fx: [{ kind: 'star', at: [2, 4] }, { kind: 'star', at: [13, 4] }] })], [500, 1200])
+const salute = gesture('salute', 'Salute', [front({ expr: 'grin' }), front({ arms: right([13.5, 4.5], [10.5, 2]), expr: 'grin', y: -1 }), front({ arms: right([13.5, 4.5], [10.5, 2]), expr: 'blink', y: -1 })], [300, 1100, 300])
+const bow = gesture('bow', 'Bow', [front({ expr: 'grin' }), front({ expr: 'blink', y: 2, arms: arms([4, 9], [6, 10.5]) }), front({ expr: 'blink', y: 2, arms: arms([4, 9], [6, 10.5]), fx: [{ kind: 'sparkle', at: [0, 1] }] }), front({ expr: 'wink' })], [300, 600, 600, 700])
+const pointAtYou = gesture('point', 'Point', [front({ arms: right([13.5, 7], [15.5, 8]), expr: 'grin' }), front({ arms: right([13.5, 7], [15.5, 8]), expr: 'wink', fx: [{ kind: 'star', at: [15, 6] }] }), front({ arms: right([13.5, 7], [15.5, 8]), expr: 'talk' })], [400, 600, 800])
+const happyFeet = gesture('happy-feet', 'Happy feet', [front({ arms: arms([2, 6], [1.5, 3.5]), x: -1, expr: 'grin', fx: [{ kind: 'note', at: [13, 1] }] }), front({ arms: ARMS_DOWN, x: 1, y: -1, expr: 'talk' }), front({ arms: arms([2, 6], [1.5, 3.5]), x: 1, expr: 'grin', fx: [{ kind: 'note', at: [0, 2] }] }), front({ arms: ARMS_DOWN, x: -1, y: -1, expr: 'talk' })], [250, 250, 250, 250], 2)
+const micDrop = gesture('mic-drop', 'Mic drop', [front({ arms: SIDE, expr: 'smirk', props: [{ kind: 'mic', at: [15, 5] }] }), front({ arms: SIDE, expr: 'blink', props: [{ kind: 'mic', at: [15, 9] }] }), front({ arms: SIDE, expr: 'smirk', fx: [{ kind: 'puff', at: [13, 14] }], props: [{ kind: 'mic', at: [14, 13] }] })], [700, 200, 1200])
+const RAISE = arms([2, 4.5], [3, 1.5])
+const raiseRoof = gesture('raise-roof', 'Raise the roof', [front({ arms: RAISE, expr: 'grin' }), front({ arms: arms([2, 3.5], [3, 0.5]), y: -1, expr: 'talk', fx: [{ kind: 'note', at: [13, 2] }] })], [300, 300], 3)
+const chefsKiss = gesture('chefs-kiss', "Chef's kiss", [front({ arms: right([12.5, 8], [9.5, 5]), expr: 'o' }), front({ arms: right([14, 5], [15, 2]), expr: 'grin', fx: [{ kind: 'heart', at: [13, 0] }, { kind: 'sparkle', at: [0, 2] }] })], [700, 1100])
+const fireworks = gesture('fireworks', 'Fireworks', [front({ expr: 'o', fx: [{ kind: 'sparkle', at: [0, 0] }] }), front({ expr: 'o', fx: [{ kind: 'sparkle', at: [13, 1] }, { kind: 'star', at: [1, 4] }] }), front({ arms: TEN, expr: 'grin', fx: [{ kind: 'sparkle', at: [0, 2] }, { kind: 'sparkle', at: [13, 0] }, { kind: 'confetti', at: [11, 9] }] })], [450, 450, 900], 2)
+
+/** The offered ones' outstretched hands: what he holds out before you take it. */
+const OFFERS: readonly Move[] = [
+  offer('high-five', 'High five', UP),
+  offer('low-five', 'Low five', LOW, 'grin', { y: 1 }),
+  offer('side-five', 'Side five', SIDE),
+  offer('gimme-ten', 'Gimme ten', TEN),
+  offer('gimme-seven', 'Gimme seven', SEVEN, 'o'),
+  offer('fist-bump', 'Fist bump', FIST),
+  offer('elbow-bump', 'Elbow bump', ELBOW, 'smirk'),
+  offer('chest-bump', 'Chest bump', CHEST_BACK, 'grin', { y: 1 }),
+  offer('air-five', 'Air five', AIR),
+  offer('head-pat', 'Head pat', PAT),
+  offer('secret-handshake', 'Secret handshake', UP, 'smirk'),
+  offer('pinky-swear', 'Pinky swear', PINKY, 'smirk'),
+]
+
+/** Every celebration's gestures: the contacts, the offers, too slow, and the ones he just does. */
+export const CELEBRATION_MOVES: readonly Move[] = [
+  lowFive,
+  sideFive,
+  gimmeTen,
+  gimmeSeven,
+  fistBump,
+  elbowBump,
+  chestBump,
+  airFive,
+  headPat,
+  handshake,
+  pinkySwear,
+  tooSlow,
+  ...OFFERS,
+  confetti,
+  slowClap,
+  golfClap,
+  thumbsUp,
+  salute,
+  bow,
+  pointAtYou,
+  happyFeet,
+  micDrop,
+  raiseRoof,
+  chefsKiss,
+  fireworks,
+]
+
+export const GESTURES: readonly Move[] = [highFive, hug, struggle, ...CELEBRATION_MOVES]
 
 export type MoveId = string
 

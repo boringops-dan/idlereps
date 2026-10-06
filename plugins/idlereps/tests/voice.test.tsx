@@ -311,8 +311,8 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.press({ key: 'edit' })
     expect(['edit', await rows()]).toEqual(['edit', 5])
     await ui.press({ key: 'save' })
-    // The first set ever adds one row: what happens next.
-    expect(['logged, first ever', await rows()]).toEqual(['logged, first ever', 2])
+    // The first set ever adds one row: what happens next; and his celebration above it (owner, 2026-10-06).
+    expect(['logged, first ever', await rows()]).toEqual(['logged, first ever', surface === 'terminal' ? 3 : 4])
     // A later set is silent; no form note after the first set; the hint still shows (bands 2 and 3).
     await $.command.run(workout('now'))
     expect(['set silent', await rows()]).toEqual(['set silent', 5])
@@ -509,13 +509,13 @@ test('ask-first slot: a fresh workout gets the ask-first line', OPTIONS, async (
   await ui.unmount()
 })
 
-test('after a record: skip reassurance, else silent', OPTIONS, async ($, on) => {
+test('after a record: a celebration, or the skip reassurance', OPTIONS, async ($, on) => {
   world(on, { ...TINY, workouts: [{ name: 'A', exercises: [{ name: 'Push-ups', reps: '10 reps', sets: 3 }] }] })
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   await ui.press({ key: 'done' })
-  expect(await speaks(ui)).toBe(false)
+  expect(await speaks(ui)).toBe(true)
   await $.command.run(workout('start'))
   await ui.press({ key: 'skip' })
   expect(await ui.find({ type: 'Text', text: line('skip', { day: TODAY }) })).toBeDefined()

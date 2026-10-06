@@ -1190,10 +1190,9 @@ test('the logged line: today’s count, and a new best with Swolomon’s line', 
   await $.command.run(workout('start'))
   await $.command.run(workout('done'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(drawnRows(await ui.drawn())).toEqual([
-    `${COACH_NAME}: ${line('new-best', { day: TODAY })}`,
-    '✓ Logged Push-ups 10 reps · new best · 1 of 2 today   1: High five   0: Undo',
-  ])
+  // His portrait beside it now (a celebration on every set done), so no name tag.
+  expect(drawnRows(await ui.drawn())).toEqual([line('new-best', { day: TODAY }), '✓ Logged Push-ups 10 reps · new best · 1 of 2 today   1: High five   0: Undo'])
+  expect(await ui.find({ key: 'swolomon' })).toBeDefined()
   await ui.unmount()
 })
 

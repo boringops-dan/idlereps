@@ -124,7 +124,8 @@ test('the logged line: up on last time at the same load, unless it is a new best
   await $.command.run(workout('start'))
   await $.command.run(workout('done 12'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(drawnRows(await ui.drawn())[0]).toBe('✓ Logged Push-ups 12 reps · ↑2 on last time · 1 of 2 today   1: High five   0: Undo')
+  // Under his celebration (every set done has one): the logged row itself.
+  expect(drawnRows(await ui.drawn()).find(row => row.startsWith('✓'))).toBe('✓ Logged Push-ups 12 reps · ↑2 on last time · 1 of 2 today   1: High five   0: Undo')
   await ui.unmount()
 })
 

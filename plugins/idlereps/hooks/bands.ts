@@ -3,6 +3,8 @@
  * drawing reads nothing but the spec (D19). Also the row count every band is held to (§1.10b). Pure.
  */
 
+import { gestureOf } from './celebrate'
+import type { Celebration } from './celebrate'
 import type { BandKind, BandLine, BandPart, BandSpec, Cue, Draft, ExerciseMemory, LongTaskReason, Plan, RatingBasis, Weekday } from '../types'
 import { actionIdsOf } from './actions'
 import { ANSWER_IDS } from './questions'
@@ -490,15 +492,31 @@ export function loggedBand(
     isFirstEver?: boolean
     /** Better than last time (a new best says more, so it wins). */
     gain?: { more: number } | { heavier: true }
+    /** His celebration of the set (hooks/celebrate.ts): with it, he is on the band, full size where it fits. */
+    celebration?: { celebration: Celebration; isTooSlow: boolean; line: string }
   },
 ): BandSpec {
   const parts: BandPart[] = [{ text: '✓ ', tone: 'good', bold: true }, { text }]
   if (opts.isBest === true) parts.push({ text: ' · new best', tone: 'accent', bold: true })
   else if (opts.gain !== undefined) parts.push({ text: 'more' in opts.gain ? ` · ↑${opts.gain.more} on last time` : ' · heavier than last time', tone: 'accent' })
   if (opts.today !== undefined) parts.push({ text: ` · ${opts.today.done} of ${opts.today.total} today`, tone: 'muted', truncate: true })
+  const cel = opts.celebration
   return {
     kind: 'logged',
     ...(opts.coach === undefined ? {} : { coach: [opts.coach] }),
+    ...(cel === undefined
+      ? {}
+      : {
+          // A new best or a skip keeps its own line; the celebration still plays.
+          ...(opts.coach === undefined ? { coach: [cel.line] } : {}),
+          portrait: 'full' as const,
+          act: gestureOf(cel.celebration, cel.celebration.kind === 'offer' ? 'offered' : 'shown'),
+          celebration: {
+            id: cel.celebration.id,
+            stage: cel.celebration.kind === 'offer' ? ('offered' as const) : ('shown' as const),
+            ...(cel.isTooSlow ? { isTooSlow: true as const } : {}),
+          },
+        }),
     body: [parts],
     // The first set ever: what happens next, once.
     ...(opts.isFirstEver === true ? { extras: [line('first-logged', { day: 0 })] } : {}),
@@ -510,7 +528,26 @@ export function loggedBand(
 
 /** High five (owner, 2026-10-03): the logged line stays, and he slaps one out of the screen; Undo stays too. */
 export function highFiveOf(logged: BandSpec, coachLine: string): BandSpec {
-  return { ...logged, coach: [coachLine], portrait: 'full', act: 'high-five', tall: true, actions: logged.actions.filter(id => id !== 'highfive') }
+  const { celebration: _was, ...rest } = logged
+  return { ...rest, coach: [coachLine], portrait: 'full', act: 'high-five', tall: true, actions: logged.actions.filter(id => id !== 'highfive') }
+}
+
+/**
+ * 1 on an offered celebration: too slow the first time when it is one of those (his hand whipped away, the
+ * button stays), else it lands: the contact, his landed line, the button gone. Undo stays throughout.
+ */
+export function pressCelebration(logged: BandSpec, celebration: Celebration, lines: { tooSlow: string; landed: string }): BandSpec {
+  const stage = logged.celebration?.stage
+  if (stage === 'offered' && logged.celebration?.isTooSlow === true) {
+    return { ...logged, coach: [lines.tooSlow], act: gestureOf(celebration, 'dodged'), celebration: { id: celebration.id, stage: 'dodged' } }
+  }
+  return {
+    ...logged,
+    coach: [lines.landed],
+    act: gestureOf(celebration, 'landed'),
+    celebration: { id: celebration.id, stage: 'landed' },
+    actions: logged.actions.filter(id => id !== 'highfive'),
+  }
 }
 
 /**

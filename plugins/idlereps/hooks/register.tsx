@@ -35,6 +35,7 @@ import {
   holdBand,
   LOGGED_MS,
   highFiveOf,
+  pressCelebration,
   loggedBand,
   nextFromPending,
   offerToSlot,
@@ -47,6 +48,7 @@ import {
   replayBand,
   setBand,
 } from './bands'
+import { celebrationById, celebrationFor, isTooSlow } from './celebrate'
 import { agentDoing, COACH_NAME, emphasisRuns, fill, plainOf, pickAddress, COMMUNITY_URL, FEEDBACK_URL, line, progressDots, REASON_LINE, TELEMETRY_URL, usesAgent, whatsNewLine } from './copy'
 import type { LineContext, LineId } from './copy'
 import { appendHistory, daysShowedUp, isMovement, movedSeconds, rankFor, RANKS, setsThisWeek } from './history'
@@ -1558,10 +1560,20 @@ async function recordSet($: EngineInterface, outcome: { result: 'done' | 'skip';
       const said = isBest ? line('new-best', { day }) : outcome.result === 'skip' ? line('skip', { day }) : undefined
       const progress = result.patch.set.progress as Progress
       const workout = plan.workouts[progress.workout]
+      // Every set done is celebrated (owner, 2026-10-06); a new best always with the high five. Quiet: not.
+      const celebration =
+        outcome.result !== 'done' || coach.options.coachChat === 'quiet'
+          ? undefined
+          : isBest
+            ? (celebrationById('high-five') ?? celebrationFor(result.inverse.id))
+            : celebrationFor(result.inverse.id)
       await placeBand(
         $,
         loggedBand(result.effects.logged ?? '', result.inverse.id, {
           ...(said === undefined ? {} : { coach: said }),
+          ...(celebration === undefined
+            ? {}
+            : { celebration: { celebration, isTooSlow: !isBest && isTooSlow(celebration, result.inverse.id), line: line(celebration.line, { day }) } }),
           isBest,
           ...(result.effects.gain === undefined ? {} : { gain: result.effects.gain }),
           isFirstEver: (result.effects.feats ?? []).includes('first-set'),
@@ -1598,8 +1610,17 @@ async function queueBand($: EngineInterface, spec: BandSpec) {
 async function highFive($: EngineInterface) {
   const shown = await read($, band)
   if (shown?.kind !== 'logged') return
+  const day = await today($)
+  const celebration = shown.celebration === undefined ? undefined : celebrationById(shown.celebration.id)
+  // Held out: take it (or be too slow for it, the once).
+  if (celebration !== undefined && celebration.kind === 'offer' && (shown.celebration?.stage === 'offered' || shown.celebration?.stage === 'dodged')) {
+    const next = pressCelebration(shown, celebration, { tooSlow: line('too-slow', { day }), landed: line(celebration.landed ?? 'high-five', { day }) })
+    if (next.celebration?.stage === 'landed') await save($, 'highFives', (await load($, 'highFives', 0)) + 1)
+    await replaceBand($, next)
+    return
+  }
   await save($, 'highFives', (await load($, 'highFives', 0)) + 1)
-  await replaceBand($, highFiveOf(shown, line('high-five', { day: await today($) })))
+  await replaceBand($, highFiveOf(shown, line('high-five', { day })))
 }
 
 /** A set done: his prep moves on with it (hooks/prep.ts), and he says so at its turns. */
@@ -3069,6 +3090,7 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
     if (spec.kind === 'edit' && (id === 'fewer' || id === 'more')) return stepperLabel(id, isTimed)
     if (spec.kind === 'edit' && (id === 'lighter' || id === 'heavier')) return loadLabel(id, isBand)
     if (spec.kind === 'question' && spec.question !== undefined && id !== 'pass') return spec.question.labels[ANSWER_IDS.indexOf(id as (typeof ANSWER_IDS)[number])] ?? id
+    if (spec.kind === 'logged' && id === 'highfive' && spec.celebration !== undefined) return celebrationById(spec.celebration.id)?.label ?? actionOf(spec.kind, id).label
     if (spec.kind === 'reschedule' && spec.move !== undefined) return id === 'move' ? `Move to ${weekdayShortName(spec.move.to)}` : `Keep ${weekdayShortName(spec.move.from)}`
     return actionOf(spec.kind, id).label
   }

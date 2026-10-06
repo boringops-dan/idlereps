@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
 import { STARTER_MOVES, UNLOCK_ORDER } from '../hooks/collection'
-import { GESTURES, MOVES } from '../hooks/moves'
+import { CELEBRATION_MOVES, GESTURES, MOVES } from '../hooks/moves'
 import { ANIMATED, BAND, blitLog, cellsOf, drawnRows, OPTIONS, ownStore, SESSION, TINY, workout, world } from './world'
 
 /** High five (owner, 2026-10-03): after a logged set, h, and he slaps one out of the screen. */
@@ -68,7 +68,8 @@ test('the next prompt puts it away, like the logged line', OPTIONS, async ($, on
 })
 
 test('a gesture, not a move to collect: the 33 stay 33', () => {
-  expect(GESTURES.map(m => m.id)).toEqual(['high-five', 'hug', 'struggle'])
+  expect(GESTURES.map(m => m.id).slice(0, 3)).toEqual(['high-five', 'hug', 'struggle'])
+  expect(GESTURES.slice(3)).toEqual([...CELEBRATION_MOVES])
   expect(MOVES.some(m => GESTURES.includes(m))).toBe(false)
   expect(STARTER_MOVES.length + UNLOCK_ORDER.length).toBe(MOVES.length)
 })

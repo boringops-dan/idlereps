@@ -27,8 +27,9 @@ export type Prop =
   | { kind: 'mat'; y: number }
   | { kind: 'chair'; at: P }
   | { kind: 'wall'; x: number }
+  | { kind: 'mic'; at: P }
 
-export type Fx = { kind: 'sweat' | 'sparkle' | 'zzz' | 'heart' | 'note' | 'star' | 'puff' | 'drop'; at: P }
+export type Fx = { kind: 'sweat' | 'sparkle' | 'zzz' | 'heart' | 'note' | 'star' | 'puff' | 'drop' | 'confetti'; at: P }
 
 export type Figure = {
   /** `bare`: the laurel is off his head (he is holding it, or it is in the air). */
@@ -141,6 +142,7 @@ const PROPS: Record<Exclude<Prop['kind'], 'barbell' | 'bar' | 'band' | 'mat' | '
   trophy: ['g.g.g', 'ggggg', '.ggg.', '..g..', '.GGG.'],
   laurel: ['gGgGgG'],
   chair: ['h....', 'h....', 'hhhhh', 'h...h', 'h...h'],
+  mic: ['i', 'h', 'h'],
 }
 
 const FX: Record<Fx['kind'], readonly string[]> = {
@@ -152,6 +154,8 @@ const FX: Record<Fx['kind'], readonly string[]> = {
   heart: ['r.r', 'rrr', '.r.'],
   note: ['.w', '.w', 'ww'],
   puff: ['w.w', '.w.'],
+  // Scraps of every colour he has, scattered.
+  confetti: ['r...b', '..g..', 'b..t.', '.w..r'],
 }
 
 function prop(grid: Grid, p: Prop) {

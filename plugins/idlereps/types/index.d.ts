@@ -220,6 +220,11 @@ export type BandSpec = {
   stretch?: { exercise: string; seconds: number }
   /** The reschedule offer: the training weekday that keeps being declined, and where it would move. */
   move?: { from: Weekday; to: Weekday }
+  /**
+   * The logged band's celebration (hooks/celebrate.ts): which, and where it is (held out, pulled away,
+   * landed, or just done at you).
+   */
+  celebration?: { id: string; stage: 'offered' | 'dodged' | 'landed' | 'shown'; isTooSlow?: true }
   /** The shiny Swolomon (hooks/shiny.ts): his portrait recoloured, about one band in a hundred. */
   isShiny?: true
   /** A question of Swolomon's (hooks/questions.ts): which, and its answers as the buttons' labels. */
