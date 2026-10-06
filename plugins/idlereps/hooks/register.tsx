@@ -63,7 +63,7 @@ import type { Attention, Chat } from './attention'
 import { EMPTY_CARD, stamp } from './punch'
 import type { PunchCard } from './punch'
 import { isShinyAt, SHINY_COLOURS } from './shiny'
-import { afterSet, compete, competitionOf } from './prep'
+import { afterSet, compete, competitionOf, isPosing } from './prep'
 import type { Prep } from './prep'
 import { ANSWER_IDS, nextQuestion, recallFor } from './questions'
 import type { About } from './questions'
@@ -1130,7 +1130,7 @@ function idleLoop($: EngineInterface, owner: 'band' | 'pane' | 'peek', opts: Idl
         if (moves === undefined) {
           const have = opts.isWin || size !== 'full' ? [] : collected(await load<string[]>($, 'moves', []))
           // On a set: the set's move twice as often as a flex he has; else his moves, the flexes aside.
-          moves = opts.setMove !== undefined ? [opts.setMove, opts.setMove, ...have.filter(m => m.family === 'flex').map(m => m.id)] : have.filter(m => m.family !== 'flex').map(m => m.id)
+          moves = opts.setMove !== undefined ? [opts.setMove, opts.setMove, ...have.filter(m => m.family === 'flex').map(m => m.id)] : await betweenMoves($, have)
         }
         const { steps, rest } = opts.beatOf?.(n) ?? idleBeat(n, size, opts.isWin, size === 'full' ? moves : [], opts.setMove === undefined ? 'band' : 'set')
         const cellsOf = opts.cellsOf ?? ((pose: Pose) => art.frames[frameFor(size, pose)])
@@ -1148,6 +1148,17 @@ function idleLoop($: EngineInterface, owner: 'band' | 'pane' | 'peek', opts: Idl
       })(),
     )
   beat(0)
+}
+
+/**
+ * The moves he does between lines: those he has, the flexes aside; but in his prep's last stretch
+ * (hooks/prep.ts), posing practice: his flexes and his routine, over and over.
+ */
+async function betweenMoves($: EngineInterface, have: readonly Move[]): Promise<string[]> {
+  if (have.length > 0 && isPosing(await load<Prep | undefined>($, 'prep', undefined), await load($, 'totalDoneSets', 0))) {
+    return [...have.filter(m => m.family === 'flex').map(m => m.id), 'posing-routine']
+  }
+  return have.filter(m => m.family !== 'flex').map(m => m.id)
 }
 
 /** An idle step as the cells to show and for how long: a pose, a place on a walk, or a move's poses. */
@@ -1200,7 +1211,7 @@ const FILMS = new Map<string, string>()
 async function filmFor($: EngineInterface, opts: { size: PortraitSize; isWin: boolean; act?: string; setMove?: string }): Promise<string> {
   const have = opts.isWin || opts.size !== 'full' ? [] : collected(await load<string[]>($, 'moves', []))
   // On a set, the set's move and his flexes; else his moves, the flexes aside (as the terminal's idling).
-  const moves = have.filter(move => (opts.setMove !== undefined) === (move.family === 'flex')).map(move => move.id)
+  const moves = opts.setMove !== undefined ? have.filter(move => move.family === 'flex').map(move => move.id) : await betweenMoves($, have)
   const key = JSON.stringify([art.sprite.outfit?.id, opts.size, opts.isWin, opts.act, opts.setMove, moves])
   const made = FILMS.get(key) ?? bandFilmSvg({ sprite: art.sprite, ...opts, moves })
   if (FILMS.size > 32) FILMS.clear()

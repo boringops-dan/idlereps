@@ -10,7 +10,7 @@ import { COACH_NAME, COMMUNITY_URL, line } from './copy'
 import type { LineId } from './copy'
 import { daysShowedUp, movedSeconds, nextRank, rankFor, setsThisWeek, sparkline, streak, trendOf, weekMarks } from './history'
 import type { WeekMark } from './history'
-import { competitionOf, PREP_SETS, prepSets } from './prep'
+import { chapterOf, competitionOf, PREP_SETS, prepSets } from './prep'
 import { PUNCHES } from './punch'
 import type { PunchCard } from './punch'
 import type { Prep } from './prep'
@@ -354,13 +354,20 @@ export function punchRow(card: PunchCard): BandPart[] {
 /** The shiny ones seen: a collectible of luck. */
 export const shinyRow = (n: number): BandPart[] => [{ text: `✨ Shiny ${COACH_NAME} seen ${n === 1 ? 'once' : `${n} times`}`, tone: 'muted' }]
 
-/** His competition prep: `Swolomon's prep for Regionals ▰▰▰▱▱▱▱▱▱▱ 9/30 · 🥇 1`, or that he is off to compete. */
+/** His competition prep: `Swolomon's prep for Regionals ▰▰▰▱▱▱▱▱▱▱ 9/30 · meal prep  🥇`, or that he is off to compete. */
 export function prepRow(prep: Prep, totalSets: number): BandPart[] {
   const medals = prep.medals.length === 0 ? [] : [{ text: `  ${prep.medals.map(m => (m === 'gold' ? '🥇' : '🥈')).join('')}` }]
   const competition = competitionOf(prep.stage)
   if (prep.isReady === true) return [{ text: `${COACH_NAME} competes at ${competition} before your next session`, bold: true }, ...medals]
   const sets = prepSets(prep, totalSets)
-  return [{ text: `${COACH_NAME}'s prep for ${competition}`, bold: true }, { text: '  ' }, ...bar(Math.floor((sets / PREP_SETS) * 10), 10), { text: `  ${sets}/${PREP_SETS}`, tone: 'muted' }, ...medals]
+  const chapter = chapterOf(prep, totalSets)
+  return [
+    { text: `${COACH_NAME}'s prep for ${competition}`, bold: true },
+    { text: '  ' },
+    ...bar(Math.floor((sets / PREP_SETS) * 10), 10),
+    { text: `  ${sets}/${PREP_SETS}${chapter === null ? '' : ` · ${chapter}`}`, tone: 'muted' },
+    ...medals,
+  ]
 }
 
 /** The rank and how far the next one is, as a bar: `Rank: Regular ▰▰▰▱▱▱▱▱▱▱ 40/100 to Rack Regular`. */

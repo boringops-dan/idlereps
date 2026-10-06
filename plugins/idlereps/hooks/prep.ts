@@ -1,7 +1,8 @@
 /**
  * Swolomon's own training (owner, 2026-10-03: "a shared goal"): he is prepping for a competition, and every
- * set you do is a set of his prep. When the bar fills he goes and competes between your sessions, and comes
- * back the next time with gold, or now and then a gracious silver. Then the next one. Pure.
+ * set you do is a set of his prep, told in chapters (meal prep, halfway, posing practice, peak week). When the
+ * bar fills he goes and competes between your sessions, and comes back the next time with gold, or now and
+ * then a gracious silver, and shows you his routine. Then the next one. Pure.
  */
 
 export const COMPETITIONS = ['Regionals', 'Nationals', 'Worlds', 'the Galaxy Classic', 'the Universe Cup'] as const
@@ -22,7 +23,25 @@ export const resultOf = (stage: number): Medal => (stage % 4 === 1 ? 'silver' : 
 /** Sets into this prep, as far as the bar goes. */
 export const prepSets = (prep: Prep, totalSets: number): number => Math.min(PREP_SETS, Math.max(0, totalSets - prep.from))
 
-export type PrepNews = 'prep-start' | 'prep-halfway' | 'prep-ready'
+export type PrepNews = 'prep-start' | 'prep-diet' | 'prep-halfway' | 'prep-posing' | 'prep-peak' | 'prep-ready'
+
+/** His prep's chapters on the way (owner, 2026-10-06: "his own story"), by sets into it: each said once. */
+export const CHAPTERS: Readonly<Record<number, PrepNews>> = { 8: 'prep-diet', [PREP_SETS / 2]: 'prep-halfway', 22: 'prep-posing', 28: 'prep-peak' }
+
+/** From posing practice on, he practises his poses between your sets. */
+export const POSING_FROM = 22
+
+/** Whether he is practising his poses: in the prep's last stretch, not yet off to compete. */
+export const isPosing = (prep: Prep | undefined, totalSets: number): boolean => prep !== undefined && prep.isReady !== true && prepSets(prep, totalSets) >= POSING_FROM
+
+/** The chapter he is in, as the pane says it; none before the first. */
+export function chapterOf(prep: Prep, totalSets: number): string | null {
+  const sets = prepSets(prep, totalSets)
+  if (sets >= 28) return 'peak week'
+  if (sets >= POSING_FROM) return 'posing practice'
+  if (sets >= 8) return 'meal prep'
+  return null
+}
 
 /** The set his prep starts on: the second ever (the first has its own moment). */
 export const PREP_STARTS_AT = 2
@@ -36,7 +55,8 @@ export function afterSet(prep: Prep | undefined, totalSets: number): { prep?: Pr
   if (prep.isReady === true) return { prep }
   const sets = prepSets(prep, totalSets)
   if (sets >= PREP_SETS) return { prep: { ...prep, isReady: true }, news: 'prep-ready' }
-  return sets === PREP_SETS / 2 ? { prep, news: 'prep-halfway' } : { prep }
+  const news = CHAPTERS[sets]
+  return news === undefined ? { prep } : { prep, news }
 }
 
 /** He went and competed: the medal, and the next prep begun at `totalSets`. */

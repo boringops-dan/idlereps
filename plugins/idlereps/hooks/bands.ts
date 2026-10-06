@@ -124,7 +124,8 @@ export function prepBand(coachLine: string, competition: string, medal: 'gold' |
     coach: [coachLine],
     portrait: 'full',
     ...(medal === 'gold' ? { isWin: true as const } : {}),
-    act: medal === 'gold' ? 'trophy' : 'personal-best',
+    // Show day: his routine, as he did it on stage.
+    act: 'posing-routine',
     body: [],
     actions: actionIdsOf('prep'),
     tall: true,

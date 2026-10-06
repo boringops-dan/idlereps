@@ -1173,7 +1173,17 @@ export const CELEBRATION_MOVES: readonly Move[] = [
   fireworks,
 ]
 
-export const GESTURES: readonly Move[] = [highFive, hug, struggle, ...CELEBRATION_MOVES]
+/** His routine on show day (prep.ts): the poses he practised, one after another, then the trophy held high. */
+const posingRoutine: Move = {
+  id: 'posing-routine',
+  title: 'Posing routine',
+  family: 'flex',
+  poses: [doubleBiceps.poses[0]!, doubleBiceps.poses[1]!, latSpread.poses[1]!, mostMuscular.poses[1]!, trophy.poses[1]!],
+  beats: beat([0, 500], [1, 900], [2, 1100], [3, 1100], [4, 1300]),
+  reps: 1,
+}
+
+export const GESTURES: readonly Move[] = [highFive, hug, struggle, posingRoutine, ...CELEBRATION_MOVES]
 
 export type MoveId = string
 

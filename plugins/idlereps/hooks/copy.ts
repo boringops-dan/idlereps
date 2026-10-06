@@ -678,6 +678,10 @@ export const LINES = [
   { id: 'cb-back', voice: 'swolomon', variants: ['{n} days since this one, {mate}. Welcome back to it.', 'Ah, an old friend. {n} days, {mate}.'] },
   { id: 'cb-skipped', voice: 'swolomon', variants: ['Skipped this one last time, {mate}. No grudge. Fresh start.', 'This one again, {mate}. Last time was last time.'] },
   { id: 'anniversary', voice: 'swolomon', variants: ['{n} days since your first set, {mate}. Best {n} days of my life.', 'Our {n}-day anniversary, {mate}. I got you nothing. Just reps.'] },
+  // Swolomon: his prep's chapters (hooks/prep.ts), each a toast once.
+  { id: 'prep-diet', voice: 'swolomon', variants: ['Meal prep for {competition}, {mate}. Chicken, rice, more chicken.'] },
+  { id: 'prep-posing', voice: 'swolomon', variants: ['Posing practice for {competition}, {mate}. Watch me between sets.'] },
+  { id: 'prep-peak', voice: 'swolomon', variants: ['Peak week, {mate}. {competition} is close. I can taste the trophy.'] },
 ] as const satisfies readonly LineEntry[]
 
 export type LineId = (typeof LINES)[number]['id']

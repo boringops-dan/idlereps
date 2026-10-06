@@ -2,9 +2,11 @@ import { expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
 import { line } from '../hooks/copy'
-import { afterSet, compete, competitionOf, COMPETITIONS, PREP_SETS, resultOf } from '../hooks/prep'
+import { prepBand } from '../hooks/bands'
+import { moveById } from '../hooks/moves'
+import { afterSet, chapterOf, CHAPTERS, compete, competitionOf, COMPETITIONS, isPosing, PREP_SETS, resultOf } from '../hooks/prep'
 import type { Prep } from '../hooks/prep'
-import { BAND, drawnRows, OPTIONS, ownStore, SESSION, STATUS, TINY, TODAY, workout, world } from './world'
+import { ANIMATED, BAND, blitLog, cellsOf, drawnRows, OPTIONS, ownStore, SESSION, STATUS, TINY, TODAY, workout, world } from './world'
 
 /** Swolomon's competitions (owner, 2026-10-03: "a shared goal"): your sets are his prep. */
 
@@ -85,7 +87,7 @@ test('the pane: his prep bar and medals', OPTIONS, async ($, on) => {
   await $.session.start(SESSION)
   await $.command.run(workout(''))
   const pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...STATUS })
-  expect(drawnRows(await pane.drawn()).join('\n')).toMatch(/Swolomon's prep for Worlds +\S+ +12\/30 +🥇🥈/)
+  expect(drawnRows(await pane.drawn()).join('\n')).toMatch(/Swolomon's prep for Worlds +\S+ +12\/30 · meal prep +🥇🥈/)
   await pane.unmount()
 })
 
@@ -94,4 +96,50 @@ test('the next prompt puts the medal band away', OPTIONS, async ($, on) => {
   await $.session.start(SESSION)
   await $.turn.start({ text: 'go', turnId: 't1' })
   expect((await bandOf($)).keys).toEqual([])
+})
+
+test('his story in chapters: meal prep at 8, halfway, posing practice at 22, peak week at 28; once each', () => {
+  expect(afterSet(prep(8), 100).news).toBe('prep-diet')
+  expect(afterSet(prep(9), 100).news).toBeUndefined()
+  expect(afterSet(prep(22), 100).news).toBe('prep-posing')
+  expect(afterSet(prep(28), 100).news).toBe('prep-peak')
+  expect(Object.values(CHAPTERS)).toEqual(['prep-diet', 'prep-halfway', 'prep-posing', 'prep-peak'])
+})
+
+test('the chapter he is in, and when he practises his poses', () => {
+  expect(chapterOf(prep(3), 100)).toBeNull()
+  expect(chapterOf(prep(8), 100)).toBe('meal prep')
+  expect(chapterOf(prep(23), 100)).toBe('posing practice')
+  expect(chapterOf(prep(29), 100)).toBe('peak week')
+  expect(isPosing(prep(21), 100)).toBe(false)
+  expect(isPosing(prep(22), 100)).toBe(true)
+  expect(isPosing(prep(PREP_SETS, { isReady: true }), 100)).toBe(false)
+  expect(isPosing(undefined, 100)).toBe(false)
+})
+
+test('show day: the medal band plays his posing routine, gold or silver', () => {
+  expect(moveById('posing-routine')?.poses.length).toBe(5)
+  expect(prepBand('x', 'Regionals', 'gold', 1).act).toBe('posing-routine')
+  expect(prepBand('x', 'Nationals', 'silver', 2).act).toBe('posing-routine')
+})
+
+test('animated: in posing practice, between lines he practises his flexes and his routine, not his other moves', ANIMATED, async ($, on) => {
+  const { clock } = world(on, null, { moves: [], totalDoneSets: 100, prep: prep(25) }, { fresh: true })
+  const blits = blitLog(on)
+  await $.session.start(SESSION)
+  const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
+  for (let i = 0; i < 40; i += 1) await clock.advance(10_000)
+  const seen = new Set(blits.map(b => b.cells))
+  expect(cellsOf('posing-routine').some(cells => seen.has(cells))).toBe(true)
+  expect(['squat', 'curl'].some(id => cellsOf(id).some(cells => seen.has(cells) && !cellsOf('posing-routine').includes(cells)))).toBe(false)
+  await ui.unmount()
+})
+
+test('the pane names the chapter', OPTIONS, async ($, on) => {
+  world(on, TINY, { totalDoneSets: 100, prep: prep(24) })
+  await $.session.start(SESSION)
+  await $.command.run(workout(''))
+  const pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...STATUS })
+  expect(drawnRows(await pane.drawn()).join('\n')).toContain('24/30 · posing practice')
+  await pane.unmount()
 })
