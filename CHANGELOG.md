@@ -10,6 +10,8 @@ update shows these lines once. **Under the hood** is everything else.
 - A workout plan built around your equipment, one set at a time while your agent works.
 - Press 1 to log a set, 0 to undo it, and /workout to see your week.
 - Meet Swolomon, your coach: every set counts toward your next rank.
+- Every set celebrated: high fives, low fives, gimme ten, confetti, and more. Don't be too slow.
+- He coaches every set, does it with you, and peeks over the prompt between sets.
 
 ### Under the hood
 
