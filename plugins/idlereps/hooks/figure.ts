@@ -31,6 +31,9 @@ export type Prop =
   | { kind: 'chair'; at: P }
   | { kind: 'wall'; x: number }
   | { kind: 'mic'; at: P }
+  // His slacking off (moves-more.ts): snacks, screens and a seat to sink into.
+  | { kind: 'pizza' | 'donut' | 'burger' | 'soda' | 'handheld' | 'phone' | 'remote' | 'headphones' | 'pad' | 'beanbag'; at: P }
+  | { kind: 'bubble'; at: P; big?: boolean }
 
 export type Fx = { kind: 'sweat' | 'sparkle' | 'zzz' | 'heart' | 'note' | 'star' | 'puff' | 'drop' | 'confetti'; at: P }
 
@@ -138,7 +141,7 @@ function limb(grid: Grid, joints: Limb, skin: string, shoe: string | undefined, 
   }
 }
 
-const PROPS: Record<Exclude<Prop['kind'], 'barbell' | 'bar' | 'band' | 'mat' | 'wall'>, readonly string[]> = {
+const PROPS: Record<Exclude<Prop['kind'], 'barbell' | 'bar' | 'band' | 'mat' | 'wall' | 'bubble'>, readonly string[]> = {
   dumbbell: ['i.i', 'iIi', 'i.i'],
   kettlebell: ['.I.', 'I.I', 'iii', 'iii'],
   shake: ['b', 'w', 'w', 'w'],
@@ -146,7 +149,24 @@ const PROPS: Record<Exclude<Prop['kind'], 'barbell' | 'bar' | 'band' | 'mat' | '
   laurel: ['gGgGgG'],
   chair: ['h....', 'h....', 'hhhhh', 'h...h', 'h...h'],
   mic: ['i', 'h', 'h'],
+  pizza: ['ooooo', 'grggr', '.ggr.', '..g..'],
+  donut: ['.uu.', 'u..u', '.oo.'],
+  burger: ['.oo.', 'vvvv', 'RRRR', 'oooo'],
+  soda: ['II', 'rr', 'rw', 'rr'],
+  handheld: ['ppppp', 'pvvpr', 'ppppp'],
+  phone: ['ii', 'bb', 'bb', 'ii'],
+  remote: ['i', 'r', 'i', 'i'],
+  // Worn over the head stamp, at its corner: the band over the hair, the cups over the ears.
+  headphones: ['.iiii.', 'i....i', 'r....r', 'r....r'],
+  pad: ['hIIh', 'hwwh', 'hiih', 'hwwh', 'hhhh'],
+  beanbag: ['..pppppppp..', '.pppppppppp.', 'pppppppppppp', 'pppppppppppp', 'PPPPPPPPPPPP'],
 }
+
+const BUBBLE = ['uu', 'uu']
+const BIG_BUBBLE = ['.uuu.', 'uuuuu', 'uuwuu', 'uuuuu', '.uuu.']
+
+/** Props he stands, sits or lies in front of: painted before him. */
+const behind = (p: Prop) => p.kind === 'bar' || p.kind === 'mat' || p.kind === 'wall' || p.kind === 'chair' || p.kind === 'beanbag'
 
 const FX: Record<Fx['kind'], readonly string[]> = {
   sweat: ['b', 'b'],
@@ -181,6 +201,9 @@ function prop(grid: Grid, p: Prop) {
     case 'wall':
       capsule(grid, [p.x, 0], [p.x, SIZE], 1, 'I')
       return
+    case 'bubble':
+      stamp(grid, p.big === true ? BIG_BUBBLE : BUBBLE, p.at[0], p.at[1])
+      return
     case 'dumbbell':
       stamp(grid, p.upright === true ? PROPS.dumbbell.map((_, i) => PROPS.dumbbell.map(row => row[i] ?? '.').join('')) : PROPS.dumbbell, p.at[0] - 1, p.at[1] - 1)
       return
@@ -192,7 +215,7 @@ function prop(grid: Grid, p: Prop) {
 /** A pose as a frame's 16 rows of palette characters; dressed in `outfit` (season.ts) when he wears one. */
 export function drawFigure(f: Figure, outfit?: Outfit): string[] {
   const grid = blank()
-  for (const p of f.props ?? []) if (p.kind === 'bar' || p.kind === 'mat' || p.kind === 'wall' || p.kind === 'chair') prop(grid, p)
+  for (const p of f.props ?? []) if (behind(p)) prop(grid, p)
   // In profile the far limbs are in shade; front-on both sides are lit.
   // Limbs are slimmer in profile, where two of them overlap the torso.
   const isFront = f.head?.facing !== 'right' && f.head?.facing !== 'left'
@@ -214,7 +237,7 @@ export function drawFigure(f: Figure, outfit?: Outfit): string[] {
   if (f.frontArm !== undefined) limb(grid, f.frontArm, 's', undefined, !isFront)
   for (const at of f.bicep ?? []) capsule(grid, at, at, 2.6, 's')
   if (f.head !== undefined) stamp(grid, headRows(f.head.facing, f.head.expr, f.head.bare), f.head.at[0], f.head.at[1])
-  for (const p of f.props ?? []) if (!(p.kind === 'bar' || p.kind === 'mat' || p.kind === 'wall' || p.kind === 'chair')) prop(grid, p)
+  for (const p of f.props ?? []) if (!behind(p)) prop(grid, p)
   for (const fx of f.fx ?? []) stamp(grid, FX[fx.kind], fx.at[0], fx.at[1])
   const rows = grid.map(row => row.join(''))
   // The outfit on his head, unless the laurel is off it (in his hand, in the air): then the hat is too.

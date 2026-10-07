@@ -1,6 +1,6 @@
 /**
  * Swolomon's moves, collected (owner, 2026-10-03: "surprise me with something that's really gonna help
- * engagement"). Every set done moves you toward the next of his 33 moves; when one unlocks, he performs it
+ * engagement"). Every set done moves you toward the next of his moves; when one unlocks, he performs it
  * for you the first time, and `/workout flex` shows off the ones you have. Showing up is what earns them:
  * the gaps grow slowly, so the next one is never far. Pure.
  */

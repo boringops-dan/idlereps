@@ -3,6 +3,7 @@ import type { RenderElement } from 'claude-code'
 
 import type { Plan } from '../types'
 import { ACTIONS } from '../hooks/actions'
+import { MOVES } from '../hooks/moves'
 import { SEASONS } from '../hooks/season'
 import {
   ADDRESS_TERMS,
@@ -69,7 +70,7 @@ const FILLS = {
   what: 'Cardio',
   ideas: 'a minute of jumping jacks · a minute of high knees · 10 lunges a leg',
   week: 9999,
-  total: 33,
+  total: MOVES.length,
   next: 'Next one in 99 sets.',
   wait: 'about 55 min',
   minutes: '12 h 45 min',

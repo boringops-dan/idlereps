@@ -21,11 +21,11 @@ async function bandOf($: Engine) {
   return { rows, keys, text: rows.join('\n') }
 }
 
-test('the pacing: the first unlock at 3 sets, then one more set each time; all 30 by 496', () => {
+test('the pacing: the first unlock at 3 sets, then one more set each time; all 83 by 3570', () => {
   expect([1, 2, 3, 4].map(setsForUnlock)).toEqual([3, 6, 10, 15])
   expect([0, 2, 3, 5, 6, 10].map(unlocksEarned)).toEqual([0, 0, 1, 1, 2, 3])
   expect(unlocksEarned(setsForUnlock(UNLOCK_ORDER.length))).toBe(UNLOCK_ORDER.length)
-  expect(setsForUnlock(UNLOCK_ORDER.length)).toBe(496)
+  expect(setsForUnlock(UNLOCK_ORDER.length)).toBe(3570)
   expect(dueUnlock(2, [])).toBeNull()
   expect(dueUnlock(3, [])?.id).toBe(UNLOCK_ORDER[0])
   expect(dueUnlock(3, [UNLOCK_ORDER[0] ?? ''])).toBeNull()

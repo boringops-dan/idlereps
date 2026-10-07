@@ -3,6 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import type { Plan } from '../types'
 import { line } from '../hooks/copy'
 import { decodeFrame, encodeCells } from '../hooks/portrait'
+import { MOVES } from '../hooks/moves'
 import { bar, bestText } from '../hooks/status'
 import { SPRITE } from '../hooks/swolomon-sprite'
 import { parsePlan, PLAN_PROMPT, START } from '../hooks/plan'
@@ -72,7 +73,7 @@ test('the status pane on a training day: Swolomon, the workout as a table, the b
     'Mon ·  Tue ·  Wed ·  Thu ·  Fri ○  Sat ·  Sun ·',
     'Streak 0 · 0 sets this week · 112 total',
     'Rank: Rack Regular  ━━━━━━━━━━  112/250 to Iron Disciple',
-    'Moves 33 of 33  ━━━━━━━━━━  all of them',
+    `Moves ${MOVES.length} of ${MOVES.length}  ━━━━━━━━━━  all of them`,
     'Bests  Squats 14 reps',
     '',
     'Beginner general fitness · 3x/week · 4 weeks',

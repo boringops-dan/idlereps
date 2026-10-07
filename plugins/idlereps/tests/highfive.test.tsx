@@ -67,7 +67,7 @@ test('the next prompt puts it away, like the logged line', OPTIONS, async ($, on
   expect((await bandOf($)).keys).toEqual([])
 })
 
-test('a gesture, not a move to collect: the 33 stay 33', () => {
+test(`a gesture, not a move to collect: the ${MOVES.length} stay ${MOVES.length}`, () => {
   expect(GESTURES.map(m => m.id).slice(0, 4)).toEqual(['high-five', 'hug', 'struggle', 'posing-routine'])
   expect(GESTURES.slice(4)).toEqual([...CELEBRATION_MOVES])
   expect(MOVES.some(m => GESTURES.includes(m))).toBe(false)
