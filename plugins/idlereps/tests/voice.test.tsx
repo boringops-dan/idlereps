@@ -516,7 +516,7 @@ test('ask-first slot: a fresh workout gets the ask-first line', OPTIONS, async (
   await clock.advance(30_000)
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   const texts = (await ui.findAll({ type: 'Text' })).map(t => t.text)
-  const firstLines = [0, 1, 2].map(i => fill(LINES.find(l => l.id === 'ask-first')?.variants[i] ?? '', { ...FILLS, workout: 'A', n: 2, mate: pickAddress(TODAY, 'ask-first'), agentDoing: agentDoing(TODAY, 1, 30_000) }))
+  const firstLines = (LINES.find(l => l.id === 'ask-first')?.variants ?? []).map(v => fill(v, { ...FILLS, workout: 'A', n: 2, mate: pickAddress(TODAY, 'ask-first'), agentDoing: agentDoing(TODAY, 1, 30_000) }))
   expect(texts.some(t => firstLines.includes(t))).toBe(true)
   await ui.unmount()
 })

@@ -44,7 +44,7 @@ test('animated: midday, after a good month, he has been counting', ANIMATED, asy
 test('animated: once a day: the next band’s first aside is the usual one', ANIMATED, async ($, on) => {
   const { clock } = world(on, null, { ...REMIND, seen: { onboarded: { at: 1, n: 1 }, safety: { at: 1, n: 1 }, mood: { at: at(6), n: 1 } } }, { now: at(6, 30) })
   await $.session.start(SESSION)
-  expect(await firstAside($, clock)).toMatch(/we doing this|No rush|stand here/)
+  expect(await firstAside($, clock)).toMatch(/we doing this|No rush|stand here|right here|now-ish/)
 })
 
 test('animated: the pane late at night: he naps', ANIMATED, async ($, on) => {

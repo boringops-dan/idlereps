@@ -54,6 +54,8 @@ export const LINES = [
       // §1.10: the plain line under it already gives the count, so this variant does not repeat it (and
       // with the name tag it stays within 80 columns).
       '{AgentDoing}, {mate}. {workout}?',
+      'Window open, {mate}. {workout}, {n} sets. Shall we?',
+      '{AgentDoing}. {workout} now, {mate}?',
     ],
   },
   {
@@ -63,6 +65,8 @@ export const LINES = [
       '{workout} awaits, {mate}. {n} sets left. Finish it?',
       'Unfinished business, {mate}: {n} sets of {workout}.',
       'The iron remembers, {mate}. {n} sets left in {workout}.',
+      '{workout} is still on the rack, {mate}. {n} sets to go.',
+      'Back for the rest, {mate}? {n} sets of {workout}.',
     ],
   },
   {
@@ -105,6 +109,11 @@ export const LINES = [
       'You got this one, {mate}.',
       'Breathe, {mate}. Then go.',
       'This is the good part, {mate}.',
+      'Clean reps, {mate}. Swolomon approves.',
+      'Steady breathing, {mate}. You own this one.',
+      'Nice and controlled, {mate}. Like a pro.',
+      'Look at that focus, {mate}. Laser beams.',
+      'One rep at a time, {mate}. That is the secret.',
     ],
   },
   {
@@ -117,6 +126,11 @@ export const LINES = [
       'Taking notes, {mate}. Good ones.',
       'Quick set, {mate}. Then back to it.',
       'Beat last time, {mate}. Swolomon dares you.',
+      'Big Greg is watching, {mate}. Act natural.',
+      'I would spot you, {mate}, but you do not need it.',
+      'Doing this one in my head with you, {mate}. Tiring.',
+      'Your agent works, you work, {mate}. Teamwork.',
+      'If anyone asks, {mate}, I taught you that.',
     ],
   },
   {
@@ -126,6 +140,8 @@ export const LINES = [
       'Skipped. All good, {mate}. The wise lifter listens to the body.',
       "Respect, {mate}. That set's for another day.",
       "No sweat, {mate}. Next one's yours.",
+      'Skipped, {mate}. The iron will keep.',
+      "All good, {mate}. Tomorrow's set is a fresh one.",
     ],
   },
   {
@@ -144,6 +160,7 @@ export const LINES = [
       "{workout} DONE, {mate}! How'd it feel?",
       "That's {workout} in the books, {mate}. How was it?",
       '{workout} conquered, {mate}. How was it?',
+      '{workout}: finished, {mate}. Tell me everything.',
     ],
   },
   {
@@ -153,6 +170,8 @@ export const LINES = [
       '{workout} today, {mate}, while {agentDoing}.',
       '{coach} decrees {workout} today, {mate}. {n} sets.',
       "It's {workout} day, {mate}, and {agentDoing}.",
+      '{coach} has {workout} on the board today, {mate}. {n} sets.',
+      '{workout} today, {mate}. Meanwhile {agentDoing}.',
     ],
   },
   {
@@ -212,7 +231,13 @@ export const LINES = [
   {
     id: 'new-best',
     voice: 'swolomon',
-    variants: ['NEW BEST, {mate}! It is written.', 'A new best. {coach} is proud, {mate}.', 'The iron does not lie, {mate}. New best.'],
+    variants: [
+      'NEW BEST, {mate}! It is written.',
+      'A new best. {coach} is proud, {mate}.',
+      'The iron does not lie, {mate}. New best.',
+      'Best ever, {mate}! Swolomon is writing this down.',
+      'New best, {mate}. Big Greg stopped mid-shake.',
+    ],
   },
   {
     // After Quick start or setup on a training day: the plan is ready and so is today's workout.
@@ -255,16 +280,16 @@ export const LINES = [
   {
     id: 'greet-missed',
     voice: 'swolomon',
-    variants: ['Missed you, {mate}. Did legs alone. It was sad.', "There you are, {mate}! The bench missed you. I mean I did.", '{n} days, {mate}. I counted. Not in a weird way.'],
+    variants: ['Missed you, {mate}. Did legs alone. It was sad.', "There you are, {mate}! The bench missed you. I mean I did.", '{n} days, {mate}. I counted. Not in a weird way.', 'Back after {n} days, {mate}. The rack and I kept watch.'],
   },
-  { id: 'greet-long-away', voice: 'swolomon', variants: ["You're back! I kept your spot warm, {mate}.", 'Look who it is! Your locker is right where you left it, {mate}.', 'Welcome back, {mate}. No speeches. Just glad.'] },
+  { id: 'greet-long-away', voice: 'swolomon', variants: ["You're back! I kept your spot warm, {mate}.", 'Look who it is! Your locker is right where you left it, {mate}.', 'Welcome back, {mate}. No speeches. Just glad.', 'Look who walked in! Coffee is on me, {mate}.'] },
   {
     id: 'greet-yesterday',
     voice: 'swolomon',
-    variants: ['Yesterday: {n} moves for you, {worked} for your agent. Teamwork, {mate}.', '{n} moves yesterday, {mate}. Your agent did {worked}. You both win.'],
+    variants: ['Yesterday: {n} moves for you, {worked} for your agent. Teamwork, {mate}.', '{n} moves yesterday, {mate}. Your agent did {worked}. You both win.', '{n} moves for you, {worked} for your agent. Nice pairing, {mate}.'],
   },
-  { id: 'greet-yesterday-moved', voice: 'swolomon', variants: ['{n} moves yesterday, {mate}. Same again? Or one more?', 'You moved {n} times yesterday, {mate}. I wrote it on my arm.'] },
-  { id: 'greet-yesterday-agent', voice: 'swolomon', variants: ['Your agent worked {worked} yesterday, {mate}. Today you get a turn too.', '{worked} of work for your agent yesterday, {mate}. Your turn today.'] },
+  { id: 'greet-yesterday-moved', voice: 'swolomon', variants: ['{n} moves yesterday, {mate}. Same again? Or one more?', 'You moved {n} times yesterday, {mate}. I wrote it on my arm.', '{n} moves yesterday, {mate}. That is how habits start.'] },
+  { id: 'greet-yesterday-agent', voice: 'swolomon', variants: ['Your agent worked {worked} yesterday, {mate}. Today you get a turn too.', '{worked} of work for your agent yesterday, {mate}. Your turn today.', 'Your agent put in {worked} yesterday, {mate}. Show it how it is done.'] },
   // The punch card full: a free shake, which he drinks for you.
   { id: 'card-full', voice: 'swolomon', variants: ["Card's full, {mate}! Free shake. I'll drink it for you.", 'Ten stamps, {mate}. Your reward: watching me enjoy this.'] },
   // Spot me: he is stuck on his last rep; you cheer him through.
@@ -276,7 +301,7 @@ export const LINES = [
   { id: 'dance', voice: 'swolomon', variants: ['You found the music, {mate}. Watch the hips.', 'Leg day, but fun, {mate}.'] },
   { id: 'dance-locked', voice: 'swolomon', variants: ['Not ready to show you that one yet, {mate}. {n} more sets.'] },
   // High five on a logged set.
-  { id: 'high-five', voice: 'swolomon', variants: ['Up top, {mate}!', 'Yes, {mate}! Felt that one in my soul.', 'Clean contact, {mate}. Textbook.', 'Ow. Worth it, {mate}.'] },
+  { id: 'high-five', voice: 'swolomon', variants: ['Up top, {mate}!', 'Yes, {mate}! Felt that one in my soul.', 'Clean contact, {mate}. Textbook.', 'Ow. Worth it, {mate}.', 'Crisp one, {mate}! My hand is still ringing.', 'Five! And a half, {mate}.'] },
   // Celebrations after a set (hooks/celebrate.ts): offered (held out, then landed) and shown.
   { id: 'cel-high-five', voice: 'swolomon', variants: ['Up top, {mate}!', "Up high, {mate}! Don't leave me hanging."] },
   { id: 'cel-low-five', voice: 'swolomon', variants: ['Down low, {mate}!', 'Low five, {mate}. Down here.'] },
@@ -370,25 +395,25 @@ export const LINES = [
   // Sized to the wait (hooks/waits.ts).
   { id: 'remind-quick', voice: 'swolomon', variants: ['Quick one while it thinks, {mate}. Anything counts.', "Short wait, {mate}. Short set. Let's go.", 'Blink and it is back, {mate}. Ten of something?'] },
   { id: 'remind-long', voice: 'swolomon', variants: ['Long one coming, {mate}. Go for a walk. Or anything.', '{AgentDoing}. Stretch your legs, {mate}.', 'Your agent will be gone a bit, {mate}. So should you.'] },
-  { id: 'moved-logged', voice: 'swolomon', variants: ['{what} logged, {mate}. {n} today.', '{what}, {mate}. Written in the scrolls. {n} today.', '{what}, {mate}. My laurel just got shinier. {n} today.', "Logged, {mate}. {what}. That's {n} today. Glorious."] },
+  { id: 'moved-logged', voice: 'swolomon', variants: ['{what} logged, {mate}. {n} today.', '{what}, {mate}. Written in the scrolls. {n} today.', '{what}, {mate}. My laurel just got shinier. {n} today.', "Logged, {mate}. {what}. That's {n} today. Glorious.", '{what} done, {mate}. {n} today. Big Greg is impressed.', '{what}, {mate}! {n} today. Swolomon nods slowly.'] },
   { id: 'remind-pane-fresh', voice: 'swolomon', variants: ["No sets yet today, {mate}. Your agent's next long task is yours.", "Fresh day, {mate}. First set is the hardest. I'll be here.", 'Nothing yet, {mate}. Your agent works hard. Do you?'] },
   { id: 'remind-pane-done', voice: 'swolomon', variants: ['{n} sets today, {mate}. The iron remembers.', '{n} sets today, {mate}. My chest swells with pride.', '{n} today, {mate}. The scrolls have been updated.'] },
   // A move unlocked: he performs it for you, the first time.
   {
     id: 'unlock',
     voice: 'swolomon',
-    variants: ['New move unlocked, {mate}. Watch closely.', 'You earned this one, {mate}. Behold.', 'Showing up pays, {mate}. Witness this.', 'A gift, {mate}. Do not tell the others.'],
+    variants: ['New move unlocked, {mate}. Watch closely.', 'You earned this one, {mate}. Behold.', 'Showing up pays, {mate}. Witness this.', 'A gift, {mate}. Do not tell the others.', 'Fresh from the vault, {mate}. Watch this.', 'Been saving this one, {mate}. For you.'],
   },
   // His day, and their history: the first aside of a band, once a day (register.tsx firstAside).
   { id: 'aside-morning', voice: 'swolomon', variants: ["Coffee's a pre-workout, right, {mate}?", 'Morning, {mate}. My eyes are open. Mostly.', 'Early start, {mate}. The iron is cold. Like me.'] },
   { id: 'aside-late', voice: 'swolomon', variants: ['Why are we both still here, {mate}?', 'It is very late, {mate}. I was asleep. In the gym.', 'Night shift, {mate}? I brought a blanket.'] },
   { id: 'aside-showed-up', voice: 'swolomon', variants: ["{n} days this month, {mate}. I've been counting.", 'You showed up {n} days this month, {mate}. I noticed.'] },
   // Asides while a band waits (hooks/asides.ts), more impatient each time.
-  { id: 'aside-nudge', voice: 'swolomon', variants: ['So... we doing this or what, {mate}?', 'No rush, {mate}. Some rush.', "I'll just stand here then, {mate}."] },
-  { id: 'aside-hello', voice: 'swolomon', variants: ['Hello? You in there, {mate}?', 'Psst. Over here, {mate}.', 'Is this thing on, {mate}?'] },
-  { id: 'aside-bored', voice: 'swolomon', variants: ["I'm bored, {mate}.", 'Counting ceiling tiles, {mate}. Eleven.', 'This is my waiting face, {mate}.'] },
-  { id: 'aside-antics', voice: 'swolomon', variants: ['Did a few reps without you, {mate}. Your turn.', 'My pump is fading, {mate}.', 'Warmed up twice now, {mate}.'] },
-  { id: 'aside-done', voice: 'swolomon', variants: ["Fine. I'm good at waiting, {mate}.", "I'll be right here, {mate}. Always am.", "Wake me when you're ready, {mate}."] },
+  { id: 'aside-nudge', voice: 'swolomon', variants: ['So... we doing this or what, {mate}?', 'No rush, {mate}. Some rush.', "I'll just stand here then, {mate}.", 'The set is right here, {mate}. Just saying.', 'Whenever you are ready, {mate}. Like, now-ish.'] },
+  { id: 'aside-hello', voice: 'swolomon', variants: ['Hello? You in there, {mate}?', 'Psst. Over here, {mate}.', 'Is this thing on, {mate}?', 'Knock knock, {mate}. It is me. Swolomon.', 'Yoo-hoo, {mate}. Down here.'] },
+  { id: 'aside-bored', voice: 'swolomon', variants: ["I'm bored, {mate}.", 'Counting ceiling tiles, {mate}. Eleven.', 'This is my waiting face, {mate}.', 'Polished my laurel twice, {mate}. Still shiny.', 'Counted the dumbbells, {mate}. All there.'] },
+  { id: 'aside-antics', voice: 'swolomon', variants: ['Did a few reps without you, {mate}. Your turn.', 'My pump is fading, {mate}.', 'Warmed up twice now, {mate}.', 'Practised my posing, {mate}. Want to see? Later.', 'Did a lap of the gym, {mate}. Slowly.'] },
+  { id: 'aside-done', voice: 'swolomon', variants: ["Fine. I'm good at waiting, {mate}.", "I'll be right here, {mate}. Always am.", "Wake me when you're ready, {mate}.", 'Taking five, {mate}. You know where I am.', 'Off to refill my shake, {mate}. Back soon.'] },
   { id: 'program-ask', voice: 'swolomon', variants: ["A program! Now we're talking, {mate}. How do we build it?"] },
   { id: 'byoplan-ask', voice: 'swolomon', variants: ['Got your own program, {mate}? Show me.'] },
   { id: 'pane-finished', voice: 'swolomon', variants: ['The whole program, {mate}. Legends are made like this.', 'Program complete, {mate}. They will write songs about this.'] },
@@ -487,6 +512,9 @@ export const LINES = [
       "Big Greg lost the shaker again. Anyway. Let's work, {mate}.",
       'Deadlift Doris says your form looks crisp, {mate}.',
       "Cardio Kevin waved without missing a pedal. Your set, {mate}.",
+      'Big Greg named the shaker Steve. Your set, {mate}.',
+      "Deadlift Doris chalked up for a selfie. You're up, {mate}.",
+      'Cardio Kevin says hi from mile forty. Your turn, {mate}.',
     ],
   },
   { id: 'chest-day', voice: 'swolomon', variants: ['Monday. International Chest Day, {mate}. It is written.'] },
@@ -505,6 +533,9 @@ export const LINES = [
       'A shake a day keeps the shrimp away, {mate}.',
       'Big Greg once made a shake so big it needed a lifeguard, {mate}.',
       'Protein is a lifestyle, {mate}. Mostly a lifestyle of shaking things.',
+      "Big Greg's shake has its own shake, {mate}. A shake shake.",
+      'They say you are what you eat, {mate}. I am mostly chicken.',
+      'Protein is the friend that always shows up, {mate}. Like you.',
     ],
   },
   {
@@ -517,6 +548,10 @@ export const LINES = [
       'Lift with your legs, {mate}. And your heart. Mostly your legs.',
       'The wise lifter racks their weights, {mate}. Big Greg is not wise.',
       'Consistency beats intensity, {mate}. Both beat the couch.',
+      'Small sets add up, {mate}. A mountain is just a lot of pebbles.',
+      'The best set is the one you do, {mate}. The next best is the next one.',
+      'Rack your ego with your weights, {mate}. Both get heavy.',
+      'Water first, {mate}. Then glory.',
     ],
   },
 
