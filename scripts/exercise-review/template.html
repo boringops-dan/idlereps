@@ -1,0 +1,157 @@
+<title>IdleReps Exercise Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* A coach's programming sheet: one column of slots, each a table of options then its exercises' cues. Plate colours mark status. */
+:root {
+  --paper: #f6f7f9; --card: #ffffff; --ink: #1b2330; --muted: #5b6676; --rule: #d9dee6;
+  --plate: #1f4fa3; --plate-soft: #e3ebf8; --new: #f2c230; --new-ink: #3a2c00;
+  --display: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  --body: 'IBM Plex Sans', system-ui, -apple-system, Segoe UI, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #12161d; --card: #1a2029; --ink: #e6eaf0; --muted: #9aa5b4; --rule: #2c3542;
+  --plate: #7ea6f0; --plate-soft: #1e2b44; --new: #f2c230; --new-ink: #2b2000; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #12161d; --card: #1a2029; --ink: #e6eaf0; --muted: #9aa5b4; --rule: #2c3542;
+  --plate: #7ea6f0; --plate-soft: #1e2b44; --new: #f2c230; --new-ink: #2b2000; color-scheme: dark }
+body { background: var(--paper); color: var(--ink); font: 15px/1.55 var(--body); }
+.wrap { max-width: 980px; margin: 0 auto; padding-inline: 16px; padding-block: 32px 64px; display: grid; gap: 28px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 700; letter-spacing: .01em; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(30px, 6vw, 44px); line-height: 1.05; }
+h2 { font-size: 26px; }
+h3 { font-size: 19px; }
+p { margin: 0; max-width: 68ch; }
+.intro { display: grid; gap: 12px; }
+.eyebrow { font: 600 12px/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--plate); }
+.ask { display: grid; gap: 6px; padding-left: 20px; margin: 0; max-width: 68ch; }
+.counts { display: flex; flex-wrap: wrap; gap: 8px 22px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.counts b { color: var(--ink); font-weight: 600; }
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 2; background: var(--paper); padding-block: 10px; border-bottom: 1px solid var(--rule); display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.bar input[type=search] { flex: 1 1 220px; min-width: 0; font: inherit; padding: 8px 10px; border: 1px solid var(--rule); border-radius: 6px; background: var(--card); color: var(--ink); }
+.bar label { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); }
+.bar nav { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 13px; }
+a { color: var(--plate); }
+:focus-visible { outline: 2px solid var(--plate); outline-offset: 2px; }
+section.slot { display: grid; gap: 14px; padding-top: 6px; }
+.slot-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.slot-head span { color: var(--muted); font-size: 13px; }
+.scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 8px; background: var(--card); }
+table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+th { font: 600 11px/1.2 var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); background: var(--plate-soft); }
+.amt { display: block; font-family: var(--mono); font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tag { display: inline-block; font: 600 10.5px/1 var(--body); letter-spacing: .08em; text-transform: uppercase; padding: 4px 6px; border-radius: 3px; vertical-align: 2px; margin-left: 6px; }
+.tag.new { background: var(--new); color: var(--new-ink); }
+.tag.own { background: var(--plate-soft); color: var(--plate); }
+.ex-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.ex { background: var(--card); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.ex.is-new { border-left: 4px solid var(--new); }
+.ex h3 { font-size: 18px; }
+.note { font-size: 13.5px; color: var(--muted); }
+.cues { margin: 0; padding-left: 18px; display: grid; gap: 3px; font-size: 14px; }
+.cues li::marker { color: var(--plate); }
+.empty { color: var(--muted); }
+footer { color: var(--muted); font-size: 13px; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+<div class="wrap">
+  <header class="intro">
+    <div class="eyebrow">For a coach's review</div>
+    <h1>IdleReps Exercise Review</h1>
+    <p>IdleReps gives people one set at a time while their coding agent works, coached by a cartoon gym regular called Swolomon. This sheet lists every exercise it can prescribe, the amounts at each level, and the short form tips he says on each set. Exercises marked <span class="tag new" style="margin:0">New</span> were added this week and have not been reviewed yet.</p>
+    <p>Please check:</p>
+    <ol class="ask">
+      <li>Each exercise suits its slot and the level it sits at (beginner, intermediate, advanced).</li>
+      <li>The amounts are sensible for one set done in a spare minute, usually at a desk, without a warm-up.</li>
+      <li>The form tips are correct and safe. Each is at most 70 characters and never names the exercise. "champ" stands in for the nickname he calls the person.</li>
+      <li>The office swaps are standing-only and quiet enough for an office.</li>
+    </ol>
+    <div class="counts" id="counts"></div>
+  </header>
+
+  <div class="bar">
+    <input type="search" id="q" placeholder="Find an exercise or a word in a tip" aria-label="Find an exercise">
+    <label for="only-new"><input type="checkbox" id="only-new"> New only</label>
+    <nav aria-label="Sections" id="toc"></nav>
+  </div>
+
+  <main id="slots" style="display:grid;gap:32px"></main>
+
+  <section class="slot" id="office">
+    <div class="slot-head"><h2>Office plans</h2><span>Standing and quiet: each of these exercises is swapped for the one shown, at every level.</span></div>
+    <div class="scroll"><table><thead><tr><th>Home exercise</th><th>Office swap</th><th>Beginner</th><th>Intermediate</th><th>Advanced</th></tr></thead><tbody id="office-rows"></tbody></table></div>
+    <h3>When an office exercise is outgrown</h3>
+    <div class="scroll"><table><thead><tr><th>From</th><th>Moves on to</th><th>Starting at</th></tr></thead><tbody id="harder-rows"></tbody></table></div>
+  </section>
+
+  <section class="slot" id="desk">
+    <div class="slot-head"><h2>Desk stretches</h2><span>One a rest day, at the desk.</span></div>
+    <div class="ex-list" id="desk-list"></div>
+  </section>
+
+  <footer>Generated from the IdleReps code on <span id="when"></span>, so it shows exactly what ships. Amounts are per set; "each side" and "each leg" mean per side.</footer>
+</div>
+<script>const DATA = /*DATA*/;
+const SLOTS = {
+  PUSH1: ['Push-up', 'Chest, shoulders, triceps'], PUSH2: ['Shoulders', 'Overhead and raises'], TRI: ['Triceps', ''],
+  PULL1: ['Pull', 'Lats and back'], PULL2: ['Upper back', 'Rear shoulders and posture'], CURL: ['Biceps', ''],
+  LEGS1: ['Squat', ''], LEGS2: ['Lunge and single leg', ''], GLUTE: ['Glutes', ''], CALF: ['Calves and shins', ''],
+  WALL: ['Leg hold', 'Isometric'], PLANK: ['Plank', 'Front core'], DEADBUG: ['Core', 'Anti-extension and crunches'],
+  SIDEPLANK: ['Side core', ''], CARDIO: ['Cardio', 'Short bursts'], MOB1: ['Mobility: hips', ''], MOB2: ['Mobility: upper back', ''],
+  MOB3: ['Mobility: spine', ''], MOB4: ['Mobility: hamstrings', ''],
+}
+const GEAR = { any: 'No equipment', dumbbells: 'Dumbbells', bar: 'Pull-up bar', bands: 'Resistance bands' }
+const LEVELS = ['Beginner', 'Intermediate', 'Advanced']
+const byName = new Map(DATA.exercises.map(e => [e.name, e]))
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+const newTag = name => (byName.get(name)?.isNew ? '<span class="tag new">New</span>' : '')
+
+function card(name, extra = '') {
+  const e = byName.get(name)
+  if (!e) return ''
+  const note = e.note ? `<p class="note">Note shown with it: ${esc(e.note)}</p>` : ''
+  const cues = e.cues.length ? `<ul class="cues">${e.cues.map(c => `<li>${esc(c)}</li>`).join('')}</ul>` : '<p class="empty">No form tip.</p>'
+  return `<article class="ex${e.isNew ? ' is-new' : ''}" data-name="${esc(name)}"><h3>${esc(name)}${newTag(name)}</h3>${extra}${note}${cues}</article>`
+}
+
+function matches(name, q) {
+  if (!q) return true
+  const e = byName.get(name)
+  return [name, e?.note ?? '', ...(e?.cues ?? [])].join(' ').toLowerCase().includes(q)
+}
+
+function render() {
+  const q = document.getElementById('q').value.trim().toLowerCase()
+  const onlyNew = document.getElementById('only-new').checked
+  const show = name => matches(name, q) && (!onlyNew || byName.get(name)?.isNew)
+  const toc = []
+  document.getElementById('slots').innerHTML = DATA.slots.map(slot => {
+    const rows = [...slot.own.map(r => ({ ...r, kind: 'In the plan' })), ...slot.alts.map((r, i) => ({ ...r, kind: `Alternate ${i + 1}` }))]
+    const shownRows = rows.filter(r => r.levels.some(l => show(l.name)))
+    if (!shownRows.length) return ''
+    const names = [...new Set(shownRows.flatMap(r => r.levels.map(l => l.name)))].filter(show)
+    const [label, sub] = SLOTS[slot.slot] ?? [slot.slot, '']
+    toc.push(`<a href="#${slot.slot}">${esc(label)}</a>`)
+    const body = shownRows.map(r => `<tr><td>${r.kind === 'In the plan' ? '<span class="tag own" style="margin:0">In the plan</span>' : esc(r.kind)}</td><td>${esc(GEAR[r.requires] ?? r.requires)}</td>${r.levels.map(l => `<td>${esc(l.name)}${newTag(l.name)}<span class="amt">${esc(l.amount)}</span></td>`).join('')}</tr>`).join('')
+    return `<section class="slot" id="${slot.slot}"><div class="slot-head"><h2>${esc(label)}</h2>${sub ? `<span>${esc(sub)}</span>` : ''}</div>
+      <div class="scroll"><table><thead><tr><th>Option</th><th>Needs</th>${LEVELS.map(l => `<th>${l}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>
+      <div class="ex-list">${names.map(n => card(n)).join('')}</div></section>`
+  }).join('') || '<p class="empty">Nothing matches. Clear the search or untick New only.</p>'
+  document.getElementById('toc').innerHTML = [...toc, '<a href="#office">Office</a>', '<a href="#desk">Desk stretches</a>'].join('')
+}
+
+document.getElementById('office-rows').innerHTML = DATA.office.map(o => `<tr><td>${esc(o.from)}</td><td>${esc(o.to)}${newTag(o.to)}</td>${o.amounts.map(a => `<td><span class="amt" style="color:inherit">${esc(a)}</span></td>`).join('')}</tr>`).join('')
+document.getElementById('harder-rows').innerHTML = DATA.harder.map(h => `<tr><td>${esc(h.from)}</td><td>${esc(h.to)}${newTag(h.to)}</td><td><span class="amt" style="color:inherit">${esc(h.amount)}</span></td></tr>`).join('')
+const officeNames = [...new Set([...DATA.office.map(o => o.to), ...DATA.harder.map(h => h.to)])]
+document.getElementById('office').insertAdjacentHTML('beforeend', `<h3>Their form tips</h3><div class="ex-list">${officeNames.map(n => card(n)).join('')}</div>`)
+document.getElementById('desk-list').innerHTML = DATA.desk.map(d => card(d.name, `<span class="amt">${d.seconds} s</span>`)).join('')
+const total = DATA.exercises.length, fresh = DATA.exercises.filter(e => e.isNew).length, tips = DATA.exercises.reduce((n, e) => n + e.cues.length, 0)
+document.getElementById('counts').innerHTML = `<span><b>${total}</b> exercises</span><span><b>${fresh}</b> new</span><span><b>${tips}</b> form tips</span><span><b>${DATA.slots.length}</b> slots</span>`
+document.getElementById('when').textContent = DATA.generated
+document.getElementById('q').addEventListener('input', render)
+document.getElementById('only-new').addEventListener('change', render)
+render()
+</script>

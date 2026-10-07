@@ -87,7 +87,7 @@ const alt3 = (requires: Requires, name: string, unit: Unit, values: [number, num
  * (`resolveSlot`): the second time a slot comes up in a week, the next one; in weeks 5 to 8, one further on.
  * Never in an office plan (office mode keeps its standing, quiet list).
  */
-const ALTS: Record<Slot, Alt[]> = {
+export const ALTS: Record<Slot, Alt[]> = {
   PUSH1: [
     alt('any', [e('Knee push-ups', 10, 'reps'), e('Wide push-ups', 10, 'reps'), e('Diamond push-ups', 10, 'reps')]),
     alt('any', [e('Plank shoulder taps', 16, 'reps'), e('Plank shoulder taps', 24, 'reps'), e('Archer push-ups', 6, 'each side')]),
@@ -158,7 +158,7 @@ export const ALT_NAMES: readonly string[] = [...new Set(Object.values(ALTS).flat
 const MOB_SLOTS: readonly Slot[] = ['MOB1', 'MOB2', 'MOB3', 'MOB4']
 
 /** §5.1 notes, fixed. */
-const NOTES: Record<string, string> = {
+export const NOTES: Record<string, string> = {
   'Incline push-ups': 'a sturdy desk or counter',
   'Pull-up negatives': 'jump up, lower for 3-5 s',
   'Superman hold': 'lie face down, lift arms and legs',
@@ -191,7 +191,7 @@ const NOTES: Record<string, string> = {
 }
 
 /** §5.1a: office replacements by the looked-up name, per level. Office mode never uses the floor or jumping. */
-const OFFICE: Record<string, [Entry, Entry, Entry]> = (() => {
+export const OFFICE: Record<string, [Entry, Entry, Entry]> = (() => {
   const by = (name: string, unit: Unit, values: [number, number, number]): [Entry, Entry, Entry] => [
     e(name, values[0], unit),
     e(name, values[1], unit),
@@ -410,7 +410,7 @@ export function generateProgram(answers: Answers): Plan {
  * Office mode's next steps (its swaps are one exercise at every level): standing and quiet, each with its own
  * demo. An exercise not here, nor further along its library row, has no harder variant.
  */
-const OFFICE_HARDER: Record<string, Entry> = {
+export const OFFICE_HARDER: Record<string, Entry> = {
   'Wall push-ups': e('Desk push-ups', 10, 'reps'),
   'Desk push-ups': e('Close-grip desk push-ups', 10, 'reps'),
   Squats: e('Pulse squats', 12, 'reps'),
