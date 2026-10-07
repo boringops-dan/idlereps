@@ -1,5 +1,5 @@
 /**
- * Copyright 2026 zrobok. All rights reserved: not covered by the Apache License (see NOTICE). The regulars'
+ * Copyright 2026 Orange Specs Mobile Labs. All rights reserved: not covered by the Apache License (see NOTICE). The regulars'
  * names, characters and these drawings are proprietary.
  *
  * The regulars in person (owner, 2026-10-06: "more Swolomon"): Big Greg, Deadlift Doris and Cardio Kevin,

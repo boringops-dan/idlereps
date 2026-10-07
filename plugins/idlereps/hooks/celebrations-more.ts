@@ -1,5 +1,5 @@
 /**
- * Copyright 2026 zrobok. All rights reserved: not covered by the Apache License (see NOTICE). Swolomon's
+ * Copyright 2026 Orange Specs Mobile Labs. All rights reserved: not covered by the Apache License (see NOTICE). Swolomon's
  * name, character, likeness and these moves are proprietary.
  *
  * More celebrations (owner, 2026-10-06: "add 50 more ... celebrations"): each a Celebration (celebrate.ts)

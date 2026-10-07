@@ -1,5 +1,5 @@
 /**
- * Copyright 2026 zrobok. All rights reserved: not covered by the Apache License (see NOTICE). Swolomon's
+ * Copyright 2026 Orange Specs Mobile Labs. All rights reserved: not covered by the Apache License (see NOTICE). Swolomon's
  * name, character, likeness and these moves are proprietary.
  *
  * Swolomon's moves (§1.11 Moves): short animations of his whole body in the full portrait's 16 × 16: every

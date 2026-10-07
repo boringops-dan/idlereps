@@ -1,5 +1,5 @@
 /**
- * Copyright 2026 zrobok. All rights reserved: not covered by the Apache License (see NOTICE). Swolomon's
+ * Copyright 2026 Orange Specs Mobile Labs. All rights reserved: not covered by the Apache License (see NOTICE). Swolomon's
  * name, character, likeness and these frames are proprietary.
  *
  * Swolomon's portrait (plan §1.11): a 16 × 16 pixel bust (laurel, beard, grin, tank top), the same bust in

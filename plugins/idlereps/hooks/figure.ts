@@ -1,5 +1,5 @@
 /**
- * Copyright 2026 zrobok. All rights reserved: not covered by the Apache License (see NOTICE). Swolomon's
+ * Copyright 2026 Orange Specs Mobile Labs. All rights reserved: not covered by the Apache License (see NOTICE). Swolomon's
  * name, character, likeness and these drawings are proprietary.
  *
  * Swolomon's whole body, for his moves (§1.11 Moves): a 16 × 16 chibi drawn from joints, so one pose is a
