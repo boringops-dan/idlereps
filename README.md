@@ -168,14 +168,17 @@ narrower one, a small head; anywhere else, the name. The first time you meet, Sw
 through, and then notices you. Swolomon keeps it to one line, so the band stays small while you work. Turn the animation off in `/config` (Animate Swolomon). `/workout swolomon` replays the
 introduction.
 
-**Swolomon's moves.** Swolomon has more than 30 moves, all in the same pixel style. Open `/workout` and
-he demonstrates your next exercise: squats, push-ups, planks, curls, pull-ups, bridges, lunges and the
-rest, so you know what's coming. On a rest day he naps. He lifts a trophy for a new rank, does a victory
+**Swolomon's moves.** Swolomon has more than 80 moves to collect and a demo for every exercise IdleReps
+prescribes (over 100), all in the same pixel style. Open `/workout` and he demonstrates your next
+exercise: squats, push-ups, planks, curls, pull-ups, bridges, lunges and the rest, so you know what's
+coming. On a rest day he naps. He lifts a trophy for a new rank, does a victory
 jump when you finish a week, and tosses his laurel when you finish a program.
 
 **Collect his moves.** You start with three. Every set you do brings the next one closer: the first at
 3 sets, then one more set each time. When one unlocks, he performs it for you (`2` plays it again).
-`/workout flex` shows off the ones you have; `/workout moves` lists them.
+`/workout flex` shows off the ones you have; `/workout moves` lists them. Not all of them are work: now
+and then he's caught on a pizza break, asleep on the job, gaming, scrolling, or on the beanbag, and
+snaps straight into a flex.
 
 **He lives in his square.** While a band or the pane is up, he blinks and glances around. Where his
 portrait is drawn full size (the introduction and the `/workout` pane), he also stares straight out of the
@@ -215,8 +218,8 @@ following them, and he tells you who that was.
 
 **Every set, celebrated.** After each set he holds something out for `1`: a high five, low five, side
 five, gimme ten, gimme seven, a fist bump, an elbow or chest bump, an air five, a head pat, the secret
-handshake, a pinky swear. Or he just goes for it: confetti, a slow clap, a mic drop, raising the roof,
-fireworks. Be ready: now and then you're too slow.
+handshake, a pinky swear, a dap, thumb war, arm wrestle, rock paper scissors, a boop. Or he just goes
+for it: confetti, a slow clap, a mic drop, raising the roof, fireworks, the worm, a backflip, a title belt. Be ready: now and then you're too slow.
 
 **Shiny.** About one band in a hundred, he shows up in gold. Screenshots welcome.
 
@@ -246,6 +249,10 @@ for you, or bring your own. The questions: your goal, your equipment (dumbbells,
 resistance bands, or nothing), home or office (an office plan is standing-only and quiet), your level,
 days a week and which days, workout size, program length, how often to give you a set, and whether to
 remind you when you haven't trained.
+
+A home plan designed for you mixes it up: when a slot comes round again in the week it brings a
+different exercise for the same muscles (from what your equipment allows), and every four weeks they move
+on. An office plan keeps its standing-only exercises.
 
 ## Settings
 

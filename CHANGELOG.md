@@ -17,6 +17,8 @@ update shows these lines once. **Under the hood** is everything else.
 - He remembers your sets: milestones, how far you've come, the same weekday week after week.
 - His competition prep has chapters, posing practice and a routine on show day.
 - He reacts as your agent works, and the gym regulars walk past behind him.
+- A home plan designed for you changes it up: a slot that comes round again in a week brings a different exercise, and every four weeks they move on.
+- More Swolomon: a demo for every exercise, more than 80 moves to collect (a few of them him slacking off), dozens more celebrations, and more to say.
 
 ### Under the hood
 
