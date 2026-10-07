@@ -2,12 +2,9 @@ import { expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
 import type { Plan } from '../types'
-import { drawMicro, MICRO_HEIGHT, MICRO_WIDTH } from '../hooks/figure'
-import { drawMove, moveById, moveMs } from '../hooks/moves'
-import { encodeMicro, encodeMove } from '../hooks/portrait'
-import { dressed, SEASONS } from '../hooks/season'
-import { SPRITE } from '../hooks/swolomon-sprite'
-import { ANIMATED, BAND, blitLog, cellsOf, SESSION, STATUS, workout, world } from './world'
+import { moveById, moveMs } from '../hooks/moves'
+import type { Clock } from './world'
+import { ANIMATED, BAND, blitLog, cellsOf, HALLOWEEN, microOf, noonOf, SESSION, STATUS, workout, world } from './world'
 
 /**
  * His moves are drawn the first time they play, not all at load (2026-10-07: hundreds of moves made the first
@@ -24,69 +21,51 @@ const DEMOS_PLAN: Plan = {
   ],
 }
 
-const AGENT = SEASONS.find(s => s.id === 'halloween')?.outfit ?? null
-const noonOf = (month: number, date: number) => Date.UTC(2026, month - 1, date, 12)
-const dressedCellsOf = (id: string) => {
-  const move = moveById(id)
-  if (move === undefined || AGENT === null) throw new Error(`no ${id} or no Halloween outfit`)
-  return encodeMove(dressed(SPRITE, AGENT), id, drawMove(move, AGENT))
-}
-const microOf = (id: string) => encodeMicro(SPRITE, id, (moveById(id)?.poses ?? []).map(drawMicro), MICRO_WIDTH, MICRO_HEIGHT)
+const GOBLET = moveById('goblet-squat')!
+const PLAIN = new Set(cellsOf('goblet-squat'))
+const COSTUME = new Set(cellsOf('goblet-squat', HALLOWEEN))
+/** Poses that differ in costume: the ones that show which outfit he was drawn in. */
+const ONLY_PLAIN = [...PLAIN].filter(cells => !COSTUME.has(cells))
+const ONLY_COSTUME = [...COSTUME].filter(cells => !PLAIN.has(cells))
 
-/** Today's first set, Done, then the next set. */
-async function secondSet($: Engine) {
+/** A session's next set (its first, Done, then the next) on the band for 8 s: every picture drawn meanwhile. */
+async function secondSetDrawn($: Engine, clock: Clock, blits: ReturnType<typeof blitLog>): Promise<Set<string>> {
+  const before = blits.length
+  await $.session.start(SESSION)
   await $.command.run(workout('start'))
   await $.command.run(workout('done'))
   await $.command.run(workout('now'))
+  const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
+  await clock.advance(8_000)
+  await ui.unmount()
+  return new Set(blits.slice(before).map(b => b.cells))
 }
 
 test('animated: a demo first played on a set band is its own move, drawn on the spot', ANIMATED, async ($, on) => {
   const { clock } = world(on, DEMOS_PLAN)
-  const blits = blitLog(on)
-  await $.session.start(SESSION)
-  await secondSet($)
-  const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await clock.advance(8_000)
-  await ui.unmount()
-  const seen = new Set(blits.map(b => b.cells))
-  expect(cellsOf('goblet-squat').some(cells => seen.has(cells))).toBe(true)
-  expect(cellsOf('squat').some(cells => seen.has(cells) && !cellsOf('goblet-squat').includes(cells))).toBe(false)
+  const seen = await secondSetDrawn($, clock, blitLog(on))
+  expect([...PLAIN].some(cells => seen.has(cells))).toBe(true)
+  expect(cellsOf('squat').some(cells => seen.has(cells) && !PLAIN.has(cells))).toBe(false)
 })
 
 test('animated: in costume, a move is drawn in the costume, never the plain one', ANIMATED, async ($, on) => {
   const { clock } = world(on, DEMOS_PLAN, {}, { now: noonOf(10, 31) })
-  const blits = blitLog(on)
-  await $.session.start(SESSION)
-  await secondSet($)
-  const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await clock.advance(8_000)
-  await ui.unmount()
-  const seen = new Set(blits.map(b => b.cells))
-  expect(dressedCellsOf('goblet-squat').some(cells => seen.has(cells))).toBe(true)
-  expect(cellsOf('goblet-squat').some(cells => seen.has(cells) && !dressedCellsOf('goblet-squat').includes(cells))).toBe(false)
+  const seen = await secondSetDrawn($, clock, blitLog(on))
+  expect(ONLY_COSTUME.some(cells => seen.has(cells))).toBe(true)
+  expect(ONLY_PLAIN.some(cells => seen.has(cells))).toBe(false)
 })
 
 test('animated: a move drawn plain stays plain only until the costume goes on, then is drawn again', ANIMATED, async ($, on) => {
   const { clock } = world(on, DEMOS_PLAN, {}, { now: noonOf(10, 23) })
   const blits = blitLog(on)
-  await $.session.start(SESSION)
-  await secondSet($)
-  let ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await clock.advance(8_000)
-  await ui.unmount()
-  expect(cellsOf('goblet-squat').some(cells => blits.some(b => b.cells === cells))).toBe(true)
+  const seen = await secondSetDrawn($, clock, blits)
+  expect(ONLY_PLAIN.some(cells => seen.has(cells))).toBe(true)
   // Two days on (the plan's next training day) it is Halloween: a new session, the same move, now in costume.
   await $.command.run(workout('later'))
   await clock.advance(48 * 3_600_000)
-  const before = blits.length
-  await $.session.start(SESSION)
-  await secondSet($)
-  ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await clock.advance(8_000)
-  await ui.unmount()
-  const after = new Set(blits.slice(before).map(b => b.cells))
-  expect([...after].some(cells => dressedCellsOf('goblet-squat').includes(cells) && !cellsOf('goblet-squat').includes(cells))).toBe(true)
-  expect([...after].some(cells => cellsOf('goblet-squat').includes(cells) && !dressedCellsOf('goblet-squat').includes(cells))).toBe(false)
+  const after = await secondSetDrawn($, clock, blits)
+  expect(ONLY_COSTUME.some(cells => after.has(cells))).toBe(true)
+  expect(ONLY_PLAIN.some(cells => after.has(cells))).toBe(false)
 })
 
 test('a silent set (Quiet): the tiny one beside it does a demo it has never drawn before', { options: { ...ANIMATED.options, coachChat: 'quiet' } }, async ($, on) => {
@@ -94,13 +73,13 @@ test('a silent set (Quiet): the tiny one beside it does a demo it has never draw
   const blits = blitLog(on)
   await $.session.start(SESSION)
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await secondSet($)
+  await $.command.run(workout('start'))
+  await $.command.run(workout('done'))
+  await $.command.run(workout('now'))
   const cells = microOf('goblet-squat')
   const tiny = (await ui.find({ key: 'swolomon-tiny' })) as { props: { cells: string } } | undefined
   expect(tiny?.props.cells).toBe(cells[0])
-  const move = moveById('goblet-squat')
-  if (move === undefined) throw new Error('no goblet-squat')
-  await clock.advance(moveMs(move) + 500)
+  await clock.advance(moveMs(GOBLET) + 500)
   expect(blits.map(b => b.cells)).toContain(cells[1])
   await ui.unmount()
 })
@@ -111,12 +90,8 @@ test('animated: the status pane demonstrates the next exercise from its own demo
   await $.session.start(SESSION)
   await $.command.run(workout(''))
   const pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...STATUS })
-  const move = moveById('goblet-squat')
-  if (move === undefined) throw new Error('no goblet-squat')
-  await clock.advance(1_000 + moveMs(move))
-  const toPane = blits.filter(b => b.requestId === STATUS.requestId).map(b => b.cells)
-  const cells = cellsOf('goblet-squat')
-  expect(toPane).toContain(cells[0])
-  expect(toPane).toContain(cells[1])
+  await clock.advance(1_000 + moveMs(GOBLET))
+  const toPane = new Set(blits.filter(b => b.requestId === STATUS.requestId).map(b => b.cells))
+  expect([...PLAIN].every(cells => toPane.has(cells))).toBe(true)
   await pane.unmount()
 })

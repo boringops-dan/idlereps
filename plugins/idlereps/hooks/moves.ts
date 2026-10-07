@@ -1079,9 +1079,10 @@ export const GESTURES: readonly Move[] = [highFive, hug, struggle, posingRoutine
 
 export type MoveId = string
 
-export function moveById(id: MoveId): Move | undefined {
-  return MOVES.find(move => move.id === id) ?? GESTURES.find(move => move.id === id) ?? DEMOS.find(move => move.id === id)
-}
+/** Every move by id, built once: a collectible move first, then a gesture, then a demo (ids are unique anyway). */
+const BY_ID: ReadonlyMap<MoveId, Move> = new Map([...DEMOS, ...GESTURES, ...MOVES].map(move => [move.id, move]))
+
+export const moveById = (id: MoveId): Move | undefined => BY_ID.get(id)
 
 /** Each move's poses drawn once: 16 rows of palette characters each. */
 export const drawMove = (move: Move, outfit?: Outfit): string[][] => move.poses.map(pose => drawFigure(pose, outfit))

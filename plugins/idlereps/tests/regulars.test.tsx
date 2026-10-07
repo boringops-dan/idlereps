@@ -4,9 +4,9 @@ import { bandFilm } from '../hooks/film'
 import { cameoGrid, decodeFrame, encodeCells, idleBeat } from '../hooks/portrait'
 import type { Cameo } from '../hooks/portrait'
 import { REGULARS, regularWalk } from '../hooks/regulars'
-import { dressed, SEASONS } from '../hooks/season'
+import { dressed } from '../hooks/season'
 import { SPRITE } from '../hooks/swolomon-sprite'
-import { ANIMATED, BAND, blitLog, SESSION, world } from './world'
+import { ANIMATED, BAND, blitLog, HALLOWEEN, SESSION, world } from './world'
 
 /** The regulars in person (owner, 2026-10-06): walking past behind him, now and then, and named. */
 
@@ -39,7 +39,7 @@ test('behind him: his pixels untouched, theirs only where he is see-through, and
 })
 
 test('in costume he wears it; they do not', () => {
-  const agent = SEASONS.find(s => s.id === 'halloween')!.outfit
+  const agent = HALLOWEEN
   const step: Cameo = { who: 'deadlift-doris', walk: { frame: 'walkA', facing: 'right', x: 10, y: 0 }, pose: 'idle' }
   const navy = SPRITE.palette.n as number
   // His suit, at full strength; behind him, out of costume, nothing of it.

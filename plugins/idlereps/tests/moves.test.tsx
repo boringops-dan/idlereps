@@ -6,10 +6,10 @@ import { flexBand } from '../hooks/bands'
 import { drawMove, moveById, moveForExercise, moveMs, MOVES, poseAt } from '../hooks/moves'
 import { collected, STARTER_MOVES, UNLOCK_ORDER } from '../hooks/collection'
 import { drawMicro, MICRO_HEIGHT, MICRO_WIDTH } from '../hooks/figure'
-import { breathedIn, encodeCells, encodeMicro, encodeMove, encodeSprite, idleBeat, walkGrid } from '../hooks/portrait'
+import { breathedIn, encodeCells, encodeMove, encodeSprite, idleBeat, walkGrid } from '../hooks/portrait'
 import { DESK_STRETCHES, generateProgram, LIBRARY } from '../hooks/programs'
 import { SPRITE } from '../hooks/swolomon-sprite'
-import { ANIMATED, BAND, blitLog, cellsOf, drawnRows, OPTIONS, SESSION, STATUS, TINY, TODAY, workout, world } from './world'
+import { ANIMATED, BAND, blitLog, cellsOf, drawnRows, microOf, OPTIONS, SESSION, STATUS, TINY, TODAY, workout, world } from './world'
 
 /** Swolomon's moves (§1.11 Moves): his whole body, acting out exercises, flexes and gags. */
 
@@ -252,7 +252,6 @@ test('not animated: the pane’s portrait stays still', OPTIONS, async ($, on) =
 // ---------------------------------------------------------------------------------------------------------
 // The tiny Swolomon beside a set.
 
-const microOf = (id: string) => encodeMicro(SPRITE, id, (moveById(id)?.poses ?? []).map(drawMicro), MICRO_WIDTH, MICRO_HEIGHT)
 
 test('every exercise move draws tiny: 8 × 6, his colours, and the poses differ', () => {
   for (const move of MOVES.filter(m => m.family === 'exercise')) {

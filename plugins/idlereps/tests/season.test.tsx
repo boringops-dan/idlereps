@@ -10,12 +10,11 @@ import { dayNumberOf } from '../hooks/plan'
 import { decodeCells, decodeFrame, encodeMove } from '../hooks/portrait'
 import { dressed, monthDayOf, SEASONS, seasonBeganOn, seasonOf } from '../hooks/season'
 import { SPRITE } from '../hooks/swolomon-sprite'
-import { BAND, OPTIONS, SESSION, TINY, workout, world } from './world'
+import { BAND, HALLOWEEN, noonOf, OPTIONS, SESSION, TINY, workout, world } from './world'
 
 /** His seasons (owner, 2026-10-06: "more Swolomon"): dressed for the day, and saying so. */
 
-const dayOf = (month: number, date: number, year = 2026) => dayNumberOf(Date.UTC(year, month - 1, date, 12))
-const noonOf = (month: number, date: number, year = 2026) => Date.UTC(year, month - 1, date, 12)
+const dayOf = (month: number, date: number, year = 2026) => dayNumberOf(noonOf(month, date, year))
 /** His Halloween suit's navy: on none of his bust frames out of costume. */
 const NAVY = SPRITE.palette.n as number
 
@@ -57,7 +56,7 @@ test('his moves wear it too: every move decodes dressed; the hat comes off with 
   for (const { outfit } of SEASONS) {
     for (const move of [...MOVES, ...GESTURES]) expect(() => encodeMove(dressed(SPRITE, outfit), move.id, drawMove(move, outfit))).not.toThrow()
   }
-  const agent = SEASONS.find(s => s.id === 'halloween')!.outfit
+  const agent = HALLOWEEN
   const curl = moveById('curl')!.poses[0]!
   // His shades and antenna over his head; off with the laurel.
   expect(drawFigure(curl, agent).join('\n')).toContain('kkkkkk')
@@ -71,7 +70,7 @@ test('his moves wear it too: every move decodes dressed; the hat comes off with 
 })
 
 test('the desktop film wears it', () => {
-  const agent = SEASONS.find(s => s.id === 'halloween')!.outfit
+  const agent = HALLOWEEN
   const opts = { size: 'full' as const, isWin: false, act: 'curl', moves: ['curl'] }
   expect(bandFilmSvg({ sprite: dressed(SPRITE, agent), ...opts })).not.toBe(bandFilmSvg({ sprite: SPRITE, ...opts }))
 })

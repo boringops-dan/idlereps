@@ -10,7 +10,10 @@ import { UNLOCK_ORDER } from '../hooks/collection'
 import { QUESTIONS } from '../hooks/questions'
 import { dayNumberOf } from '../hooks/plan'
 import { drawMove, moveById, MOVES } from '../hooks/moves'
-import { encodeMove } from '../hooks/portrait'
+import { drawMicro, MICRO_HEIGHT, MICRO_WIDTH } from '../hooks/figure'
+import { encodeMicro, encodeMove } from '../hooks/portrait'
+import { dressed, SEASONS } from '../hooks/season'
+import type { Outfit } from '../hooks/season'
 import { SPRITE } from '../hooks/swolomon-sprite'
 
 /** Noon UTC on Friday 2026-10-02. */
@@ -64,8 +67,21 @@ export function blitLog(on: On, opts: { withPeek?: boolean } = {}) {
 /** The band mounted at `bodyColumns` wide. */
 export const mountAt = ($: Engine, bodyColumns: number) => $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND, props: { ...BAND.props, bodyColumns } })
 
-/** A move's full-portrait cells, pose by pose. */
-export const cellsOf = (id: string): string[] => encodeMove(SPRITE, id, drawMove(moveById(id) ?? MOVES[0]!))
+/** A move's full-portrait cells, pose by pose; in an outfit, dressed. */
+export const cellsOf = (id: string, outfit?: Outfit): string[] => encodeMove(dressed(SPRITE, outfit ?? null), id, drawMove(moveById(id) ?? MOVES[0]!, outfit))
+
+/** A move drawn tiny (beside a silent set), pose by pose. */
+export const microOf = (id: string): string[] => encodeMicro(SPRITE, id, (moveById(id)?.poses ?? []).map(drawMicro), MICRO_WIDTH, MICRO_HEIGHT)
+
+/** Noon UTC on a date, 2026 unless said. */
+export const noonOf = (month: number, date: number, year = 2026): number => Date.UTC(year, month - 1, date, 12)
+
+/** His Halloween costume: your agent, as he imagines one. */
+export const HALLOWEEN: Outfit = (() => {
+  const outfit = SEASONS.find(s => s.id === 'halloween')?.outfit
+  if (outfit === undefined) throw new Error('no Halloween season')
+  return outfit
+})()
 
 export const TINY: Plan = {
   version: 1,
@@ -122,7 +138,7 @@ function withOnboarding(seed: Record<string, unknown>, fresh: boolean): Record<s
   if (fresh) return seed
   return { moves: [...UNLOCK_ORDER], about: ASKED, ...seed, seen: { ...ONBOARDED, ...(seed.seen as Record<string, unknown> | undefined) } }
 }
-type Clock = ReturnType<typeof mock.clock>
+export type Clock = ReturnType<typeof mock.clock>
 
 /** Every engine answer the plugin needs, the store seeded from `seed`; with `ownClock` the test answers the clock itself. */
 export function world(on: On, plan: Plan | null, seed?: Seed, opts?: WorldOptions): { clock: Clock; w: World }

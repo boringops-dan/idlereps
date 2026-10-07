@@ -141,11 +141,19 @@ function deload(exercise: Exercise, target: Target, range: [number, number], isT
   return { ...target, reps: Math.max(range[0], target.reps - (isTimed ? 10 : 2)) }
 }
 
-/** Whether nothing comes after this exercise's range: no weight to add, the heaviest band, no harder variant. */
-function isLastStep(planExercise: Exercise, target: Target, setting: Answers['setting']): boolean {
-  if (planExercise.weight !== undefined) return false
-  if (planExercise.band !== undefined) return planExercise.band.levels.at(-1) === (target.band ?? planExercise.band.start)
-  return harderVariant(target.variant?.name ?? planExercise.name, setting) === null
+/**
+ * What comes after this exercise's range: a weight step, the next band, or a harder variant; null when none
+ * does (the heaviest band, no harder variant), and then the target climbs past the top instead.
+ */
+function nextStep(planExercise: Exercise, target: Target, setting: Answers['setting']): Partial<Target> | null {
+  if (planExercise.weight !== undefined) return { weight: roundTo((target.weight ?? planExercise.weight.start) + planExercise.weight.step) }
+  if (planExercise.band !== undefined) {
+    const levels = planExercise.band.levels
+    const up = levels[levels.indexOf(target.band ?? planExercise.band.start) + 1]
+    return up === undefined ? null : { band: up }
+  }
+  const harder = harderVariant(target.variant?.name ?? planExercise.name, setting)
+  return harder === null ? null : { variant: harder }
 }
 
 /**
@@ -172,25 +180,13 @@ export function nextTarget(
     return { ...deload(planExercise, counted, range, isTimed), belowStreak: 0, toughStreak: 0 }
   }
   const isAllAtTop = sets.length > 0 && sets.every(s => s.result === 'done' && (s.count ?? 0) >= range[1])
-  if (isAllAtTop) {
-    if (planExercise.weight !== undefined) {
-      const weight = counted.weight ?? planExercise.weight.start
-      return { ...counted, weight: roundTo(weight + planExercise.weight.step), reps: range[0] }
-    }
-    if (planExercise.band !== undefined) {
-      const levels = planExercise.band.levels
-      const at = levels.indexOf(counted.band ?? planExercise.band.start)
-      const up = levels[at + 1]
-      if (up !== undefined) return { ...counted, band: up, reps: range[0] }
-    } else {
-      const harder = harderVariant(current.variant?.name ?? planExercise.name, setting)
-      if (harder !== null) return { ...counted, variant: harder, reps: harder.range[0] }
-    }
-  }
+  const next = nextStep(planExercise, counted, setting)
+  // At the top: the next step, back to the bottom of its range.
+  if (isAllAtTop && next !== null) return { ...counted, ...next, reps: next.variant?.range[0] ?? range[0] }
   if (!isAnyBelow && rating !== 'tough') {
     const step = (rating === 'easy' ? 2 : 1) * (isTimed ? 5 : 1)
-    // Past the top only at the last step (the heaviest band, or no harder variant): more reps, or seconds.
-    return { ...counted, reps: Math.min(isLastStep(planExercise, counted, setting) ? 999 : range[1], counted.reps + step) }
+    // With no next step, more reps (or seconds) is the step, past the top.
+    return { ...counted, reps: Math.min(next === null ? 999 : range[1], counted.reps + step) }
   }
   return counted
 }
