@@ -4,7 +4,7 @@
  * every button has a command by construction. Pure data.
  */
 
-export type ActionKind = 'spotme' | 'prep' | 'question' | 'still' | 'unlock' | 'remindPane' | 'remind' | 'program' | 'byoplan' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex' | 'status' | 'safety' | 'byo' | 'moves' | 'doing'
+export type ActionKind = 'spotme' | 'prep' | 'question' | 'still' | 'unlock' | 'remindPane' | 'remind' | 'program' | 'byoplan' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex' | 'status' | 'safety' | 'byo' | 'moves' | 'doing'
 
 export type Action = {
   id: string
@@ -96,9 +96,6 @@ export const ACTIONS: readonly Action[] = [
   { kind: 'timer', id: 'stop', hotkey: '2', label: 'Stop timer' },
   { kind: 'switch', id: 'side2', hotkey: '1', label: 'Start side 2', isPrimary: true },
   { kind: 'switch', id: 'stop', hotkey: '2', label: 'Stop timer' },
-  { kind: 'time', id: 'all', hotkey: '1', label: 'All', isPrimary: true },
-  { kind: 'time', id: 'fewer', hotkey: '2', label: 'Fewer' },
-  { kind: 'time', id: 'couldnt', hotkey: '3', label: "Couldn't do it" },
 
   { kind: 'edit', id: 'save', hotkey: '1', label: 'Save', isPrimary: true },
   { kind: 'edit', id: 'fewer', hotkey: '2', label: '< reps' },

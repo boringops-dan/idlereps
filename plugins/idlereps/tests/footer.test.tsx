@@ -1,9 +1,10 @@
 import { expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
-import { EYES_AWAKE_MS, EYES_BLINK_MS, EYES_NEAR_MS, EYES_OPEN_MS, footerLabel, footerOf, isAwake, isUnderWay } from '../hooks/footer'
+import { EYES_AWAKE_MS, EYES_BLINK_MS, EYES_NEAR_MS, EYES_OPEN_MS, footerLabel, footerOf, isAwake } from '../hooks/footer'
 import { START } from '../hooks/plan'
-import { ANIMATED, BAND, footerLabelOf, NOON, OPTIONS, SESSION, TINY, TODAY, world } from './world'
+import { isRemindUnderWayOf } from '../hooks/status'
+import { ANIMATED, BAND, footerLabelOf, NOON, OPTIONS, SESSION, TINY, TODAY, turnEnded, workout, world } from './world'
 
 /**
  * The prompt footer (nimble sets, decision 6): today's tally, the time to the next set, and his eyes once
@@ -44,11 +45,8 @@ test('it changes once a minute while a time shows, and at the moment the eyes ar
 })
 
 test('no time, no eyes, and no timer when no workout is under way', () => {
-  for (const tally of [undefined, '💪 done', '💪 2/2', '💪 3 today ✓']) {
-    expect(footerOf({ isUnderWay: isUnderWay(tally), nextCueAt: NOON + MIN, now: NOON })).toEqual({ when: undefined, isNear: false, changeIn: null })
-  }
-  expect(isUnderWay('💪 0/9')).toBe(true)
-  expect(isUnderWay('💪 3/5 today')).toBe(true)
+  expect(footerOf({ isUnderWay: false, nextCueAt: NOON + MIN, now: NOON })).toEqual({ when: undefined, isNear: false, changeIn: null })
+  expect(footerOf({ isUnderWay: false, nextCueAt: undefined, now: NOON })).toEqual({ when: undefined, isNear: false, changeIn: null })
 })
 
 test('the label: eyes, tally, time', () => {
@@ -103,7 +101,7 @@ test('live: animated, the eyes alternate during a turn, never quicker than a sec
   // Each look or blink lasts at least a second (two samples).
   const runs = eyes.join(',').split(/(?<=👀),(?=😌)|(?<=😌),(?=👀)/)
   for (const run of runs.slice(1, -1)) expect(run.split(',').length).toBeGreaterThanOrEqual(2)
-  await $.turn.complete({ turnId: 't1', durationMs: 10_000 } as never)
+  await $.turn.complete(turnEnded('t1', 10_000))
   await clock.advance(EYES_AWAKE_MS + EYES_OPEN_MS + EYES_BLINK_MS)
   const resting = new Set<string>()
   for (let i = 0; i < 20; i += 1) {
@@ -139,7 +137,7 @@ test('live: animated, after the turn ends they keep blinking within the awake wi
   const { clock } = world(on, TINY, { nextCueAt: NOON })
   await $.session.start(SESSION)
   await $.turn.start({ text: 'go', turnId: 't1' })
-  await $.turn.complete({ turnId: 't1', durationMs: 10_000 } as never)
+  await $.turn.complete(turnEnded('t1', 10_000))
   expect(await eyesOver($, clock, CYCLE)).toEqual(new Set(['👀', '😌']))
 })
 
@@ -156,7 +154,7 @@ test('live: animated, two days of an idle terminal pass without a timer storm', 
   const { clock } = world(on, TINY, { nextCueAt: NOON })
   await $.session.start(SESSION)
   await $.turn.start({ text: 'go', turnId: 't1' })
-  await $.turn.complete({ turnId: 't1', durationMs: 10_000 } as never)
+  await $.turn.complete(turnEnded('t1', 10_000))
   // A blink every few seconds for 48 h would be tens of thousands of waits in one advance.
   await clock.advance(48 * 3_600_000)
   expect(await footerLabelOf($)).toMatch(/^👀 💪 /)
@@ -176,4 +174,31 @@ test('live: Quiet keeps the time but never his eyes', { options: { ...ANIMATED.o
   expect(await footerLabelOf($)).toBe('💪 0/2 · 1m')
   expect(await eyesOver($, clock, MIN)).toEqual(new Set(['💪']))
   expect(await footerLabelOf($)).toBe('💪 0/2 · ready')
+})
+
+test('live: Later moves the time on to the gap at once', OPTIONS, async ($, on) => {
+  world(on, TINY)
+  await $.session.start(SESSION)
+  expect(await footerLabelOf($)).toBe('👀 💪 0/2 · ready')
+  await $.command.run(workout('start'))
+  await $.command.run(workout('later'))
+  expect(await footerLabelOf($)).toBe('💪 0/2 · 15m')
+})
+
+test('live: paused, the tally stays but there is no time; resumed, it is back', OPTIONS, async ($, on) => {
+  world(on, TINY, { nextCueAt: NOON + 20 * MIN })
+  await $.session.start(SESSION)
+  await $.command.run(workout('pause'))
+  expect(await footerLabelOf($)).toBe('💪 0/2')
+  await $.command.run(workout('resume'))
+  expect(await footerLabelOf($)).toBe('💪 0/2 · 20m')
+})
+
+test('under way: a training day, not paused; in Just remind me, short of the target and not put off', () => {
+  const history = [{ kind: 'moved', t: NOON, d: TODAY, what: 'upper' }] as never
+  const remind = { history, today: TODAY, paused: false, totalDoneSets: 1, moves: [] }
+  expect(isRemindUnderWayOf(remind)).toBe(true)
+  expect(isRemindUnderWayOf({ ...remind, paused: true })).toBe(false)
+  expect(isRemindUnderWayOf({ ...remind, declinedOn: TODAY })).toBe(false)
+  expect(isRemindUnderWayOf({ ...remind, history: [] })).toBe(false)
 })

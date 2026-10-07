@@ -27,12 +27,6 @@ export function isAwake(opts: { isTurnRunning: boolean; turnEndedAt: number | un
 /** Looking, and blinking. */
 export const EYES = { open: '👀', blink: '😌' } as const
 
-/** Whether the tally is a workout still under way: `💪 3/9`, not done, not rested. */
-export function isUnderWay(tally: string | undefined): boolean {
-  const counts = /^💪 (\d+)\/(\d+)/.exec(tally ?? '')
-  return counts !== null && Number(counts[1]) < Number(counts[2])
-}
-
 /**
  * What the footer says after the tally, whether his eyes show, and in how many ms that next changes (null:
  * only an event changes it). A set still to come: its time, whole minutes rounded up (`20m`, `1m`), or `ready`

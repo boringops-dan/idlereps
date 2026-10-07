@@ -394,6 +394,12 @@ export function statusLineOf(facts: StatusFacts): string | undefined {
   return workout === undefined ? undefined : `💪 ${facts.progress.done}/${stepsFor(workout, facts.progress).length}`
 }
 
+/** Today's workout has sets still to come (a training day, not paused): the footer counts down to the next. */
+export const isUnderWayOf = (facts: StatusFacts): boolean => dayOf(facts) === 'training' && !facts.paused
+
+/** Some of today's workout is done and some is still to come. */
+export const isMidWorkoutOf = (facts: StatusFacts): boolean => isUnderWayOf(facts) && facts.progress.done > 0
+
 /** `/workout status`: the same facts as one line. */
 export function statusTextOf(facts: StatusFacts): string {
   const { plan, progress } = facts
@@ -429,6 +435,8 @@ export type RemindFacts = {
   history: readonly HistoryEntry[]
   today: number
   paused: boolean
+  /** The day Not today was last said (nothing more that day). */
+  declinedOn?: number | undefined
   totalDoneSets: number
   moves: readonly string[]
   prep?: Prep | undefined
@@ -474,6 +482,12 @@ export function remindLineOf(facts: RemindFacts): string | undefined {
   const target = dailyTarget(facts.history, facts.today)
   if (n === 0) return undefined
   return n >= target ? `💪 ${n} today ✓` : `💪 ${n}/${target} today`
+}
+
+/** Just remind me, short of today's target (not paused, not put off for the day): the footer counts down to the next reminder. */
+export function isRemindUnderWayOf(facts: RemindFacts): boolean {
+  const n = movesOn(facts.history, facts.today)
+  return !facts.paused && facts.declinedOn !== facts.today && n > 0 && n < dailyTarget(facts.history, facts.today)
 }
 
 /** `/workout status` in Just remind me. */

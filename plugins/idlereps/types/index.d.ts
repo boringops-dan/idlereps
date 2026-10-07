@@ -242,8 +242,10 @@ export type BandSpec = {
   /** The workout's sets as dots after the header: done, this one, still to come. */
   progress?: { done: number; total: number }
   body: BandLine[]
-  /** The form note and the control hint, each one row. */
+  /** The form note (and the like), each one row. */
   extras?: string[]
+  /** The control hint, one row under the extras: which command presses the buttons (a set's changes on Start). */
+  hint?: string
   /** Rows drawn under the buttons. */
   footer?: string[]
   /** A Button's label where this band names it its own way (a celebration's `Low five`); else the action's. */

@@ -4,17 +4,14 @@ import type { Engine } from 'claude-code/testing'
 import { ACTIONS } from '../hooks/actions'
 import { line } from '../hooks/copy'
 import { START } from '../hooks/plan'
-import { BAND, drawnRows, OPTIONS, ownStore, SESSION, TINY, TODAY, workout, world } from './world'
+import { drawnRows, mountAt, OPTIONS, ownStore, SESSION, TINY, TODAY, turnEnded, workout, world } from './world'
 
 /**
  * Nimble sets (owner, 2026-10-07: "we're for working when the agent works"): Swolomon has the stage while
  * the agent works, steps back when it is done or the person types, and the set waits for the next turn.
  */
 
-const IDLE = { ...BAND, props: { ...BAND.props, isWorking: false } } as const
-
-const mountBand = ($: Engine, isWorking: boolean) => $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...(isWorking ? BAND : IDLE) })
-const done = (turnId: string) => ({ turnId, answer: '', reason: 'answer', durationMs: 60_000, isAborted: false }) as never
+const mountBand = ($: Engine, isWorking: boolean) => mountAt($, undefined, isWorking)
 
 /** The band as drawn: its kind by its buttons, and its exercise row. */
 async function bandOf($: Engine) {
@@ -64,7 +61,7 @@ test('an unanswered set, then a prompt: put away; on the next long turn the same
   expect(before.keys).toContain('all')
   await $.turn.start({ text: 'fix the build', turnId: 't1' })
   expect((await bandOf($)).keys).toEqual([])
-  await $.turn.complete(done('t1'))
+  await $.turn.complete(turnEnded('t1'))
   await $.turn.start({ text: 'and the tests', turnId: 't2' })
   await clock.advance(31_000)
   const after = await bandOf($)
@@ -78,7 +75,7 @@ test('/workout brings a set a prompt put away straight back', OPTIONS, async ($,
   await $.command.run(workout('start'))
   const before = await bandOf($)
   await $.turn.start({ text: 'fix the build', turnId: 't1' })
-  await $.turn.complete(done('t1'))
+  await $.turn.complete(turnEnded('t1'))
   await $.command.run(workout(''))
   expect((await bandOf($)).exercise).toBe(before.exercise)
 })
@@ -90,7 +87,7 @@ test('an ask a prompt put away comes back as the ask, not a set', OPTIONS, async
   await clock.advance(31_000)
   const ask = await bandOf($)
   expect(ask.keys).toContain('start')
-  await $.turn.complete(done('t1'))
+  await $.turn.complete(turnEnded('t1'))
   await $.turn.start({ text: 'again', turnId: 't2' })
   expect((await bandOf($)).keys).toEqual([])
   await clock.advance(31_000)
@@ -103,12 +100,46 @@ test('a put-away set that is no longer the one due is not brought back: the due 
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   await $.turn.start({ text: 'go', turnId: 't1' })
-  await $.turn.complete(done('t1'))
+  await $.turn.complete(turnEnded('t1'))
   // Another session logged it meanwhile: the set moved on.
   store.set('progress', { ...START, ...((store.get('progress') as object | undefined) ?? {}), done: 1 })
   await $.turn.start({ text: 'next', turnId: 't2' })
   await clock.advance(31_000)
   expect((await bandOf($)).exercise ?? '').toMatch(/\(2\//)
+})
+
+test('a set put away, then Not today: /workout does not bring it back', OPTIONS, async ($, on) => {
+  world(on, TINY)
+  await $.session.start(SESSION)
+  await $.command.run(workout('start'))
+  await $.turn.start({ text: 'fix the build', turnId: 't1' })
+  await $.turn.complete(turnEnded('t1'))
+  await $.command.run(workout('no'))
+  await $.command.run(workout(''))
+  expect((await bandOf($)).exercise).toBeUndefined()
+})
+
+test('a set put away, then pause: the next long turn does not bring it back', OPTIONS, async ($, on) => {
+  const { clock } = world(on, TINY)
+  await $.session.start(SESSION)
+  await $.command.run(workout('start'))
+  await $.turn.start({ text: 'fix the build', turnId: 't1' })
+  await $.turn.complete(turnEnded('t1'))
+  await $.command.run(workout('pause'))
+  await $.turn.start({ text: 'and the tests', turnId: 't2' })
+  await clock.advance(20 * 60_000)
+  expect((await bandOf($)).exercise).toBeUndefined()
+})
+
+test('Start swaps the hint for the one naming how to answer', OPTIONS, async ($, on) => {
+  const { clock } = world(on, TINY, { startedOn: TODAY })
+  const ui = await waitingSet($, clock)
+  expect(drawnRows(await ui.drawn())).toContain(line('hint-start', { day: TODAY }))
+  await ui.press({ key: 'start' })
+  const rows = drawnRows(await ui.drawn())
+  expect(rows).toContain(line('hint', { day: TODAY }))
+  expect(rows).not.toContain(line('hint-start', { day: TODAY }))
+  await ui.unmount()
 })
 
 test('/workout done with the set put away: it is answered, logged as if it showed', OPTIONS, async ($, on) => {
@@ -117,7 +148,7 @@ test('/workout done with the set put away: it is answered, logged as if it showe
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   await $.turn.start({ text: 'go', turnId: 't1' })
-  await $.turn.complete(done('t1'))
+  await $.turn.complete(turnEnded('t1'))
   const reply = (await $.command.run(workout('done 8'))).text ?? ''
   expect(reply).not.toContain(line('reply-no-set', { day: TODAY }))
   expect((store.get('progress') as { done: number }).done).toBe(1)

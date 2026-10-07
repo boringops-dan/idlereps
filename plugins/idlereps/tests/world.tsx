@@ -53,6 +53,9 @@ export const OPTIONS = { options: { cueEvery: '15', cueAfter: '30', coachAnimati
 /** As OPTIONS, with Swolomon animated: typing, moves, idling, asides. */
 export const ANIMATED = { options: { ...OPTIONS.options, coachAnimation: true } } as const
 
+/** A turn.complete event: the turn `turnId` ended after `durationMs`, answered. */
+export const turnEnded = (turnId = 't1', durationMs = 60_000) => ({ turnId, answer: '', reason: 'answer', durationMs, isAborted: false }) as never
+
 /** Every blit, with where it went and the columns it was drawn at. */
 export function blitLog(on: On) {
   const blits: { requestId: string; key: string; cells: string; columns: number }[] = []
@@ -64,7 +67,8 @@ export function blitLog(on: On) {
 }
 
 /** The band mounted at `bodyColumns` wide. */
-export const mountAt = ($: Engine, bodyColumns: number) => $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND, props: { ...BAND.props, bodyColumns } })
+export const mountAt = ($: Engine, bodyColumns: number = BAND.props.bodyColumns, isWorking: boolean = BAND.props.isWorking) =>
+  $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND, props: { ...BAND.props, bodyColumns, isWorking } })
 
 /** A move's full-portrait cells, pose by pose; in an outfit, dressed. */
 export const cellsOf = (id: string, outfit?: Outfit): string[] => encodeMove(dressed(SPRITE, outfit ?? null), id, drawMove(moveById(id) ?? MOVES[0]!, outfit))

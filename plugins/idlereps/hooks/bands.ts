@@ -38,13 +38,14 @@ export const nextFromPending = (pending: readonly BandSpec[]): { next: BandSpec 
   pending: pending.slice(1),
 })
 
-/** Rows a band takes: Swolomon, header, body, extras, the buttons (unless inline), footer. */
+/** Rows a band takes: Swolomon, header, body, extras, the hint, the buttons (unless inline), footer. */
 export function bandRows(spec: BandSpec): number {
   return (
     (spec.coach?.length ?? 0) +
     (spec.header === undefined ? 0 : spec.headerFirst === true ? 2 : 1) +
     spec.body.length +
     (spec.extras?.length ?? 0) +
+    (spec.hint === undefined ? 0 : 1) +
     // The buttons, and the blank row above them.
     (spec.inline === true || spec.actions.length === 0 ? 0 : 2) +
     (spec.footer?.length ?? 0)
@@ -414,10 +415,7 @@ export function setBand(
   if (last?.kind === 'set' && last.result === 'done') {
     parts.push({ text: `   last: ${describeAmount(exercise, last.count ?? null, last.weight ?? null, last.band ?? null)}`, tone: 'muted', truncate: true })
   }
-  const extras = [
-    ...(cue.set === 1 && exercise.note !== undefined ? [`↳ ${exercise.note}`] : []),
-    ...(opts.showHint ? [opts.hint] : []),
-  ]
+  const extras = cue.set === 1 && exercise.note !== undefined ? [`↳ ${exercise.note}`] : []
   return {
     kind: 'set',
     ...(opts.coach === undefined ? {} : { coach: [opts.coach], portrait: 'mini' as const }),
@@ -426,6 +424,7 @@ export function setBand(
     progress: { done: cue.step - 1, total: cue.stepCount },
     body: [parts],
     ...(extras.length === 0 ? {} : { extras }),
+    ...(opts.showHint ? { hint: opts.hint } : {}),
     // Before Start: Start, Later, Not today; started: how it went.
     actions: actionIdsOf(opts.isStarted === true ? 'doing' : 'set'),
     ...(opts.isStarted === true ? { isStarted: true as const } : {}),
@@ -465,7 +464,8 @@ export function holdBand(cue: Cue, hold: NonNullable<BandSpec['hold']>, coachLin
     headerLead: true,
     progress: { done: cue.step - 1, total: cue.stepCount },
     body: [body],
-    actions: actionIdsOf(kind),
+    // Time! asks how it went, as a started set does.
+    actions: actionIdsOf(kind === 'time' ? 'doing' : kind),
     cue,
     hold,
   }
