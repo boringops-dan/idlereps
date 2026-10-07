@@ -87,9 +87,15 @@ test('animated: on the band, a regular walks past behind him', ANIMATED, async (
   const blits = blitLog(on)
   await $.session.start(SESSION)
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  for (let i = 0; i < 120; i += 1) await clock.advance(10_000)
-  const seen = new Set(blits.map(b => b.cells))
-  const cameos = beats('band').flatMap(b => b.steps.flatMap(s => ('cameo' in s ? [s.cameo] : [])))
-  expect(cameos.some(step => seen.has(encodeCells(cameoGrid(SPRITE, SPRITE, step))))).toBe(true)
+  const steps = new Set(beats('band').flatMap(b => b.steps.flatMap(s => ('cameo' in s ? [s.cameo] : []))))
+  const cameos = new Set([...steps].map(step => encodeCells(cameoGrid(SPRITE, SPRITE, step))))
+  // The beats are the same every run: watch only until a walk-past is drawn.
+  let isSeen = false
+  for (let i = 0; i < 120 && !isSeen; i += 1) {
+    const from = blits.length
+    await clock.advance(10_000)
+    isSeen = blits.slice(from).some(b => cameos.has(b.cells))
+  }
+  expect(isSeen).toBe(true)
   await ui.unmount()
 })

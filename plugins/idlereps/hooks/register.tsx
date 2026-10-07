@@ -103,7 +103,7 @@ import {
 import { drawMicro, MICRO_HEIGHT, MICRO_WIDTH } from './figure'
 import { misreadOf, saysOf } from './misreads'
 import type { Misread } from './misreads'
-import { DEMOS, drawMove, GESTURES, moveById, moveForExercise, MOVES, poseAt } from './moves'
+import { drawMove, moveById, moveForExercise, poseAt } from './moves'
 import type { Move } from './moves'
 import {
   encodeCells,
@@ -234,8 +234,8 @@ type Art = {
   frames: Record<keyof Sprite['frames'], string>
   /** The same frames as SVG documents, for surfaces without terminal cells. */
   svgs: Record<keyof Sprite['frames'], string>
-  /** Every move's poses as full-portrait cells. */
-  moveCells: Record<string, string[]>
+  /** Each move's poses as full-portrait cells, encoded the first time it plays (`moveCellsOf`). */
+  moveCells: Map<string, string[]>
   /** Each peek pose's cells. */
   peekCells: Record<PeekPose, string>
   /** His rest frames, a pixel up: he breathes while he stands at rest (a move or a blink plays as drawn). */
@@ -253,7 +253,7 @@ function artOf(outfit: Outfit | null): Art {
     sprite,
     frames,
     svgs: Object.fromEntries((Object.keys(sprite.frames) as (keyof Sprite['frames'])[]).map(name => [name, svgOf(sprite, name)])) as Art['svgs'],
-    moveCells: Object.fromEntries([...MOVES, ...GESTURES, ...DEMOS].map(move => [move.id, encodeMove(sprite, move.id, drawMove(move, sprite.outfit))])),
+    moveCells: new Map(),
     peekCells: Object.fromEntries(PEEK_POSES.map(pose => [pose, encodeCells(peekGrid(sprite, pose))])) as Art['peekCells'],
     breaths: new Map((['idle', 'flex', 'miniIdle'] as const).map(name => [frames[name], breathedIn(frames[name], name === 'miniIdle' ? sprite.miniSize : sprite.width)])),
     walkCells: new Map(),
@@ -280,18 +280,39 @@ function wear(outfit: Outfit | null) {
   art = made
 }
 
+/**
+ * A move's full-portrait cells in his current outfit, or undefined for no such move. Encoded on first use, not
+ * at load: there are hundreds of moves and a session plays a few.
+ */
+function moveCellsOf(id: string): string[] | undefined {
+  const cached = art.moveCells.get(id)
+  if (cached !== undefined) return cached
+  const move = moveById(id)
+  if (move === undefined) return undefined
+  const cells = encodeMove(art.sprite, id, drawMove(move, art.sprite.outfit))
+  art.moveCells.set(id, cells)
+  return cells
+}
+
 const PORTRAIT_ROWS = SPRITE.height / 2
-/** The exercise moves drawn tiny, for beside a set (3 rows), encoded once per load. */
-const MICRO_CELLS: Record<string, string[]> = Object.fromEntries(
-  [...MOVES, ...DEMOS].filter(move => move.family === 'exercise').map(move => [move.id, encodeMicro(art.sprite, move.id, move.poses.map(drawMicro), MICRO_WIDTH, MICRO_HEIGHT)]),
-)
+/** The exercise moves drawn tiny, for beside a set (3 rows), each encoded the first time it shows. */
+const MICRO_CELLS = new Map<string, string[]>()
+function microCellsOf(id: string): string[] | undefined {
+  const cached = MICRO_CELLS.get(id)
+  if (cached !== undefined) return cached
+  const move = moveById(id)
+  if (move?.family !== 'exercise') return undefined
+  const cells = encodeMicro(SPRITE, id, move.poses.map(drawMicro), MICRO_WIDTH, MICRO_HEIGHT)
+  MICRO_CELLS.set(id, cells)
+  return cells
+}
 const MICRO_ROWS = MICRO_HEIGHT / 2
 
 /** The tiny Swolomon beside a set nobody speaks on: the exercise's move, if it has one (§1.11 Moves). */
 function microMoveOf(spec: BandSpec): Move | undefined {
   if (spec.kind !== 'set' || spec.coach !== undefined || spec.cue === undefined) return undefined
   const id = moveForExercise(spec.cue.exercise.name)
-  return id === null || MICRO_CELLS[id] === undefined ? undefined : moveById(id)
+  return id === null || microCellsOf(id) === undefined ? undefined : moveById(id)
 }
 
 /** The theme's own colours for each tone, so light and dark themes both read (muted is the dim style). */
@@ -949,7 +970,7 @@ async function tick($: EngineInterface, key: number, isWin: boolean, stop: () =>
  * then back to the bust, resting (blinking a while) or, for a win, holding the flex.
  */
 async function playMove($: EngineInterface, move: Move, key: number, isWin: boolean) {
-  const cells = art.moveCells[move.id] ?? []
+  const cells = moveCellsOf(move.id) ?? []
   const startedAt = await now($)
   let showing = -1
   ticker($, 'band', TICK_MS, stop =>
@@ -981,7 +1002,7 @@ async function playMove($: EngineInterface, move: Move, key: number, isWin: bool
  * then he holds the start position (nothing moves after).
  */
 function playMicro($: EngineInterface, move: Move, key: number) {
-  const cells = MICRO_CELLS[move.id] ?? []
+  const cells = microCellsOf(move.id) ?? []
   let showing = -1
   let startedAt: number | null = null
   ticker($, 'band', TICK_MS, stop =>
@@ -1229,7 +1250,7 @@ function idleFrames(step: IdleStep, size: PortraitSize): IdleFrame[] {
     return [{ cells, ms: step.ms }]
   }
   const move = moveById(step.move)
-  const cells = art.moveCells[step.move]
+  const cells = moveCellsOf(step.move)
   if (move === undefined || cells === undefined) return []
   return Array.from({ length: move.reps }, () => move.beats.map(([pose, ms]) => ({ cells: cells[pose] ?? art.frames.idle, ms }))).flat()
 }
@@ -3312,7 +3333,7 @@ function playPaneMove($: EngineInterface, move: Move | undefined) {
   cancelTimers('pane')
   coach.paneFrame = null
   if (move === undefined || !coach.options.coachAnimation) return
-  const cells = art.moveCells[move.id] ?? []
+  const cells = moveCellsOf(move.id) ?? []
   timer($, 'pane', PANE_MOVE_DELAY_MS, () => {
     let showing = -1
     let startedAt: number | null = null
@@ -3642,7 +3663,7 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
     coach.micro = { requestId: site.requestId }
     return (
       <Box flexDirection="row" alignItems="flex-start">
-        <Raster key="swolomon-tiny" columns={MICRO_WIDTH} rows={MICRO_ROWS} cells={coach.microFrame ?? MICRO_CELLS[micro.id]?.[0] ?? ''} />
+        <Raster key="swolomon-tiny" columns={MICRO_WIDTH} rows={MICRO_ROWS} cells={coach.microFrame ?? microCellsOf(micro.id)?.[0] ?? ''} />
         <Box key="portrait-gap" width={PORTRAIT_GAP} />
         <Box key="text" flexDirection="column">
           {rows}
