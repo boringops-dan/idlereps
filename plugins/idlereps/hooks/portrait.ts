@@ -57,10 +57,12 @@ export function toBase64(bytes: Uint8Array): string {
 }
 
 /**
- * A grid as `RasterProps.cells`: two pixel rows per cell row, `▀` with the top pixel as foreground and the
- * bottom as background. A transparent pixel must be the terminal's background, which only a cell's
- * background can be: so a cell with only its bottom pixel filled is `▄` in that colour, and one with
- * neither is a plain space.
+ * A grid as `RasterProps.cells`: two pixel rows per cell row, `▄` with the bottom pixel as foreground and
+ * the top as background. Not `▀`: a terminal whose line is taller than its font draws the block glyph a
+ * little low, and the background shows above it, so `▀` put a strip of the bottom pixel's colour over the
+ * top one (owner, 2026-10-07: his laurel read as two rows, his teeth as two); with `▄` that strip is the top
+ * pixel's own colour. A transparent pixel must be the terminal's background, which only a cell's background
+ * can be: so a cell with only its top pixel filled is `▀` in that colour, and one with neither is a space.
  */
 export function encodeCells(grid: Grid): string {
   const columns = grid[0]?.length ?? 0
@@ -71,14 +73,14 @@ export function encodeCells(grid: Grid): string {
       const top = grid[y * 2]?.[x] ?? null
       const bottom = grid[y * 2 + 1]?.[x] ?? null
       const at = (y * columns + x) * 3
-      if (top === null) {
-        words[at] = bottom === null ? SPACE : LOWER_HALF
-        words[at + 1] = bottom ?? DEFAULT_COLOUR
+      if (bottom === null) {
+        words[at] = top === null ? SPACE : UPPER_HALF
+        words[at + 1] = top ?? DEFAULT_COLOUR
         words[at + 2] = DEFAULT_COLOUR
       } else {
-        words[at] = UPPER_HALF
-        words[at + 1] = top
-        words[at + 2] = bottom ?? DEFAULT_COLOUR
+        words[at] = LOWER_HALF
+        words[at + 1] = bottom
+        words[at + 2] = top ?? DEFAULT_COLOUR
       }
     }
   }
@@ -119,7 +121,7 @@ export function decodeCells(cells: string, columns: number): Grid {
     grid[y] ??= []
     grid[y + 1] ??= []
     const colour = (c: number) => (c === DEFAULT_COLOUR ? null : c)
-    grid[y]![x] = glyph === UPPER_HALF ? colour(fg) : null
+    grid[y]![x] = glyph === UPPER_HALF ? colour(fg) : glyph === LOWER_HALF ? colour(bg) : null
     grid[y + 1]![x] = glyph === UPPER_HALF ? colour(bg) : glyph === LOWER_HALF ? colour(fg) : null
   }
   return grid

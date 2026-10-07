@@ -6,6 +6,7 @@ import { COACH_NAME, emphasisRuns, introLines, plainOf, line, replayLines, SAFET
 import { nextRank, rankFor, RANKS, weekMarks } from '../hooks/history'
 import { START, cueFor } from '../hooks/plan'
 import {
+  decodeCells,
   decodeFrame,
   encodeCells,
   breathedIn,
@@ -61,17 +62,57 @@ test('a frame with a wrong row length or an unknown colour is refused, naming th
   expect(() => decodeFrame(odd, 'blink')).toThrow('frame blink, row 3: no colour for "Z"')
 })
 
-test('cells: ▀ with top and bottom colours; ▄ when only the bottom is filled; a space when neither', () => {
-  const words = (cells: string) => {
-    const bytes = Uint8Array.from(atob(cells), c => c.charCodeAt(0))
-    return Array.from({ length: bytes.length / 4 }, (_, i) => (bytes[i * 4] ?? 0) | ((bytes[i * 4 + 1] ?? 0) << 8) | ((bytes[i * 4 + 2] ?? 0) << 16) | ((bytes[i * 4 + 3] ?? 0) << 24))
-  }
+const cellWords = (cells: string) => {
+  const bytes = Uint8Array.from(atob(cells), c => c.charCodeAt(0))
+  return Array.from({ length: bytes.length / 4 }, (_, i) => (bytes[i * 4] ?? 0) | ((bytes[i * 4 + 1] ?? 0) << 8) | ((bytes[i * 4 + 2] ?? 0) << 16) | ((bytes[i * 4 + 3] ?? 0) << 24))
+}
+
+test('cells: ▄ with top and bottom colours; ▀ when only the top is filled; a space when neither', () => {
   // One column, two pixel rows: red over blue.
-  expect(encodeCells([[0xff0000], [0x0000ff]])).toBe('gCUAAAAA/wD/AAAA')
-  expect(words(encodeCells([[0xff0000], [0x0000ff]]))).toEqual([0x2580, 0xff0000, 0x0000ff])
-  expect(words(encodeCells([[null], [0x00ff00]]))).toEqual([0x2584, 0x00ff00, 0x01000000])
-  expect(words(encodeCells([[null], [null]]))).toEqual([0x20, 0x01000000, 0x01000000])
-  expect(words(encodeCells([[0x123456], [null]]))).toEqual([0x2580, 0x123456, 0x01000000])
+  expect(encodeCells([[0xff0000], [0x0000ff]])).toBe('hCUAAP8AAAAAAP8A')
+  expect(cellWords(encodeCells([[0xff0000], [0x0000ff]]))).toEqual([0x2584, 0x0000ff, 0xff0000])
+  expect(cellWords(encodeCells([[null], [0x00ff00]]))).toEqual([0x2584, 0x00ff00, 0x01000000])
+  expect(cellWords(encodeCells([[null], [null]]))).toEqual([0x20, 0x01000000, 0x01000000])
+  expect(cellWords(encodeCells([[0x123456], [null]]))).toEqual([0x2580, 0x123456, 0x01000000])
+})
+
+test('a glyph drawn low shows the top pixel’s own colour: every filled top is a background or a ▀', () => {
+  for (const name of Object.keys(SPRITE.frames) as (keyof typeof SPRITE.frames)[]) {
+    const grid = decodeFrame(SPRITE, name)
+    const words = cellWords(encodeCells(grid))
+    const columns = grid[0]!.length
+    for (let i = 0; i * 3 < words.length; i += 1) {
+      const top = grid[Math.floor(i / columns) * 2]![i % columns] ?? null
+      if (top === null) continue
+      const [glyph, fg, bg] = words.slice(i * 3, i * 3 + 3)
+      expect([name, i, glyph === 0x2580 ? fg : bg]).toEqual([name, i, top])
+    }
+  }
+})
+
+test('never ▀ under a filled bottom: the strip a low glyph leaves can only be the top’s colour', () => {
+  const grid = decodeFrame(SPRITE, 'idle')
+  const words = cellWords(encodeCells(grid))
+  const glyphs = words.filter((_, i) => i % 3 === 0)
+  glyphs.forEach((glyph, i) => {
+    const bottom = grid[Math.floor(i / 16) * 2 + 1]![i % 16] ?? null
+    if (bottom !== null) expect(glyph).toBe(0x2584)
+  })
+})
+
+test('the laurel band and the hair above it share a cell with the hair as background', () => {
+  const grid = decodeFrame(SPRITE, 'idle')
+  const words = cellWords(encodeCells(grid))
+  // Cell row 1 holds pixel rows 2 (hair) and 3 (laurel); column 8 is hair over gold.
+  const at = (1 * 16 + 8) * 3
+  expect(words.slice(at, at + 3)).toEqual([0x2584, grid[3]![8], grid[2]![8]])
+})
+
+test('cells decode back to their pixels for every frame, full and mini', () => {
+  for (const name of Object.keys(SPRITE.frames) as (keyof typeof SPRITE.frames)[]) {
+    const grid = decodeFrame(SPRITE, name)
+    expect(decodeCells(encodeCells(grid), grid[0]!.length)).toEqual(grid)
+  }
 })
 
 test('the portrait has no stray pixels: every frame is the idle frame but for its own rows', () => {
