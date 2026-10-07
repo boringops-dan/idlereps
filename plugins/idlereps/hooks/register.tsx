@@ -2957,7 +2957,7 @@ function playMoves($: EngineInterface, requestId: string, ids: readonly string[]
     return move === undefined || cells === undefined ? [] : [{ id, move, cells, offset: (i * TILE_STAGGER_MS) % moveMs(move) }]
   })
   let ms = 0
-  const tick = () => {
+  const stepTiles = () => {
     if (!coach.isMovesOpen) return stopMoves()
     for (const tile of tiles) {
       const pose = poseAt(tile.move, (ms + tile.offset) % moveMs(tile.move)) ?? 0
@@ -2968,10 +2968,10 @@ function playMoves($: EngineInterface, requestId: string, ids: readonly string[]
     }
     ms += MOVES_TICK_MS
   }
-  ticker($, 'moves', MOVES_TICK_MS, tick)
+  ticker($, 'moves', MOVES_TICK_MS, stepTiles)
 }
 
-/** `<` or `>` in the collection: the page before or after, its moves playing in place of the last's. */
+/** Previous or Next in the collection: the page before or after, its moves playing in place of the last's. */
 function turnMovesPage($: EngineInterface, by: number) {
   coach.movesPage = Math.max(0, coach.movesPage + by)
   stopMoves()
