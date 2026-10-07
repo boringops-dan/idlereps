@@ -4012,11 +4012,11 @@ export const register: Register = (on, options) => {
         : turn.misread !== undefined
           ? fill(turn.misread.says, { mate: pickAddress(day, 'react-commit') })
           : null
-    if (said === null) return sets
+    // Always in a column: a row returned on its own is laid out top to bottom, the tally under the duration.
     return (
       <Box flexDirection="column">
         {sets}
-        {rowText(Text, [{ text: `${COACH_NAME}: `, tone: 'accent', bold: true }, { text: said }], 'react', { truncate: true })}
+        {said === null ? null : rowText(Text, [{ text: `${COACH_NAME}: `, tone: 'accent', bold: true }, { text: said }], 'react', { truncate: true })}
       </Box>
     )
   })
