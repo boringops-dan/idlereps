@@ -90,7 +90,7 @@ test('every exercise IdleReps can prescribe has a move to demonstrate it', () =>
 test('names map to the move that shows them: specific before general', () => {
   expect(
     ['Goblet squats', 'Jump squats', 'Wall sit', 'Decline push-ups', 'Desk plank', 'Side plank', 'Dumbbell Romanian deadlifts', 'Chin-up hold (top position)', 'Band curls', 'Dumbbell overhead triceps extension', 'Band rows', 'Single-leg glute bridges', 'Step-back burpees', 'Kettlebell swings'].map(moveForExercise),
-  ).toEqual(['squat', 'squat', 'wall-sit', 'push-up', 'plank', 'plank', 'deadlift', 'pull-up', 'curl', 'press', 'row', 'bridge', 'burpee', null])
+  ).toEqual(['goblet-squat', 'jump-squat', 'wall-sit', 'decline-push-up', 'desk-plank', 'side-plank', 'deadlift', 'chin-up-hold', 'band-curl', 'dumbbell-overhead-triceps-extension', 'band-row', 'single-leg-glute-bridge', 'step-back-burpee', null])
 })
 
 /** The flex reel once every move is collected (the test world's default). */
