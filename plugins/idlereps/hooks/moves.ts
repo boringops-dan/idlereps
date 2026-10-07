@@ -1119,6 +1119,12 @@ export function moveForExercise(name: string): MoveId | null {
   return [...EXISTING_DEMO_BY_NAME, ...NEW_A_DEMO_BY_NAME, ...NEW_B_DEMO_BY_NAME, ...BY_NAME].find(([pattern]) => pattern.test(name))?.[1] ?? null
 }
 
+/** Between his lines an exercise is a full set (owner, 2026-10-07: "sets of 20 every time"); anything else plays as drawn. */
+export const IDLE_SET_REPS = 20
+
+/** How many times a move's beats play while he idles. */
+export const idleReps = (move: Move): number => (move.family === 'exercise' ? IDLE_SET_REPS : move.reps)
+
 /** How long one play of a move takes, every rep. */
 export const moveMs = (move: Move): number => move.reps * move.beats.reduce((ms, [, length]) => ms + length, 0)
 

@@ -3,7 +3,7 @@ import type { Engine } from 'claude-code/testing'
 
 import type { Answers, Plan } from '../types'
 import { flexBand } from '../hooks/bands'
-import { drawMove, moveById, moveForExercise, moveMs, MOVES, poseAt } from '../hooks/moves'
+import { drawMove, IDLE_SET_REPS, idleReps, moveById, moveForExercise, moveMs, MOVES, poseAt } from '../hooks/moves'
 import { collected, STARTER_MOVES, UNLOCK_ORDER } from '../hooks/collection'
 import { drawMicro, MICRO_HEIGHT, MICRO_WIDTH } from '../hooks/figure'
 import { breathedIn, encodeCells, encodeMove, encodeSprite, idleBeat, walkGrid } from '../hooks/portrait'
@@ -48,6 +48,11 @@ test('every pose has Swolomon in it: his laurel or his beard shows', () => {
 
 test('a move is a moment, not a show: one to eight seconds, every rep', () => {
   for (const move of MOVES) expect([move.id, moveMs(move) >= 1000 && moveMs(move) <= 8000]).toEqual([move.id, true])
+})
+
+test('idling, every exercise is a set of 20; gags and flexes play as drawn', () => {
+  for (const move of MOVES) expect(idleReps(move)).toBe(move.family === 'exercise' ? IDLE_SET_REPS : move.reps)
+  expect(IDLE_SET_REPS).toBe(20)
 })
 
 test('poseAt: each beat in turn, the reps repeating, then nothing', () => {

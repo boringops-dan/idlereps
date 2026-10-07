@@ -25,6 +25,7 @@ import {
   walkGrid,
 } from '../hooks/portrait'
 import type { IdleStep } from '../hooks/portrait'
+import { IDLE_SET_REPS } from '../hooks/moves'
 import { generateProgram, STARTER_ANSWERS } from '../hooks/programs'
 import { record } from '../hooks/record'
 import type { RecordStore } from '../hooks/record'
@@ -310,10 +311,10 @@ test('animated: once the line is out he idles while the band shows, a beat every
   await clock.advance(30_000)
   const before = blits.length
   await clock.advance(60_000)
-  // At most one beat each 2.5 s, at least one each 5.5 s plus the beat itself.
+  // At most one beat each 2.5 s, at least one each 5.5 s plus the beat itself; a set of 20 (two frames a rep) on top.
   const beats = blits.length - before
   expect(beats).toBeGreaterThanOrEqual(10)
-  expect(beats).toBeLessThanOrEqual(60_000 / 2_500 * 4 + 4)
+  expect(beats).toBeLessThanOrEqual(60_000 / 2_500 * 4 + 4 + 2 * IDLE_SET_REPS)
   await $.command.run(workout('later'))
   const gone = blits.length
   await clock.advance(60_000)

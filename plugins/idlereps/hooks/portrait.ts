@@ -124,10 +124,17 @@ export function decodeCells(cells: string, columns: number): Grid {
   return grid
 }
 
-/** Cells of him a pixel up, his breath in: the top row off, a clear row under. Pure, cached by the caller. */
+/**
+ * Cells of him with his breath in: everything above the bottom cell row a pixel up into the clear top row,
+ * the chest a pixel taller to meet it, so the bust stays planted on the frame's bottom edge and only his
+ * head and shoulders rise (owner, 2026-10-07: lifting the whole of him read as a hop). A frame with no clear
+ * top row (the mini head, filling its square) has nowhere to rise and is drawn as it is. Pure, cached by the caller.
+ */
 export function breathedIn(cells: string, columns: number): string {
   const grid = decodeCells(cells, columns)
-  return encodeCells([...grid.slice(1), new Array<number | null>(columns).fill(null)])
+  const h = grid.length
+  if (h < 4 || grid[0]!.some(c => c !== null)) return cells
+  return encodeCells([...grid.slice(1, h - 1), grid[h - 2]!, grid[h - 1]!])
 }
 
 /** The breath's half: in for this long, out for this long (the desktop film's too). */

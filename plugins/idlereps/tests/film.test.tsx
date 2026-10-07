@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { bandFilm, bandFilmSvg, FILM_MAX_CHARS, filmSvg } from '../hooks/film'
-import { moveById, moveMs } from '../hooks/moves'
+import { IDLE_SET_REPS, moveById, moveMs } from '../hooks/moves'
 import { drawFigure } from '../hooks/figure'
 import { decodeFrame, decodeRows } from '../hooks/portrait'
 import { SPRITE } from '../hooks/swolomon-sprite'
@@ -94,7 +94,24 @@ test('desktop, animated: the status pane has him living too', ANIMATED, async ($
 
 test('alive even between beats: he breathes, a pixel up and back, forever', () => {
   const svg = filmSvg(bandFilm({ ...base }), 16, 16)
-  expect(svg).toMatch(/<animateTransform attributeName="transform" type="translate" calcMode="discrete" dur="\d+ms" repeatCount="indefinite" values="0 0;0 -1"/)
+  expect(svg).toMatch(/<animateTransform attributeName="transform" type="translate" calcMode="discrete" dur="\d+ms" repeatCount="indefinite" keyTimes="0;0.5" values="0 0;0 -1"/)
+})
+
+test('his breath keeps him planted: the whole picture never moves, only the part above his bottom rows', () => {
+  const svg = filmSvg(bandFilm({ ...base }), 16, 16)
+  expect(svg).not.toMatch(/<svg[^>]*><g><animateTransform/)
+  expect(svg).toMatch(/<animate attributeName="visibility" calcMode="discrete" dur="\d+ms" repeatCount="indefinite" keyTimes="0;0.5" values="hidden;visible"\/>/)
+})
+
+test('idling, an exercise is a set of 20; the act at the start plays as drawn', () => {
+  const squat = moveById('squat')!
+  const once = squat.beats.length
+  const squatFrames = new Set(squat.poses.map(p => JSON.stringify(decodeRows(SPRITE, drawFigure(p), 'squat', 16, 16))))
+  const { intro, loop } = bandFilm({ ...base, act: 'squat', moves: ['squat'] })
+  expect(intro.length).toBe(once * squat.reps)
+  const shown = loop.filter(shot => squatFrames.has(JSON.stringify(shot.grid))).length
+  expect(shown).toBeGreaterThan(0)
+  expect(shown % (once * IDLE_SET_REPS)).toBe(0)
 })
 
 test('a loop is never only blinking: one of his moves every few beats when he has any', () => {

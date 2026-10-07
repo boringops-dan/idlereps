@@ -6,7 +6,7 @@
  */
 
 import { drawFigure } from './figure'
-import { moveById } from './moves'
+import { idleReps, moveById } from './moves'
 import { BREATH_HALF_MS, decodeFrame, decodeRows, frameFor, idleBeat, rectsOf } from './portrait'
 import type { Grid, Pose, PortraitSize } from './portrait'
 import type { Sprite } from './swolomon-sprite'
@@ -29,12 +29,12 @@ const FILM_MOVE_EVERY = 3
 /** His breathing: a pixel up and back, all the time, under everything else (the terminal's pace). */
 const BREATH_MS = BREATH_HALF_MS * 2
 
-/** A move's poses as grids, played through its beats and reps. */
-function moveShots(sprite: Sprite, id: string): Shot[] {
+/** A move's poses as grids, played through its beats and reps (an idle beat's: an exercise as a full set). */
+function moveShots(sprite: Sprite, id: string, isIdle = false): Shot[] {
   const move = moveById(id)
   if (move === undefined) return []
   const grids = move.poses.map((pose, i) => decodeRows(sprite, drawFigure(pose, sprite.outfit), `${id} pose ${i}`, sprite.width, sprite.height))
-  return Array.from({ length: move.reps }, () => move.beats.flatMap(([pose, ms]) => (grids[pose] === undefined ? [] : [{ grid: grids[pose], ms }]))).flat()
+  return Array.from({ length: isIdle ? idleReps(move) : move.reps }, () => move.beats.flatMap(([pose, ms]) => (grids[pose] === undefined ? [] : [{ grid: grids[pose], ms }]))).flat()
 }
 
 /**
@@ -65,7 +65,7 @@ export function bandFilm(opts: {
     loop.push({ grid: pose(beat.rest), ms: Math.round(beat.wait * FILM_WAIT) })
     for (const step of beat.steps) {
       if ('pose' in step) loop.push({ grid: pose(step.pose), ms: step.ms })
-      else if ('move' in step) loop.push(...moveShots(sprite, step.move))
+      else if ('move' in step) loop.push(...moveShots(sprite, step.move, true))
     }
   }
   return { intro, loop }
@@ -108,11 +108,29 @@ export function filmSvg(film: { intro: readonly Shot[]; loop: readonly Shot[] },
     ].join('')
     // Hidden until its animation shows it; a film of one frame simply shows it.
     const shown = frames.size === 1 ? 'visible' : 'hidden'
-    return `<g visibility="${shown}">${animations}${rectsOf(grid)}</g>`
+    return `<g visibility="${shown}">${animations}${frames.size > 1 ? breathingRects(grid) : rectsOf(grid)}</g>`
   })
-  // Breathing: the whole of him a pixel up for half of each breath, so even a still frame lives.
-  const breath = frames.size > 1 ? `<animateTransform attributeName="transform" type="translate" calcMode="discrete" dur="${BREATH_MS}ms" repeatCount="indefinite" values="0 0;0 -1" keyTimes="0;0.5"/>` : ''
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" shape-rendering="crispEdges"><g>${breath}${groups.join('')}</g></svg>`
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" shape-rendering="crispEdges">${groups.join('')}</svg>`
+}
+
+/**
+ * A frame's rects as he breathes (the terminal's breathedIn, portrait.ts): for half of each breath all but
+ * his bottom two rows a pixel up, the row above them drawn again to close the gap, so he stays planted. A
+ * frame with no clear top row has nowhere to rise and is drawn still.
+ */
+function breathingRects(grid: Grid): string {
+  const h = grid.length
+  if (h < 4 || grid[0]!.some(c => c !== null)) return rectsOf(grid)
+  const clear = (row: Grid[number]) => row.map(() => null)
+  const upper = grid.map((row, y) => (y < h - 2 ? row : clear(row)))
+  const base = grid.map((row, y) => (y < h - 2 ? clear(row) : row))
+  const gap = grid.map((row, y) => (y === h - 3 ? grid[h - 2]! : clear(row)))
+  const timing = `calcMode="discrete" dur="${BREATH_MS}ms" repeatCount="indefinite" keyTimes="0;0.5"`
+  return [
+    rectsOf(base),
+    `<g visibility="hidden"><animate attributeName="visibility" ${timing} values="hidden;visible"/>${rectsOf(gap)}</g>`,
+    `<g><animateTransform attributeName="transform" type="translate" ${timing} values="0 0;0 -1"/>${rectsOf(upper)}</g>`,
+  ].join('')
 }
 
 /** A band's film as an SVG under the engine's bound: fewer idle beats until it fits. */
