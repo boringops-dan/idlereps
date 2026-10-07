@@ -5,6 +5,8 @@ import { appendHistory, HISTORY_CAP, nextTarget, streak, weekMarks } from '../ho
 import { STEPS } from '../hooks/migrations'
 import type { Snapshot } from '../hooks/migrations'
 import { START } from '../hooks/plan'
+import { harderVariant, OFFICE_REPLACED } from '../hooks/programs'
+import { moveForExercise } from '../hooks/moves'
 import { BAND, NOON, OPTIONS, SESSION, TINY, TODAY, workout, world } from './world'
 
 /** History, streaks, week marks and double progression (plan §5.3, Task 4). */
@@ -62,14 +64,14 @@ test('skips count as below target', () => {
   expect(t).toEqual(T(12, { belowStreak: 1 }))
 })
 
-test('bands step a level up at the top, down on a deload, and stop at either end', () => {
+test('bands step a level up at the top and down on a deload; past the heaviest, the reps keep climbing', () => {
   expect(nextTarget(BAND_ROWS, T(18, { band: 'light' }), done(18, 18), 'good', 'home')).toEqual(T(12, { band: 'medium' }))
-  expect(nextTarget(BAND_ROWS, T(18, { band: 'x-heavy' }), done(18, 18), 'good', 'home')).toEqual(T(18, { band: 'x-heavy' }))
+  expect(nextTarget(BAND_ROWS, T(18, { band: 'x-heavy' }), done(18, 18), 'good', 'home')).toEqual(T(19, { band: 'x-heavy' }))
   expect(nextTarget(BAND_ROWS, T(12, { band: 'medium', belowStreak: 2 }), done(1, 1), 'good', 'home').band).toBe('light')
   expect(nextTarget(BAND_ROWS, T(12, { band: 'light', belowStreak: 2 }), done(1, 1), 'good', 'home').band).toBe('light')
 })
 
-test('bodyweight at the top moves to the next level’s variant, then stays', () => {
+test('bodyweight at the top moves to the next level’s variant; at the hardest, the reps keep climbing', () => {
   const pushups = nextTarget(INCLINE, T(15), done(15, 15), 'good', 'home')
   expect(pushups.variant).toEqual({ name: 'Push-ups', reps: '12 reps', range: [12, 18] })
   expect(pushups.reps).toBe(12)
@@ -77,17 +79,56 @@ test('bodyweight at the top moves to the next level’s variant, then stays', ()
   expect(decline.variant?.name).toBe('Decline push-ups')
   const top = nextTarget(INCLINE, { ...decline, reps: 18 }, done(18, 18), 'good', 'home')
   expect(top.variant?.name).toBe('Decline push-ups')
-  expect(top.reps).toBe(18)
-  // Same-name rows never swap.
-  expect(nextTarget(PLANK, T(40), done(40, 40), 'good', 'home')).toEqual(T(40))
+  expect(top.reps).toBe(19)
+  // Same-name rows never swap: a hold just gets longer.
+  expect(nextTarget(PLANK, T(40), done(40, 40), 'good', 'home')).toEqual(T(45))
 })
 
-test('office mode swaps only among office exercises', () => {
+test('office mode moves on only to standing, quiet exercises; at the last, the reps keep climbing', () => {
   const desk: Exercise = { name: 'Desk push-ups', reps: '10 reps', range: [10, 15], sets: 2 }
-  expect(nextTarget(desk, T(15), done(15, 15), 'good', 'office').variant).toBeUndefined()
+  const closeGrip = nextTarget(desk, T(15), done(15, 15), 'good', 'office')
+  expect(closeGrip.variant).toEqual({ name: 'Close-grip desk push-ups', reps: '10 reps', range: [10, 15] })
+  expect(nextTarget(desk, { ...closeGrip, reps: 15 }, done(15, 15), 'good', 'office')).toMatchObject({ variant: { name: 'Close-grip desk push-ups' }, reps: 16 })
   const wall: Exercise = { name: 'Wall push-ups', reps: '15 reps', range: [15, 23], sets: 2 }
-  expect(nextTarget(wall, T(23), done(23, 23), 'good', 'office').variant).toBeUndefined()
+  expect(nextTarget(wall, T(23), done(23, 23), 'good', 'office').variant?.name).toBe('Desk push-ups')
   expect(nextTarget(wall, T(23), done(23, 23), 'good', 'home').variant?.name).toBe('Pike push-ups')
+})
+
+test('office squats step up to pulse squats, then Bulgarian split squats; reverse lunges go there too', () => {
+  const squats: Exercise = { name: 'Squats', reps: '12 reps', range: [12, 18], sets: 2 }
+  const pulse = nextTarget(squats, T(18), done(18, 18), 'good', 'office')
+  expect(pulse.variant).toEqual({ name: 'Pulse squats', reps: '12 reps', range: [12, 18] })
+  expect(nextTarget(squats, { ...pulse, reps: 18 }, done(18, 18), 'good', 'office').variant?.name).toBe('Bulgarian split squats')
+  const lunges: Exercise = { name: 'Reverse lunges', reps: '6 each leg', range: [6, 9], sets: 2 }
+  expect(nextTarget(lunges, T(9), done(9, 9), 'good', 'office').variant).toEqual({ name: 'Bulgarian split squats', reps: '8 each leg', range: [8, 12] })
+})
+
+test('every office step-up is standing and quiet, and Swolomon has its own demo', () => {
+  for (const name of ['Wall push-ups', 'Desk push-ups', 'Squats', 'Pulse squats', 'Reverse lunges']) {
+    const next = harderVariant(name, 'office')
+    expect(next).not.toBeNull()
+    expect(OFFICE_REPLACED).not.toContain(next?.name)
+    expect(moveForExercise(next?.name ?? '')).not.toBeNull()
+  }
+})
+
+test('at the last step, Easy climbs two and a hold five seconds; Tough holds it', () => {
+  const angels: Exercise = { name: 'Wall angels', reps: '8 reps', range: [8, 12], sets: 2 }
+  expect(nextTarget(angels, T(12), done(12, 12), 'easy', 'office').reps).toBe(14)
+  expect(nextTarget(angels, T(12), done(12, 12), 'tough', 'office').reps).toBe(12)
+  const plank: Exercise = { name: 'Desk plank', reps: '30 s', range: [30, 60], sets: 2 }
+  expect(nextTarget(plank, T(60), done(60, 60), 'good', 'office').reps).toBe(65)
+})
+
+test('past the top, a missed target still holds it, and three misses still deload', () => {
+  const angels: Exercise = { name: 'Wall angels', reps: '8 reps', range: [8, 12], sets: 2 }
+  expect(nextTarget(angels, T(14), done(14, 13), 'good', 'office').reps).toBe(14)
+  expect(nextTarget(angels, T(14, { belowStreak: 2 }), done(10, 10), 'good', 'office').reps).toBe(12)
+})
+
+test('the climb stops at 999, the most a set can log', () => {
+  const angels: Exercise = { name: 'Wall angels', reps: '8 reps', range: [8, 12], sets: 2 }
+  expect(nextTarget(angels, T(999), done(999, 999), 'easy', 'office').reps).toBe(999)
 })
 
 test('a plan exercise with no range keeps its target', () => {

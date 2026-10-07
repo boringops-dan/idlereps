@@ -141,6 +141,13 @@ function deload(exercise: Exercise, target: Target, range: [number, number], isT
   return { ...target, reps: Math.max(range[0], target.reps - (isTimed ? 10 : 2)) }
 }
 
+/** Whether nothing comes after this exercise's range: no weight to add, the heaviest band, no harder variant. */
+function isLastStep(planExercise: Exercise, target: Target, setting: Answers['setting']): boolean {
+  if (planExercise.weight !== undefined) return false
+  if (planExercise.band !== undefined) return planExercise.band.levels.at(-1) === (target.band ?? planExercise.band.start)
+  return harderVariant(target.variant?.name ?? planExercise.name, setting) === null
+}
+
 /**
  * Double progression for one exercise when a workout finishes (§5.3). `rating` is absent until the person
  * answers (an unrated workout counts as Good).
@@ -174,14 +181,16 @@ export function nextTarget(
       const levels = planExercise.band.levels
       const at = levels.indexOf(counted.band ?? planExercise.band.start)
       const up = levels[at + 1]
-      return up === undefined ? counted : { ...counted, band: up, reps: range[0] }
+      if (up !== undefined) return { ...counted, band: up, reps: range[0] }
+    } else {
+      const harder = harderVariant(current.variant?.name ?? planExercise.name, setting)
+      if (harder !== null) return { ...counted, variant: harder, reps: harder.range[0] }
     }
-    const harder = harderVariant(current.variant?.name ?? planExercise.name, setting)
-    return harder === null ? counted : { ...counted, variant: harder, reps: harder.range[0] }
   }
   if (!isAnyBelow && rating !== 'tough') {
     const step = (rating === 'easy' ? 2 : 1) * (isTimed ? 5 : 1)
-    return { ...counted, reps: Math.min(range[1], counted.reps + step) }
+    // Past the top only at the last step (the heaviest band, or no harder variant): more reps, or seconds.
+    return { ...counted, reps: Math.min(isLastStep(planExercise, counted, setting) ? 999 : range[1], counted.reps + step) }
   }
   return counted
 }

@@ -49,7 +49,7 @@ const target = (reps: number) => ({ reps, belowStreak: 0, toughStreak: 0 })
 const TARGETS: Targets = {
   'Desk push-ups': target(12),
   Squats: target(15),
-  'Wall angels': target(12),
+  'Wall angels': target(13),
   'Reverse lunges': target(8),
   'Wall push-ups': target(17),
   'Hip-flexor stretch': target(30),
@@ -61,7 +61,7 @@ const SITE_ROWS = [
   'Full body C  Week 2: 2 of 3 workouts  ●●○',
   '2 of 6 sets today',
   '  Squats              ●●  15 reps         ▁▃▆█   best 15 reps',
-  '› Wall angels         ●○  12 reps         ▁▃▅▆█   best 12 reps',
+  '› Wall angels         ●○  13 reps         ▁▃▅▆█   best 12 reps',
   '  Hip-flexor stretch  ○○  30 s each side   best 30 s each side',
   '1: Start a set now   3: Share week   4: Change plan   0: Close',
   'Moved 12 min this week while your agent worked · 26 min since day 1',
@@ -106,11 +106,11 @@ test('site pane mock: its own numbers agree (32 total done sets is what that his
   expect(done).toBe(32)
 })
 
-test('site pane mock: its targets are the ones that week reaches (Wall angels held at the top of its range, the stretch at 30 s)', () => {
+test('site pane mock: its targets are the ones that week reaches (Wall angels past the top of its range, the stretch at 30 s)', () => {
   const angels = QUICK.workouts[0]!.exercises.find(e => e.name === 'Wall angels')!
   const hip = QUICK.workouts[2]!.exercises.find(e => e.name === 'Hip-flexor stretch')!
   const atTop = [1, 2].map(() => ({ result: 'done' as const, count: 12 }))
-  expect(nextTarget(angels, { reps: 12, belowStreak: 0, toughStreak: 0 }, atTop, 'good', 'office').reps).toBe(12)
+  expect(nextTarget(angels, { reps: 12, belowStreak: 0, toughStreak: 0 }, atTop, 'good', 'office').reps).toBe(13)
   expect(nextTarget(hip, { reps: 30, belowStreak: 0, toughStreak: 0 }, [1, 2].map(() => ({ result: 'done' as const, count: 30 })), 'good', 'office').reps).toBe(30)
 })
 

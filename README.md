@@ -20,6 +20,9 @@ Or inside Claude Code:
 /plugin install idlereps@idlereps
 ```
 
+If the install says the plugin's options aren't set yet, that's fine: every one has a default, and you can
+change them later in `/config`.
+
 Then start a new session. Swolomon walks on just above the prompt (a toast points the way), introduces
 himself, and asks how you want to train:
 
@@ -55,7 +58,8 @@ Update: `claude plugin marketplace update idlereps` (or `/plugin marketplace upd
    few minutes, a walk when a long build or a helper agent is under way ("Ideas for about 8 min: a lap of
    the block · …").
 5. Your plan progresses: do every set at your target and the next workout adds a rep. Reach the top of the
-   range on every set and you move to more weight, a heavier band or a harder variant.
+   range on every set and you move to more weight, a heavier band or a harder variant; with none of those
+   left, the reps (or seconds) keep climbing.
 
 ## Showing up beats doing nothing
 
@@ -252,7 +256,8 @@ remind you when you haven't trained.
 
 A home plan designed for you mixes it up: when a slot comes round again in the week it brings a
 different exercise for the same muscles (from what your equipment allows), and every four weeks they move
-on. An office plan keeps its standing-only exercises.
+on. An office plan keeps its standing-only exercises, and its step-ups stay standing too: wall push-ups to
+desk push-ups to close-grip desk push-ups, squats to pulse squats to Bulgarian split squats.
 
 ## Settings
 
@@ -338,7 +343,7 @@ The fields:
 - `reps`: a number and a unit: `10 reps`, `8 each leg`, `20 s`, `30 s each side`.
 - `range` (optional): the rep range. Hit your target on every set and the next workout adds a rep. Reach
   the top of the range on every set and it adds weight (or a heavier band, or a harder variant) and starts
-  again at the bottom.
+  again at the bottom. With none of those left, the target keeps climbing past the top.
 - `weight` (optional): `start`, `step` and `unit` (`kg` or `lb`) for a weighted exercise.
 - `band` (optional): `levels` (light to heavy) and `start`, for a resistance band.
 - `note` (optional): a short tip shown under the set.

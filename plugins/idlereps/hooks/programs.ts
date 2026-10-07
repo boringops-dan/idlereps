@@ -406,7 +406,21 @@ export function generateProgram(answers: Answers): Plan {
  * The next level's different exercise for an exercise found in the library (after office substitution),
  * with that level's base and range; null at the top, for same-name rows, and for names not in the library.
  */
+/**
+ * Office mode's next steps (its swaps are one exercise at every level): standing and quiet, each with its own
+ * demo. An exercise not here, nor further along its library row, has no harder variant.
+ */
+const OFFICE_HARDER: Record<string, Entry> = {
+  'Wall push-ups': e('Desk push-ups', 10, 'reps'),
+  'Desk push-ups': e('Close-grip desk push-ups', 10, 'reps'),
+  Squats: e('Pulse squats', 12, 'reps'),
+  'Pulse squats': e('Bulgarian split squats', 8, 'each leg'),
+  'Reverse lunges': e('Bulgarian split squats', 8, 'each leg'),
+}
+
 export function harderVariant(exerciseName: string, setting: Answers['setting']): Variant | null {
+  const office = setting === 'office' ? OFFICE_HARDER[exerciseName] : undefined
+  if (office !== undefined) return { name: office.name, reps: repsText(office.value, office.unit), range: rangeOf(office.value, office.unit) }
   for (const rows of [...Object.values(LIBRARY), ...Object.values(ALTS)]) {
     for (const row of rows) {
       const names = [0, 1, 2].map(level => entryAt(row, level, setting))
