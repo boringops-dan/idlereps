@@ -37,6 +37,8 @@ const NAMES: readonly (readonly [string, string])[] = [
   ['Cat-cow', 'cat-cow'],
   ['Hamstring stretch', 'hamstring-stretch'],
   ['Desk push-ups', 'desk-push-up'],
+  ['Close-grip desk push-ups', 'close-grip-desk-push-up'],
+  ['Standing cat-cow', 'standing-cat-cow'],
   ['Wall angels', 'wall-angel'],
   ['Standing glute kickbacks', 'standing-glute-kickback'],
   ['March in place', 'march-in-place'],

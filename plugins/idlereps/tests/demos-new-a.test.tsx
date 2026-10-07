@@ -88,7 +88,7 @@ test('the patterns hold to the whole name: the general exercises and longer name
   const ours = new Set(NEW_A_DEMOS.map(m => m.id))
   const others = ['Push-ups', 'Pull-ups', 'Dumbbell curls', 'Chin-up hold (top position)', 'Plank', 'Band rows', 'Dumbbell rows', 'Band curls', 'Dumbbell overhead press', 'Incline push-ups', 'Pull-up negatives', 'Prone Y-raises', 'Knee push-ups to plank']
   for (const name of others) expect([name, ours.has(moveForExercise(name) ?? '')]).toEqual([name, false])
-  expect(['Push-ups', 'Pull-ups', 'Dumbbell curls', 'Chin-up hold (top position)'].map(moveForExercise)).toEqual(['push-up', 'pull-up', 'curl', 'pull-up'])
+  expect(['Push-ups', 'Pull-ups', 'Dumbbell curls', 'Chin-up hold (top position)'].map(moveForExercise)).toEqual(['push-up', 'pull-up', 'curl', 'chin-up-hold'])
 })
 
 test('each demo has its form cue, in the registry: one or two variants of Swolomon’s', () => {

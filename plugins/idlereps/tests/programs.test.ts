@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import type { Answers, Equipment, Exercise, Plan } from '../types'
 import { parsePlan } from '../hooks/plan'
-import { generateProgram, OFFICE_REPLACED, STARTER_ANSWERS } from '../hooks/programs'
+import { ALT_NAMES, generateProgram, harderVariant, OFFICE_REPLACED, STARTER_ANSWERS } from '../hooks/programs'
 
 /** The program generator (plan §5, Task 5). */
 
@@ -147,7 +147,7 @@ test('dumbbell exercises carry their start weight and step in kg and lb; band ex
 })
 
 test('every answer combination gives a plan that parses back to itself', { timeoutMs: 30_000 }, () => {
-  const MOBILITY = new Set(['Hip-flexor stretch', 'Thoracic rotations', 'Cat-cow', 'Hamstring stretch'])
+  const MOBILITY = new Set(['Hip-flexor stretch', 'Thoracic rotations', 'Cat-cow', 'Hamstring stretch', "World's greatest stretch", 'Thread the needle', "Child's pose", 'Downward dog'])
   const wrong: string[] = []
   let count = 0
   for (const answers of everyAnswer()) {
@@ -180,4 +180,61 @@ test('office mode leaves equipment exercises as they are', () => {
   const office = gen({ equipment, template: 'ppl', goal: 'strength', size: 'long', setting: 'office' })
   const dumbbells = (plan: Plan) => plan.workouts.flatMap(w => w.exercises).filter((e: Exercise) => e.weight !== undefined)
   expect(dumbbells(office)).toEqual(dumbbells(home))
+})
+
+// Alternates (owner, 2026-10-06: "add 50 more workouts").
+
+test('fifty-odd more exercises: the slots\' alternates, every one with its own name', () => {
+  expect(ALT_NAMES.length).toBeGreaterThanOrEqual(50)
+  expect(new Set(ALT_NAMES).size).toBe(ALT_NAMES.length)
+})
+
+test('a slot that comes up again in a week takes its next alternate', () => {
+  // Three full-body days: legs come up in A and again in C.
+  const week = firstWeek(gen({ goal: 'strength', size: 'long', level: 'beginner' }), 3).map(w => w.exercises.map(e => e.name))
+  expect(week[0]).toContain('Squats')
+  expect(week[2]).toContain('Sumo squats')
+  expect(week[2]).not.toContain('Squats')
+})
+
+test('within a 4-week block every week is the same; weeks 5 to 8 move every slot one alternate on', () => {
+  const plan = gen({ goal: 'strength', size: 'long', weeks: 8 })
+  const week = (w: number) => plan.workouts.slice(w * 3, w * 3 + 3).map(x => x.exercises.map(e => e.name))
+  for (const w of [1, 2, 3]) expect(week(w)).toEqual(week(0))
+  for (const w of [5, 6, 7]) expect(week(w)).toEqual(week(4))
+  expect(week(4)).not.toEqual(week(0))
+  // Block two's first push is the first alternate.
+  expect(week(4)[0]).toContain('Knee push-ups')
+})
+
+/** Every home plan's answers and its exercise names, made once for the tests that walk them all. */
+let homePlans: { answers: Answers; names: string[] }[] | undefined
+const everyHomePlan = () => (homePlans ??= [...everyAnswer()].map(answers => ({ answers, names: names(generateProgram(answers)) })))
+const ALL = { timeoutMs: 60_000 }
+
+test('the gear decides: alternates needing what they lack never come up', ALL, () => {
+  const wrong: string[] = []
+  for (const { answers, names: planNames } of everyHomePlan()) {
+    const gear = answers.equipment
+    for (const name of planNames) {
+      if (!gear.dumbbells && /dumbbell/i.test(name)) wrong.push(name)
+      if (!gear.bands && /\bband/i.test(name)) wrong.push(name)
+      if (!gear.bar && /pull-up|chin-up|dead hang/i.test(name)) wrong.push(name)
+    }
+  }
+  expect([...new Set(wrong)]).toEqual([])
+})
+
+test('office plans never take an alternate', ALL, () => {
+  const taken = new Set<string>()
+  for (const answers of everyAnswer('office')) for (const name of names(generateProgram(answers))) if (ALT_NAMES.includes(name)) taken.add(name)
+  expect([...taken]).toEqual([])
+})
+
+test('the alternates are all reachable somewhere, and progress like the rest', ALL, () => {
+  const seen = new Set(everyHomePlan().flatMap(plan => plan.names))
+  expect(ALT_NAMES.filter(name => !seen.has(name))).toEqual([])
+  expect(harderVariant('Knee push-ups', 'home')?.name).toBe('Wide push-ups')
+  expect(harderVariant('Lateral lunges', 'home')?.name).toBe('Curtsy lunges')
+  expect(harderVariant('Bird dogs', 'home')).toBeNull()
 })

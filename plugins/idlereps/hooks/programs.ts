@@ -76,6 +76,85 @@ export const LIBRARY: Record<Slot, Row[]> = {
   MOB4: [same('any', 'Hamstring stretch', 's each side', [30, 30, 30])],
 }
 
+/** One alternate: an exercise (per level) a slot can take instead, and what it needs. */
+type Alt = { requires: Requires; levels: [Entry, Entry, Entry] }
+const alt = (requires: Requires, levels: [Entry, Entry, Entry]): Alt => ({ requires, levels })
+/** An alternate with the same exercise at every level, three values. */
+const alt3 = (requires: Requires, name: string, unit: Unit, values: [number, number, number]): Alt => same(requires, name, unit, values)
+
+/**
+ * Each slot's alternates (owner, 2026-10-06: "add 50 more workouts"), taken in turn after the slot's own pick
+ * (`resolveSlot`): the second time a slot comes up in a week, the next one; in weeks 5 to 8, one further on.
+ * Never in an office plan (office mode keeps its standing, quiet list).
+ */
+const ALTS: Record<Slot, Alt[]> = {
+  PUSH1: [
+    alt('any', [e('Knee push-ups', 10, 'reps'), e('Wide push-ups', 10, 'reps'), e('Diamond push-ups', 10, 'reps')]),
+    alt('any', [e('Plank shoulder taps', 16, 'reps'), e('Plank shoulder taps', 24, 'reps'), e('Archer push-ups', 6, 'each side')]),
+  ],
+  PUSH2: [
+    alt3('dumbbells', 'Dumbbell Arnold press', 'reps', [8, 10, 12]),
+    alt3('dumbbells', 'Dumbbell lateral raises', 'reps', [10, 12, 15]),
+    alt3('bands', 'Band lateral raises', 'reps', [12, 15, 20]),
+    alt3('any', 'Hindu push-ups', 'reps', [5, 8, 12]),
+  ],
+  TRI: [
+    alt3('dumbbells', 'Dumbbell triceps kickbacks', 'reps', [10, 12, 15]),
+    alt3('bands', 'Band triceps pushdowns', 'reps', [12, 15, 20]),
+    alt3('any', 'Close-grip push-ups', 'reps', [6, 8, 12]),
+  ],
+  PULL1: [
+    alt3('bar', 'Scapular pull-ups', 'reps', [6, 8, 10]),
+    alt3('dumbbells', 'Dumbbell renegade rows', 'each side', [6, 8, 10]),
+    alt3('bands', 'Band lat pulldowns', 'reps', [12, 15, 20]),
+    alt3('any', 'Prone W-raises', 'reps', [10, 12, 15]),
+  ],
+  PULL2: [
+    alt3('dumbbells', 'Dumbbell reverse flys', 'reps', [10, 12, 15]),
+    alt3('bands', 'Band face pulls', 'reps', [12, 15, 20]),
+    alt3('any', 'Prone T-raises', 'reps', [10, 12, 15]),
+  ],
+  CURL: [
+    alt3('dumbbells', 'Dumbbell hammer curls', 'reps', [10, 12, 15]),
+    alt3('bands', 'Band hammer curls', 'reps', [12, 15, 20]),
+    alt3('bar', 'Chin-ups', 'reps', [3, 5, 8]),
+    alt3('any', 'Towel curls', 'reps', [10, 12, 15]),
+  ],
+  LEGS1: [
+    alt3('dumbbells', 'Dumbbell sumo squats', 'reps', [10, 12, 15]),
+    alt('any', [e('Sumo squats', 12, 'reps'), e('Pulse squats', 15, 'reps'), e('Pistol squat negatives', 5, 'each leg')]),
+  ],
+  LEGS2: [
+    alt3('dumbbells', 'Dumbbell step-ups', 'each leg', [8, 10, 12]),
+    alt3('dumbbells', 'Dumbbell Bulgarian split squats', 'each leg', [6, 8, 10]),
+    alt('any', [e('Lateral lunges', 6, 'each side'), e('Curtsy lunges', 10, 'each leg'), e('Jumping lunges', 8, 'each leg')]),
+    alt('any', [e('Step-ups', 8, 'each leg'), e('Bulgarian split squats', 6, 'each leg'), e('Bulgarian split squats', 10, 'each leg')]),
+  ],
+  GLUTE: [
+    alt3('bands', 'Banded lateral walks', 'each side', [10, 12, 15]),
+    alt('any', [e('Donkey kicks', 10, 'each leg'), e('Fire hydrants', 12, 'each leg'), e('Frog pumps', 20, 'reps')]),
+  ],
+  CALF: [alt3('any', 'Tibialis raises', 'reps', [12, 15, 20])],
+  WALL: [alt3('any', 'Squat hold', 's', [20, 30, 45])],
+  PLANK: [alt3('any', 'Hollow hold', 's', [15, 20, 30]), alt3('any', 'Bear crawl hold', 's', [15, 25, 35])],
+  DEADBUG: [
+    alt3('any', 'Bird dogs', 'each side', [8, 10, 12]),
+    alt('any', [e('Reverse crunches', 10, 'reps'), e('Bicycle crunches', 16, 'reps'), e('Bicycle crunches', 24, 'reps')]),
+  ],
+  SIDEPLANK: [alt3('any', 'Side plank hip dips', 'each side', [8, 10, 12])],
+  CARDIO: [
+    alt('any', [e('Jumping jacks', 20, 'reps'), e('Mountain climbers', 20, 'reps'), e('Mountain climbers', 30, 'reps')]),
+    alt('any', [e('High knees', 20, 's'), e('Skaters', 12, 'reps'), e('Skaters', 20, 'reps')]),
+  ],
+  MOB1: [alt3('any', "World's greatest stretch", 'each side', [5, 5, 5])],
+  MOB2: [alt3('any', 'Thread the needle', 'each side', [8, 8, 8])],
+  MOB3: [alt3('any', "Child's pose", 's', [30, 30, 30])],
+  MOB4: [alt3('any', 'Downward dog', 's', [30, 30, 30])],
+}
+
+/** Every exercise a slot's alternates can name (the library's other exercises, for the move and copy checks). */
+export const ALT_NAMES: readonly string[] = [...new Set(Object.values(ALTS).flatMap(alts => alts.flatMap(a => a.levels.map(entry => entry.name))))]
+
 const MOB_SLOTS: readonly Slot[] = ['MOB1', 'MOB2', 'MOB3', 'MOB4']
 
 /** §5.1 notes, fixed. */
@@ -88,8 +167,27 @@ const NOTES: Record<string, string> = {
   'Band pull-aparts': 'arms straight, squeeze shoulder blades',
   'Prone Y-raises': 'lie face down, thumbs up',
   'Desk push-ups': 'hands on the desk edge, body straight',
+  'Close-grip desk push-ups': 'hands close on the desk edge, elbows in',
+  'Standing cat-cow': 'hands on your thighs, round then arch',
+  'Hip-flexor stretch': 'standing, one foot back, hips forward',
+  'Hamstring stretch': 'standing, one heel forward, hinge at the hips',
   'Desk plank': 'forearms on the desk, body straight',
   'Wall angels': 'back and arms flat to the wall',
+  'Plank shoulder taps': 'hips stay still',
+  'Archer push-ups': 'shift onto one arm, the other straight',
+  'Hindu push-ups': 'hips high, then swoop through',
+  'Band triceps pushdowns': 'band anchored high, elbows at your sides',
+  'Scapular pull-ups': 'arms straight, pull your shoulders down',
+  'Band lat pulldowns': 'band anchored high, pull to your chest',
+  'Band face pulls': 'band at face height, pull toward your eyes',
+  'Towel curls': 'a towel under one foot, pull against it',
+  'Pistol squat negatives': 'lower slowly on one leg to a chair',
+  'Step-ups': 'a sturdy step or low bench',
+  'Dumbbell step-ups': 'a sturdy step or low bench',
+  'Bulgarian split squats': 'back foot on a sturdy chair',
+  'Dumbbell Bulgarian split squats': 'back foot on a sturdy chair',
+  'Hollow hold': 'lower back pressed to the floor',
+  'Tibialis raises': 'back against a wall, lift your toes',
 }
 
 /** §5.1a: office replacements by the looked-up name, per level. Office mode never uses the floor or jumping. */
@@ -120,7 +218,10 @@ const OFFICE: Record<string, [Entry, Entry, Entry]> = (() => {
     'Side plank': by('Standing side bends', 'each side', [10, 12, 15]),
     'Step-back burpees': march,
     Burpees: march,
-    'Cat-cow': by('Seated cat-cow', 'reps', [10, 10, 10]),
+    'Cat-cow': by('Standing cat-cow', 'reps', [10, 10, 10]),
+    'Chair dips': by('Close-grip desk push-ups', 'reps', [10, 12, 15]),
+    // A bar in the office: hang from it, never jump to it.
+    'Pull-up negatives': by('Dead hang', 's', [20, 30, 40]),
   }
 })()
 
@@ -130,7 +231,7 @@ export const OFFICE_REPLACED: readonly string[] = Object.keys(OFFICE)
 /** Every push exercise the library can name, office swaps included: what makes a Monday Chest Day (§1.13.4). */
 export const PUSH_NAMES: ReadonlySet<string> = new Set(
   (['PUSH1', 'PUSH2', 'TRI'] as const).flatMap(slot =>
-    LIBRARY[slot].flatMap(row => row.levels.flatMap(entry => [entry.name, ...(OFFICE[entry.name] ?? []).map(swap => swap.name)])),
+    [...LIBRARY[slot], ...ALTS[slot]].flatMap(row => row.levels.flatMap(entry => [entry.name, ...(OFFICE[entry.name] ?? []).map(swap => swap.name)])),
   ),
 )
 
@@ -155,19 +256,19 @@ const DUMBBELL_START: Record<'kg' | 'lb', [number, number, number]> = { kg: [6, 
 const DUMBBELL_STEP = { kg: 2, lb: 5 } as const
 export const BAND_LEVELS = ['light', 'medium', 'heavy', 'x-heavy'] as const
 
-function exerciseOf(entry: Entry, row: Row, answers: Answers, sets: number, isMobility: boolean): Exercise {
+function exerciseOf(picked: { entry: Entry; requires: Requires; isReplaced: boolean }, answers: Answers, sets: number, isMobility: boolean): Exercise {
+  const { entry, requires, isReplaced } = picked
   const level = LEVELS.indexOf(answers.level)
   const exercise: Exercise = { name: entry.name, reps: repsText(entry.value, entry.unit), sets }
   if (!isMobility) exercise.range = rangeOf(entry.value, entry.unit)
   const note = NOTES[entry.name]
   if (note !== undefined) exercise.note = note
   // An office replacement is bodyweight, whatever row it replaced.
-  const isReplaced = answers.setting === 'office' && OFFICE[row.levels[level]?.name ?? ''] !== undefined
-  if (row.requires === 'dumbbells' && !isReplaced) {
+  if (requires === 'dumbbells' && !isReplaced) {
     const unit = answers.weightUnit
     exercise.weight = { start: DUMBBELL_START[unit][level] ?? 6, step: DUMBBELL_STEP[unit], unit }
   }
-  if (row.requires === 'bands' && !isReplaced) {
+  if (requires === 'bands' && !isReplaced) {
     exercise.band = { levels: [...BAND_LEVELS], start: BAND_LEVELS[level] ?? 'light' }
   }
   return exercise
@@ -177,12 +278,20 @@ function exerciseOf(entry: Entry, row: Row, answers: Answers, sets: number, isMo
  * Resolves a slot for a workout: the first row the equipment meets whose exercise is not already in the
  * workout (a slot never repeats an exercise the workout has; with no other row, the repeat stands).
  */
-function resolveSlot(slot: Slot, answers: Answers, taken: ReadonlySet<string>): { entry: Entry; row: Row } {
+function resolveSlot(slot: Slot, answers: Answers, taken: ReadonlySet<string>, turn = 0): { entry: Entry; requires: Requires; isReplaced: boolean } {
   const level = LEVELS.indexOf(answers.level)
   const rows = LIBRARY[slot].filter(row => meets(answers.equipment, row.requires))
   const pick = rows.find(row => !taken.has(entryAt(row, level, answers.setting).name)) ?? rows[0]
   if (pick === undefined) throw new Error(`slot ${slot} has no row for this equipment`)
-  return { entry: entryAt(pick, level, answers.setting), row: pick }
+  const own = { entry: entryAt(pick, level, answers.setting), requires: pick.requires, isReplaced: answers.setting === 'office' && OFFICE[pick.levels[level]?.name ?? ''] !== undefined }
+  if (answers.setting === 'office') return own
+  // Its turn: the slot's own pick first, then each alternate the equipment allows, in order.
+  const options = [own, ...ALTS[slot].filter(a => meets(answers.equipment, a.requires)).map(a => ({ entry: a.levels[level] ?? a.levels[0], requires: a.requires, isReplaced: false }))]
+  for (let i = 0; i < options.length; i += 1) {
+    const option = options[(turn + i) % options.length]
+    if (option !== undefined && !taken.has(option.entry.name)) return option
+  }
+  return own
 }
 
 type Template = { name: string; slots: Slot[] }
@@ -228,22 +337,28 @@ function weekTemplates(answers: Answers): Template[] {
 
 const SIZE = { short: { slots: 3, sets: 2 }, medium: { slots: 3, sets: 3 }, long: { slots: 4, sets: 3 } } as const
 
-/** One week of workouts: size trimming, then the goal swaps (§5.2), then each slot resolved. */
-function buildWeek(answers: Answers): Workout[] {
+/**
+ * One week of workouts: size trimming, then the goal swaps (§5.2), then each slot resolved, a slot that comes
+ * up again in the week taking its next alternate; `block` (weeks 5 to 8: 1) moves every slot one further on.
+ */
+function buildWeek(answers: Answers, block = 0): Workout[] {
   const goal = answers.template === 'ppl' ? 'strength' : answers.goal
   const size = SIZE[answers.size]
   const templates = weekTemplates(answers)
   let mob = 0
   const nextMob = (): Slot => MOB_SLOTS[mob++ % MOB_SLOTS.length] ?? 'MOB1'
+  const seen = new Map<Slot, number>()
   return templates.map((template, i) => {
     const slots = template.slots.slice(0, size.slots)
     const last = slots.length - 1
     if (goal === 'mobility' || (goal === 'general' && i === templates.length - 1)) slots[last] = nextMob()
     const taken = new Set<string>()
     const exercises = slots.map(slot => {
-      const { entry, row } = resolveSlot(slot, answers, taken)
-      taken.add(entry.name)
-      return exerciseOf(entry, row, answers, size.sets, slot.startsWith('MOB'))
+      const turn = (seen.get(slot) ?? 0) + block
+      seen.set(slot, (seen.get(slot) ?? 0) + 1)
+      const picked = resolveSlot(slot, answers, taken, turn)
+      taken.add(picked.entry.name)
+      return exerciseOf(picked, answers, size.sets, slot.startsWith('MOB'))
     })
     return { name: template.name, exercises }
   })
@@ -262,11 +377,17 @@ export function planNameOf(answers: Answers): string {
   return `${level} ${what} · ${answers.daysPerWeek}x/week · ${answers.weeks} weeks`
 }
 
-/** §5: the whole program, `weeks × daysPerWeek` workouts, every week the same as week 1. */
+/** Weeks in a block: within one, every week is the same; the next block takes the slots' next alternates. */
+const BLOCK_WEEKS = 4
+
+/** §5: the whole program, `weeks × daysPerWeek` workouts, every week of a 4-week block the same. */
 export function generateProgram(answers: Answers): Plan {
-  const week = buildWeek(answers)
+  const blocks = new Map<number, Workout[]>()
   const workouts: Workout[] = []
   for (let w = 0; w < answers.weeks; w += 1) {
+    const block = Math.floor(w / BLOCK_WEEKS)
+    const week = blocks.get(block) ?? buildWeek(answers, block)
+    blocks.set(block, week)
     for (const workout of week) {
       workouts.push({ name: `Week ${w + 1} · ${workout.name}`, exercises: workout.exercises.map(ex => clone(ex)) })
     }
@@ -286,7 +407,7 @@ export function generateProgram(answers: Answers): Plan {
  * with that level's base and range; null at the top, for same-name rows, and for names not in the library.
  */
 export function harderVariant(exerciseName: string, setting: Answers['setting']): Variant | null {
-  for (const rows of Object.values(LIBRARY)) {
+  for (const rows of [...Object.values(LIBRARY), ...Object.values(ALTS)]) {
     for (const row of rows) {
       const names = [0, 1, 2].map(level => entryAt(row, level, setting))
       const at = names.map(entry => entry.name).lastIndexOf(exerciseName)

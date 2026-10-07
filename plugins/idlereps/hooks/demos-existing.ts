@@ -157,6 +157,21 @@ const declinePushUp = exercise('decline-push-up', 'Decline push-ups', [DECLINE(f
 const pikePushUp = exercise('pike-push-up', 'Pike push-ups', [PIKE(false), PIKE(true)], beat([0, 500], [1, 600]), 4)
 const wallPushUp = exercise('wall-push-up', 'Wall push-ups', [WALL_PRESS(false), WALL_PRESS(true)], beat([0, 400], [1, 450]), 5)
 const deskPushUp = exercise('desk-push-up', 'Desk push-ups', [DESK_PRESS(false), DESK_PRESS(true)], beat([0, 450], [1, 500]), 4)
+/** The desk press with the elbows tucked: on the way down they go back along the ribs, not out. */
+const closeGripDeskPushUp = exercise(
+  'close-grip-desk-push-up',
+  'Close-grip desk push-ups',
+  [
+    DESK_PRESS(false),
+    {
+      ...DESK_PRESS(true),
+      backArm: [[10, 8], [8.5, 9], [12.5, 9]],
+      frontArm: [[11, 8], [9.5, 9], [13.5, 9]],
+    },
+  ],
+  beat([0, 450], [1, 550]),
+  4,
+)
 
 // ---------------------------------------------------------------------------------------------------------
 // Presses and arms: bands under the feet, one dumbbell overhead.
@@ -710,34 +725,32 @@ const KICKBACK = (isBack: boolean): Figure =>
 const standingGluteKickback = exercise('standing-glute-kickback', 'Standing glute kickbacks', [KICKBACK(false), KICKBACK(true)], beat([0, 400], [1, 550]), 4)
 
 // ---------------------------------------------------------------------------------------------------------
-// Mobility on the floor: the hip flexor, the upper back, cat-cow, hamstrings.
+// Mobility: the hip flexor and hamstrings standing, the upper back and cat-cow on the floor, cat-cow standing.
 
-/** Half kneeling, back knee on the mat; the hips easing forward, an arm reaching up. */
+/** Standing in a split stance, back heel up; the hips easing forward, an arm reaching up. */
 const HIP_FLEXOR = (isDeep: boolean): Figure =>
   side({
-    head: isDeep ? [5.5, 3] : [4.5, 3],
-    neck: isDeep ? [8, 9] : [7, 9],
-    hip: isDeep ? [8, 12.5] : [7, 12.5],
+    head: isDeep ? [5, 0.5] : [4.5, 0.5],
+    neck: isDeep ? [7.5, 6.5] : [7, 6.5],
+    hip: isDeep ? [7.5, 11] : [7, 10.5],
     arms: isDeep
       ? [
-          [[7.5, 10], [9, 12], [10.5, 12.5]],
-          [[8.5, 9.5], [11, 6.5], [12.5, 3]],
+          [[7, 7], [7.5, 9.5], [8.5, 11]],
+          [[8.5, 6.5], [9, 3.5], [9, 0.5]],
         ]
       : [
-          [[6.5, 10], [8, 12], [10, 12.5]],
-          [[7.5, 10], [9, 12], [10.5, 12.5]],
+          [[6.5, 7], [6.5, 9.5], [7.5, 11]],
+          [[7.5, 7], [8, 9.5], [9, 11]],
         ],
     legs: isDeep
       ? [
-          [[7.5, 13], [5, 14.5], [1.5, 14.5]],
-          [[8.5, 12.5], [12, 12.5], [12, 14.5]],
+          [[7, 11.5], [4.5, 13], [2, 14.5]],
+          [[8, 11.5], [11, 12.5], [11.5, 14.5]],
         ]
       : [
-          [[6.5, 13], [4.5, 14.5], [1, 14.5]],
-          [[7.5, 12.5], [11, 12.5], [11.5, 14.5]],
+          [[6.5, 11], [4.5, 12.8], [2.5, 14.5]],
+          [[7.5, 11], [10, 12.5], [10.5, 14.5]],
         ],
-    seat: isDeep ? [9.5, 12.8] : [8.5, 12.8],
-    props: [MAT],
     expr: 'blink',
   })
 
@@ -781,31 +794,54 @@ const catCow = exercise(
   3,
 )
 
-/** Sitting on the mat, legs long; tall with arms up, or folded forward to the toes. */
-const SEATED_REACH = (isFolded: boolean): Figure =>
+/** Knees soft, hinged forward, hands on the thighs: the back rounded up (`dy` < 0) or dipped, chest proud. */
+const HANDS_ON_THIGHS = (o: { head: P; dy: number; expr: Expr }): Figure =>
   side({
-    head: isFolded ? [8.5, 6] : [2.5, 3],
-    neck: isFolded ? [8.5, 10.5] : [5.5, 9],
-    hip: [4.5, 13.5],
-    arms: isFolded
+    head: o.head,
+    neck: [9.5, 7.5 + o.dy],
+    hip: [5, 10],
+    arms: [
+      [[9, 8 + o.dy], [9.5, 10], [9.5, 11.5]],
+      [[10, 8 + o.dy], [10.5, 10], [10.5, 11.5]],
+    ],
+    legs: [
+      [[5, 10.5], [8, 12], [6.5, 14.5]],
+      [[5.5, 10.5], [9, 12], [7.5, 14.5]],
+    ],
+    expr: o.expr,
+  })
+
+const standingCatCow = exercise(
+  'standing-cat-cow',
+  'Standing cat-cow',
+  [HANDS_ON_THIGHS({ head: [9.5, 4], dy: -1, expr: 'blink' }), HANDS_ON_THIGHS({ head: [9, 1], dy: 0.5, expr: 'o' })],
+  beat([0, 800], [1, 800]),
+  3,
+)
+
+/** Standing, one heel forward on the floor, toes up; tall, then hinging at the hips, hands on the thigh. */
+const HEEL_FORWARD = (isHinged: boolean): Figure =>
+  side({
+    head: isHinged ? [8, 3.5] : [3.5, 0.5],
+    neck: isHinged ? [9, 8.5] : [6, 6.5],
+    hip: isHinged ? [5, 10.5] : [5.5, 10.5],
+    arms: isHinged
       ? [
-          [[8, 11], [11, 12.5], [14, 13]],
-          [[9, 11], [12, 12.5], [15, 13]],
+          [[8.5, 9.5], [9.5, 11], [10.5, 12]],
+          [[9.5, 9.5], [10.5, 11], [11.5, 12.5]],
         ]
       : [
-          [[5, 9.5], [5.5, 6], [6, 2.5]],
-          [[6, 9.5], [6.5, 6], [7, 2.5]],
+          [[5.5, 7], [5.5, 9.5], [6.5, 11]],
+          [[6.5, 7], [7, 9.5], [8, 11]],
         ],
     legs: [
-      [[4.5, 14], [9.5, 14.5], [14.5, 14.5]],
-      [[5, 14], [10, 14], [15, 14]],
+      [[5, 11], [5, 13], [4.5, 14.5]],
+      [[6, 11], [9.5, 12.8], [13, 14.5], [13.5, 13]],
     ],
-    seat: [7, 14],
-    props: [MAT],
     expr: 'blink',
   })
 
-const hamstringStretch = exercise('hamstring-stretch', 'Hamstring stretch', [SEATED_REACH(false), SEATED_REACH(true)], beat([0, 700], [1, 1300]), 2)
+const hamstringStretch = exercise('hamstring-stretch', 'Hamstring stretch', [HEEL_FORWARD(false), HEEL_FORWARD(true)], beat([0, 700], [1, 1300]), 2)
 
 // ---------------------------------------------------------------------------------------------------------
 // At the desk: on the chair, and standing beside it.
@@ -946,7 +982,7 @@ const neckRoll = exercise(
     { ...front({ expr: 'blink' }), head: { at: [4, 1], facing: 'left', expr: 'blink' } },
     { ...front({ expr: 'blink' }), head: { at: [5, 1.5], facing: 'front', expr: 'blink' } },
     { ...front({ expr: 'blink' }), head: { at: [6, 1], facing: 'right', expr: 'blink' } },
-    { ...front(), head: { at: [5, 0], facing: 'front', expr: 'o' } },
+    { ...front(), head: { at: [5, 1], facing: 'front', expr: 'o' } },
   ],
   beat([0, 600], [1, 600], [2, 600], [3, 600]),
   2,
@@ -979,6 +1015,7 @@ export const EXISTING_DEMOS: readonly Move[] = [
   pikePushUp,
   wallPushUp,
   deskPushUp,
+  closeGripDeskPushUp,
   bandOverheadPress,
   overheadTricepsExtension,
   deadHang,
@@ -998,6 +1035,7 @@ export const EXISTING_DEMOS: readonly Move[] = [
   hipFlexorStretch,
   thoracicRotation,
   catCow,
+  standingCatCow,
   hamstringStretch,
   wallAngel,
   standingGluteKickback,
@@ -1023,6 +1061,7 @@ export const EXISTING_DEMO_BY_NAME: readonly (readonly [RegExp, MoveId])[] = [
   [/^pike push-?ups?$/i, 'pike-push-up'],
   [/^wall push-?ups?$/i, 'wall-push-up'],
   [/^desk push-?ups?$/i, 'desk-push-up'],
+  [/^close-grip desk push-?ups?$/i, 'close-grip-desk-push-up'],
   [/^band overhead press(es)?$/i, 'band-overhead-press'],
   [/^dumbbell overhead triceps extensions?$/i, 'dumbbell-overhead-triceps-extension'],
   [/^dead hangs?$/i, 'dead-hang'],
@@ -1042,6 +1081,7 @@ export const EXISTING_DEMO_BY_NAME: readonly (readonly [RegExp, MoveId])[] = [
   [/^hip-flexor stretch(es)?$/i, 'hip-flexor-stretch'],
   [/^thoracic rotations?$/i, 'thoracic-rotation'],
   [/^cat-cows?$/i, 'cat-cow'],
+  [/^standing cat-cows?$/i, 'standing-cat-cow'],
   [/^hamstring stretch(es)?$/i, 'hamstring-stretch'],
   [/^wall angels?$/i, 'wall-angel'],
   [/^standing glute kickbacks?$/i, 'standing-glute-kickback'],
@@ -1083,10 +1123,12 @@ export const EXISTING_DEMO_LINES = [
   { id: 'form-single-leg-calf-raise', voice: 'swolomon', variants: ['Hand on the wall, {mate}. All the way up.', 'Slow down on one foot, {mate}. Balance first.'] },
   { id: 'form-side-plank', voice: 'swolomon', variants: ['Elbow under the shoulder, hips high, {mate}.', 'Head to heels in one line, {mate}. Hold.'] },
   { id: 'form-step-back-burpee', voice: 'swolomon', variants: ['Hands down, step back, step in, {mate}. Up.', 'One foot at a time, {mate}. Smooth beats fast.'] },
-  { id: 'form-hip-flexor-stretch', voice: 'swolomon', variants: ['Tuck the hips, ease forward, {mate}. Breathe.', 'Back knee down gently, {mate}. Hips ease forward.'] },
+  { id: 'form-hip-flexor-stretch', voice: 'swolomon', variants: ['Tuck the hips, ease forward, {mate}. Breathe.', 'One foot back, heel up, {mate}. Hips ease forward.'] },
   { id: 'form-thoracic-rotation', voice: 'swolomon', variants: ['Thread under, then open to the sky, {mate}.', 'Eyes follow the hand, {mate}. Slow turn.'] },
+  { id: 'form-close-grip-desk-push-up', voice: 'swolomon', variants: ['Hands close on the edge, elbows in, {mate}.', 'Elbows brush the ribs on the way down, {mate}.'] },
+  { id: 'form-standing-cat-cow', voice: 'swolomon', variants: ['Hands on the thighs, round up, then arch, {mate}.', 'Knees bent a little, slow waves down the back, {mate}.'] },
   { id: 'form-cat-cow', voice: 'swolomon', variants: ['Round up, then let it dip, {mate}. Breathe.', 'Slow waves down the back, {mate}. No rush.'] },
-  { id: 'form-hamstring-stretch', voice: 'swolomon', variants: ['Long legs, reach for the toes, {mate}.', 'Hinge from the hips, {mate}. No bouncing.'] },
+  { id: 'form-hamstring-stretch', voice: 'swolomon', variants: ['Heel forward, toes up, {mate}. Then hinge.', 'Hinge from the hips, {mate}. No bouncing.'] },
   { id: 'form-wall-angel', voice: 'swolomon', variants: ['Back and arms on the wall, {mate}. Slide up.', 'Slow up, slow down, {mate}. Ribs stay in.'] },
   { id: 'form-standing-glute-kickback', voice: 'swolomon', variants: ['Hand on the wall, {mate}. Leg straight back.', 'Squeeze at the back, {mate}. No arching.'] },
   { id: 'form-march-in-place', voice: 'swolomon', variants: ['Knees to the hips, {mate}. Arms swinging.', 'Tall and proud, {mate}. Left, right, left.'] },
