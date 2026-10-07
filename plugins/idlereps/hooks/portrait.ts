@@ -4,6 +4,7 @@
  */
 
 import type { LineId } from './copy'
+import { idleReps, moveById } from './moves'
 import { regularById, REGULARS, regularWalk } from './regulars'
 import type { Regular } from './regulars'
 import type { EntranceFrameName, FrameName, MiniFrameName, Sprite } from './swolomon-sprite'
@@ -131,10 +132,26 @@ export function decodeCells(cells: string, columns: number): Grid {
  * top row (the mini head, filling its square) has nowhere to rise and is drawn as it is. Pure, cached by the caller.
  */
 export function breathedIn(cells: string, columns: number): string {
-  const grid = decodeCells(cells, columns)
+  const parts = breathParts(decodeCells(cells, columns))
+  if (parts === null) return cells
+  const risen = [...parts.rising.slice(1), parts.rising[0]!.map(() => null)]
+  return encodeCells(risen.map((row, y) => row.map((c, x) => c ?? parts.fill[y]![x] ?? parts.planted[y]![x] ?? null)))
+}
+
+/**
+ * His breath in, in parts, for the terminal and the desktop film alike: what rises a pixel (all above his
+ * bottom two rows), what stays planted (those two), and what closes the gap (the row above them, drawn again
+ * a pixel up). Null for a frame with no clear top row to rise into.
+ */
+export function breathParts(grid: Grid): { rising: Grid; planted: Grid; fill: Grid } | null {
   const h = grid.length
-  if (h < 4 || grid[0]!.some(c => c !== null)) return cells
-  return encodeCells([...grid.slice(1, h - 1), grid[h - 2]!, grid[h - 1]!])
+  if (h < 4 || grid[0]!.some(c => c !== null)) return null
+  const clear = (row: Grid[number]) => row.map(() => null)
+  return {
+    rising: grid.map((row, y) => (y < h - 2 ? row : clear(row))),
+    planted: grid.map((row, y) => (y < h - 2 ? clear(row) : row)),
+    fill: grid.map((row, y) => (y === h - 3 ? grid[h - 2]! : clear(row))),
+  }
 }
 
 /** The breath's half: in for this long, out for this long (the desktop film's too). */
@@ -277,7 +294,7 @@ export type Cameo = { who: string; walk: Walk; pose: Pose }
  * One step of an idle beat: a pose of the bust, a place on a walk, one of his moves played through, a
  * regular passing behind him, or his word (an aside) on it.
  */
-export type IdleStep = { pose: Pose; ms: number } | { walk: Walk; ms: number } | { move: string; ms: number } | { cameo: Cameo; ms: number } | { aside: LineId; ms: number }
+export type IdleStep = { pose: Pose; ms: number } | { walk: Walk; ms: number } | { move: string; reps: number; ms: number } | { cameo: Cameo; ms: number } | { aside: LineId; ms: number }
 
 /** One idle beat: a wait, then its steps in turn, then back to rest (idle, or the flex on a win). */
 export type IdleBeat = { wait: number; steps: readonly IdleStep[]; rest: Pose }
@@ -384,6 +401,12 @@ export const idleWait = (n: number, isWin = false): number =>
  * The n-th idle beat: the same for the same n (tests and replays), varied from one to the next. `moves` are
  * the moves he may do between lines (none: no move beats); a win only twinkles.
  */
+/** One of his moves as an idle step: an exercise as a full set (moves.ts idleReps), anything else as drawn. */
+export function idleMoveStep(id: string): IdleStep {
+  const move = moveById(id)
+  return { move: id, reps: move === undefined ? 0 : idleReps(move), ms: 0 }
+}
+
 export function idleBeat(n: number, size: PortraitSize, isWin = false, moves: readonly string[] = [], mode: 'band' | 'set' = 'band'): IdleBeat {
   const wait = mode === 'set' ? Math.round(idleWait(n) * 0.6) : idleWait(n, isWin)
   if (isWin) return { wait, steps: TWINKLE, rest: 'flex' }
@@ -391,7 +414,7 @@ export function idleBeat(n: number, size: PortraitSize, isWin = false, moves: re
   const total = pool.reduce((sum, beat) => sum + beat.weight, 0)
   let pick = hashUnit(n * 2) * total
   const beat = pool.find(b => (pick -= b.weight) < 0) ?? pool[0]!
-  return { wait, steps: beat.steps ?? [{ move: moves[Math.floor(hashUnit(n * 3 + 7) * moves.length)]!, ms: 0 }], rest: 'idle' }
+  return { wait, steps: beat.steps ?? [idleMoveStep(moves[Math.floor(hashUnit(n * 3 + 7) * moves.length)]!)], rest: 'idle' }
 }
 
 /**

@@ -1125,6 +1125,9 @@ export const IDLE_SET_REPS = 20
 /** How many times a move's beats play while he idles. */
 export const idleReps = (move: Move): number => (move.family === 'exercise' ? IDLE_SET_REPS : move.reps)
 
+/** A move's beats played `reps` times over: the [pose, ms] each player draws. */
+export const movePlay = (move: Move, reps = move.reps): (readonly [number, number])[] => Array.from({ length: reps }, () => move.beats).flat()
+
 /** How long one play of a move takes, every rep. */
 export const moveMs = (move: Move): number => move.reps * move.beats.reduce((ms, [, length]) => ms + length, 0)
 

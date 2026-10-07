@@ -6,8 +6,8 @@
  */
 
 import { drawFigure } from './figure'
-import { idleReps, moveById } from './moves'
-import { BREATH_HALF_MS, decodeFrame, decodeRows, frameFor, idleBeat, rectsOf } from './portrait'
+import { moveById, movePlay } from './moves'
+import { BREATH_HALF_MS, breathParts, decodeFrame, decodeRows, frameFor, idleBeat, idleMoveStep, rectsOf } from './portrait'
 import type { Grid, Pose, PortraitSize } from './portrait'
 import type { Sprite } from './swolomon-sprite'
 
@@ -29,12 +29,12 @@ const FILM_MOVE_EVERY = 3
 /** His breathing: a pixel up and back, all the time, under everything else (the terminal's pace). */
 const BREATH_MS = BREATH_HALF_MS * 2
 
-/** A move's poses as grids, played through its beats and reps (an idle beat's: an exercise as a full set). */
-function moveShots(sprite: Sprite, id: string, isIdle = false): Shot[] {
+/** A move's poses as grids, played through its beats `reps` times (its own count unless an idle step says). */
+function moveShots(sprite: Sprite, id: string, reps?: number): Shot[] {
   const move = moveById(id)
   if (move === undefined) return []
   const grids = move.poses.map((pose, i) => decodeRows(sprite, drawFigure(pose, sprite.outfit), `${id} pose ${i}`, sprite.width, sprite.height))
-  return Array.from({ length: isIdle ? idleReps(move) : move.reps }, () => move.beats.flatMap(([pose, ms]) => (grids[pose] === undefined ? [] : [{ grid: grids[pose], ms }]))).flat()
+  return movePlay(move, reps).flatMap(([pose, ms]) => (grids[pose] === undefined ? [] : [{ grid: grids[pose], ms }]))
 }
 
 /**
@@ -60,26 +60,26 @@ export function bandFilm(opts: {
     const picked = idleBeat(n, size, isWin, moves, opts.setMove === undefined ? 'band' : 'set')
     if (picked.steps.some(step => 'walk' in step || 'cameo' in step)) continue
     const isMoveDue = moves.length > 0 && taken % FILM_MOVE_EVERY === FILM_MOVE_EVERY - 1 && !picked.steps.some(step => 'move' in step)
-    const beat = isMoveDue ? { ...picked, steps: [{ move: moves[Math.floor(taken / FILM_MOVE_EVERY) % moves.length] ?? '', ms: 0 }] } : picked
+    const beat = isMoveDue ? { ...picked, steps: [idleMoveStep(moves[Math.floor(taken / FILM_MOVE_EVERY) % moves.length] ?? '')] } : picked
     taken += 1
     loop.push({ grid: pose(beat.rest), ms: Math.round(beat.wait * FILM_WAIT) })
     for (const step of beat.steps) {
       if ('pose' in step) loop.push({ grid: pose(step.pose), ms: step.ms })
-      else if ('move' in step) loop.push(...moveShots(sprite, step.move, true))
+      else if ('move' in step) loop.push(...moveShots(sprite, step.move, step.reps))
     }
   }
   return { intro, loop }
 }
 
-/** Each run of shots for one frame, as SMIL's discrete visibility values over a timeline. */
-function visibility(shots: readonly Shot[], key: (grid: Grid) => string, frame: string): { values: string; keyTimes: string } | null {
+/** Each run of shots for one frame, as SMIL's discrete visibility values over a timeline; `keys` are the shots' frames. */
+function visibility(shots: readonly Shot[], keys: readonly string[], frame: string): { values: string; keyTimes: string } | null {
   const total = shots.reduce((sum, shot) => sum + shot.ms, 0)
-  if (total <= 0 || !shots.some(shot => key(shot.grid) === frame)) return null
+  if (total <= 0 || !keys.includes(frame)) return null
   const values: string[] = []
   const times: number[] = []
   let at = 0
-  for (const shot of shots) {
-    const value = key(shot.grid) === frame ? 'visible' : 'hidden'
+  for (const [i, shot] of shots.entries()) {
+    const value = keys[i] === frame ? 'visible' : 'hidden'
     if (values.at(-1) !== value) {
       values.push(value)
       times.push(at / total)
@@ -94,14 +94,17 @@ function visibility(shots: readonly Shot[], key: (grid: Grid) => string, frame: 
  * intro plays once from the start, the loop from its end, forever. With nothing to play, the first frame.
  */
 export function filmSvg(film: { intro: readonly Shot[]; loop: readonly Shot[] }, width: number, height: number): string {
-  const key = (grid: Grid) => JSON.stringify(grid)
+  // Each shot's frame as a key, once: a set of 20 makes hundreds of shots.
+  const introKeys = film.intro.map(shot => JSON.stringify(shot.grid))
+  const loopKeys = film.loop.map(shot => JSON.stringify(shot.grid))
   const frames = new Map<string, Grid>()
-  for (const shot of [...film.intro, ...film.loop]) frames.set(key(shot.grid), shot.grid)
+  for (const [i, shot] of film.intro.entries()) frames.set(introKeys[i]!, shot.grid)
+  for (const [i, shot] of film.loop.entries()) frames.set(loopKeys[i]!, shot.grid)
   const introMs = film.intro.reduce((sum, shot) => sum + shot.ms, 0)
   const loopMs = film.loop.reduce((sum, shot) => sum + shot.ms, 0)
   const groups = [...frames.entries()].map(([frame, grid]) => {
-    const once = visibility(film.intro, key, frame)
-    const always = visibility(film.loop, key, frame)
+    const once = visibility(film.intro, introKeys, frame)
+    const always = visibility(film.loop, loopKeys, frame)
     const animations = [
       once === null ? '' : `<animate attributeName="visibility" calcMode="discrete" begin="0ms" dur="${introMs}ms" values="${once.values}" keyTimes="${once.keyTimes}"/>`,
       always === null ? '' : `<animate attributeName="visibility" calcMode="discrete" begin="${introMs}ms" dur="${loopMs}ms" repeatCount="indefinite" values="${always.values}" keyTimes="${always.keyTimes}"/>`,
@@ -113,23 +116,15 @@ export function filmSvg(film: { intro: readonly Shot[]; loop: readonly Shot[] },
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" shape-rendering="crispEdges">${groups.join('')}</svg>`
 }
 
-/**
- * A frame's rects as he breathes (the terminal's breathedIn, portrait.ts): for half of each breath all but
- * his bottom two rows a pixel up, the row above them drawn again to close the gap, so he stays planted. A
- * frame with no clear top row has nowhere to rise and is drawn still.
- */
+/** A frame's rects as he breathes (portrait.ts breathParts, the terminal's rule): the rising part a pixel up and the gap filled for half of each breath. */
 function breathingRects(grid: Grid): string {
-  const h = grid.length
-  if (h < 4 || grid[0]!.some(c => c !== null)) return rectsOf(grid)
-  const clear = (row: Grid[number]) => row.map(() => null)
-  const upper = grid.map((row, y) => (y < h - 2 ? row : clear(row)))
-  const base = grid.map((row, y) => (y < h - 2 ? clear(row) : row))
-  const gap = grid.map((row, y) => (y === h - 3 ? grid[h - 2]! : clear(row)))
+  const parts = breathParts(grid)
+  if (parts === null) return rectsOf(grid)
   const timing = `calcMode="discrete" dur="${BREATH_MS}ms" repeatCount="indefinite" keyTimes="0;0.5"`
   return [
-    rectsOf(base),
-    `<g visibility="hidden"><animate attributeName="visibility" ${timing} values="hidden;visible"/>${rectsOf(gap)}</g>`,
-    `<g><animateTransform attributeName="transform" type="translate" ${timing} values="0 0;0 -1"/>${rectsOf(upper)}</g>`,
+    rectsOf(parts.planted),
+    `<g visibility="hidden"><animate attributeName="visibility" ${timing} values="hidden;visible"/>${rectsOf(parts.fill)}</g>`,
+    `<g><animateTransform attributeName="transform" type="translate" ${timing} values="0 0;0 -1"/>${rectsOf(parts.rising)}</g>`,
   ].join('')
 }
 

@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { BREATH_HALF_MS, breathedIn, decodeCells, decodeFrame, encodeCells, encodeSprite } from '../hooks/portrait'
+import { BREATH_HALF_MS, breathedIn, breathParts, decodeCells, decodeFrame, encodeCells, encodeSprite } from '../hooks/portrait'
 import { SPRITE } from '../hooks/swolomon-sprite'
 import { ANIMATED, BAND, blitLog, OPTIONS, SESSION, TINY, workout, world } from './world'
 
@@ -20,23 +20,15 @@ test('a breath in: head and shoulders a pixel up, the chest a pixel taller, the 
   expect(decodeCells(idleIn, SPRITE.width)).toEqual([...grid.slice(1, h - 1), grid[h - 2], grid[h - 1]])
 })
 
-test('a breath in never leaves a clear row under him: the bust stays on the frame’s edge', () => {
-  const breathed = decodeCells(idleIn, SPRITE.width)
-  expect(breathed.at(-1)!.some(c => c !== null)).toBe(true)
-  expect(breathed.at(-2)!.some(c => c !== null)).toBe(true)
+test('a breath in leaves his bottom cell row as drawn: the bust stays on the frame’s edge', () => {
+  expect(decodeCells(idleIn, SPRITE.width).slice(-2)).toEqual(decodeFrame(SPRITE, 'idle').slice(-2))
 })
 
-test('a breath in leaves his bottom cell row exactly as drawn', () => {
-  const columns = SPRITE.width
-  const cellRows = (cells: string) => fromCells(cells).slice(-columns * 12)
-  const fromCells = (cells: string) => Array.from(atob(cells))
-  expect(cellRows(idleIn)).toEqual(cellRows(FRAMES.idle))
-})
-
-test('a breath in keeps every pixel of him: only the clear top row goes', () => {
-  const count = (cells: string, columns: number) => decodeCells(cells, columns).flat().filter(c => c !== null).length
-  const chest = decodeFrame(SPRITE, 'idle').at(-2)!.filter(c => c !== null).length
-  expect(count(idleIn, SPRITE.width)).toBe(count(FRAMES.idle, SPRITE.width) + chest)
+test('the terminal and the desktop breathe alike: the same parts make both', () => {
+  const parts = breathParts(decodeFrame(SPRITE, 'idle'))!
+  const risen = [...parts.rising.slice(1), parts.rising[0]!.map(() => null)]
+  const film = risen.map((row, y) => row.map((c, x) => c ?? parts.fill[y]![x] ?? parts.planted[y]![x] ?? null))
+  expect(decodeCells(idleIn, SPRITE.width)).toEqual(film)
 })
 
 test('a frame with no clear top row has nowhere to rise: drawn as it is', () => {

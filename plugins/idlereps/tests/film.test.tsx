@@ -11,6 +11,12 @@ import { ANIMATED, BAND, OPTIONS, SESSION, STATUS, TINY, workout, world } from '
 
 const base = { sprite: SPRITE, size: 'full' as const, isWin: false, moves: [] as string[] }
 
+/** A breath's SMIL timing, as every breathing frame carries it. */
+const BREATH_TIMING = 'calcMode="discrete" dur="\\d+ms" repeatCount="indefinite" keyTimes="0;0.5"'
+
+/** A move's poses as the film draws them, by key. */
+const moveFrames = (id: string) => new Set(moveById(id)!.poses.map(p => JSON.stringify(decodeRows(SPRITE, drawFigure(p), id, 16, 16))))
+
 test('a film: the act once, as long as the move; then idle beats, no walks', () => {
   const { intro, loop } = bandFilm({ ...base, act: 'low-five' })
   const move = moveById('low-five')!
@@ -59,6 +65,12 @@ test('under the engine’s bound for every act, with every move he has', () => {
   }
 })
 
+test('a film with sets of 20 in it fits the bound at full length, never trimmed', () => {
+  const all = ['squat', 'push-up', 'curl', 'press', 'row', 'deadlift', 'burpee', 'stretch', 'plank', 'wall-sit']
+  for (const setMove of ['burpee', 'stretch', 'plank']) expect([setMove, filmSvg(bandFilm({ ...base, setMove, moves: [] }), 16, 16).length <= FILM_MAX_CHARS]).toEqual([setMove, true])
+  expect(filmSvg(bandFilm({ ...base, act: 'fireworks', moves: all }), 16, 16).length).toBeLessThanOrEqual(FILM_MAX_CHARS)
+})
+
 test('desktop, animated: once his line is out, the portrait is a living film', ANIMATED, async ($, on) => {
   const { clock } = world(on, TINY)
   await $.session.start(SESSION)
@@ -94,19 +106,19 @@ test('desktop, animated: the status pane has him living too', ANIMATED, async ($
 
 test('alive even between beats: he breathes, a pixel up and back, forever', () => {
   const svg = filmSvg(bandFilm({ ...base }), 16, 16)
-  expect(svg).toMatch(/<animateTransform attributeName="transform" type="translate" calcMode="discrete" dur="\d+ms" repeatCount="indefinite" keyTimes="0;0.5" values="0 0;0 -1"/)
+  expect(svg).toMatch(new RegExp(`<animateTransform attributeName="transform" type="translate" ${BREATH_TIMING} values="0 0;0 -1"`))
 })
 
 test('his breath keeps him planted: the whole picture never moves, only the part above his bottom rows', () => {
   const svg = filmSvg(bandFilm({ ...base }), 16, 16)
   expect(svg).not.toMatch(/<svg[^>]*><g><animateTransform/)
-  expect(svg).toMatch(/<animate attributeName="visibility" calcMode="discrete" dur="\d+ms" repeatCount="indefinite" keyTimes="0;0.5" values="hidden;visible"\/>/)
+  expect(svg).toMatch(new RegExp(`<animate attributeName="visibility" ${BREATH_TIMING} values="hidden;visible"/>`))
 })
 
 test('idling, an exercise is a set of 20; the act at the start plays as drawn', () => {
   const squat = moveById('squat')!
   const once = squat.beats.length
-  const squatFrames = new Set(squat.poses.map(p => JSON.stringify(decodeRows(SPRITE, drawFigure(p), 'squat', 16, 16))))
+  const squatFrames = moveFrames('squat')
   const { intro, loop } = bandFilm({ ...base, act: 'squat', moves: ['squat'] })
   expect(intro.length).toBe(once * squat.reps)
   const shown = loop.filter(shot => squatFrames.has(JSON.stringify(shot.grid))).length
@@ -117,7 +129,7 @@ test('idling, an exercise is a set of 20; the act at the start plays as drawn', 
 test('a loop is never only blinking: one of his moves every few beats when he has any', () => {
   const squat = moveById('squat')!
   const { loop } = bandFilm({ ...base, moves: ['squat'] })
-  const squatFrames = new Set(squat.poses.map(p => JSON.stringify(decodeRows(SPRITE, drawFigure(p), 'squat', 16, 16))))
+  const squatFrames = moveFrames('squat')
   const shown = loop.filter(shot => squatFrames.has(JSON.stringify(shot.grid))).length
   expect(shown).toBeGreaterThanOrEqual(squat.poses.length * 3)
 })

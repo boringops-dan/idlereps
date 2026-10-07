@@ -103,7 +103,7 @@ import {
 import { drawMicro, MICRO_HEIGHT, MICRO_WIDTH } from './figure'
 import { misreadOf, saysOf } from './misreads'
 import type { Misread } from './misreads'
-import { drawMove, idleReps, moveById, moveForExercise, poseAt } from './moves'
+import { drawMove, moveById, moveForExercise, movePlay, poseAt } from './moves'
 import type { Move } from './moves'
 import {
   encodeCells,
@@ -1242,7 +1242,7 @@ function idleFrames(step: IdleStep, size: PortraitSize): IdleFrame[] {
   const move = moveById(step.move)
   const cells = moveCellsOf(step.move)
   if (move === undefined || cells === undefined) return []
-  return Array.from({ length: idleReps(move) }, () => move.beats.map(([pose, ms]) => ({ cells: cells[pose] ?? art.frames.idle, ms }))).flat()
+  return movePlay(move, step.reps).map(([pose, ms]) => ({ cells: cells[pose] ?? art.frames.idle, ms }))
 }
 
 const SHINY_CELLS = new Map<string, string>()
