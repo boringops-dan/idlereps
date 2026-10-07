@@ -5,7 +5,8 @@ import { STORE_KEYS } from '../types/store-keys'
 import { actionOf, type ActionKind } from '../hooks/actions'
 import { line } from '../hooks/copy'
 import { HISTORY_CAP, RANKS } from '../hooks/history'
-import { LIBRARY } from '../hooks/programs'
+import { MOVES } from '../hooks/moves'
+import { ALT_NAMES, LIBRARY } from '../hooks/programs'
 import { BAND, NOON, OPTIONS, SESSION, SETUP, STATUS, TINY, TODAY, WEIGHTED, workout, world } from './world'
 
 /** Stored data, drawing and releases (plan §1.12 items 6 to 8, D18, D19, Task 19), and done gate 6. */
@@ -35,8 +36,14 @@ test('a store from a newer version is left untouched, with one toast to update',
   expect(w.toasts).toEqual([line('newer-store', { day: TODAY })])
 })
 
+const MOVES_CAP = STORE_KEYS.find(info => info.key === 'moves')?.cap ?? 0
+
+test('the moves cap holds every move there is', () => {
+  expect(MOVES.length).toBeLessThanOrEqual(MOVES_CAP)
+})
+
 test('the store, filled to every cap, stays under half its limit; Undo under 4 KiB', () => {
-  const names = [...new Set(Object.values(LIBRARY).flatMap(rows => rows.flatMap(row => row.levels.map(e => e.name))))]
+  const names = [...new Set([...Object.values(LIBRARY).flatMap(rows => rows.flatMap(row => row.levels.map(e => e.name))), ...ALT_NAMES])]
   const handWritten = Array.from({ length: 50 }, (_, i) => `My own exercise with a long hand-written name number ${i}`)
   const all = [...names, ...handWritten]
   const longest = [...all].sort((a, b) => b.length - a.length)[0] ?? ''
@@ -82,7 +89,7 @@ test('the store, filled to every cap, stays under half its limit; Undo under 4 K
     laterStreak: { day: TODAY, n: 2 },
     easyDay: TODAY,
     mode: 'remind',
-    moves: Array.from({ length: 40 }, (_, i) => `a-long-move-name-${i}`),
+    moves: Array.from({ length: MOVES_CAP }, (_, i) => MOVES[i]?.id ?? `a-long-move-name-${i}`),
     lastSeenOn: TODAY,
     shinies: 999_999,
     highFives: 999_999,
