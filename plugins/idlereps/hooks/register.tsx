@@ -275,16 +275,9 @@ async function dressForToday($: EngineInterface) {
 
 /** Dress him: from here on he is drawn in `outfit` (or nothing extra). */
 function wear(outfit: Outfit | null) {
-  art = cached(ARTS, outfit?.id ?? null, () => artOf(outfit))
-}
-
-/** `key`'s value in `cache`, made and kept the first time it is asked for. */
-function cached<K, V>(cache: Map<K, V>, key: K, make: () => V): V {
-  const kept = cache.get(key)
-  if (kept !== undefined) return kept
-  const made = make()
-  cache.set(key, made)
-  return made
+  const made = ARTS.get(outfit?.id ?? null) ?? artOf(outfit)
+  ARTS.set(outfit?.id ?? null, made)
+  art = made
 }
 
 /**
@@ -292,16 +285,26 @@ function cached<K, V>(cache: Map<K, V>, key: K, make: () => V): V {
  * at load: there are hundreds of moves and a session plays a few.
  */
 function moveCellsOf(id: string): string[] | undefined {
+  const cached = art.moveCells.get(id)
+  if (cached !== undefined) return cached
   const move = moveById(id)
-  return move === undefined ? undefined : cached(art.moveCells, id, () => encodeMove(art.sprite, id, drawMove(move, art.sprite.outfit)))
+  if (move === undefined) return undefined
+  const cells = encodeMove(art.sprite, id, drawMove(move, art.sprite.outfit))
+  art.moveCells.set(id, cells)
+  return cells
 }
 
 const PORTRAIT_ROWS = SPRITE.height / 2
 /** The exercise moves drawn tiny, for beside a set (3 rows), each encoded the first time it shows. */
 const MICRO_CELLS = new Map<string, string[]>()
 function microCellsOf(id: string): string[] | undefined {
+  const cached = MICRO_CELLS.get(id)
+  if (cached !== undefined) return cached
   const move = moveById(id)
-  return move?.family !== 'exercise' ? undefined : cached(MICRO_CELLS, id, () => encodeMicro(SPRITE, id, move.poses.map(drawMicro), MICRO_WIDTH, MICRO_HEIGHT))
+  if (move?.family !== 'exercise') return undefined
+  const cells = encodeMicro(SPRITE, id, move.poses.map(drawMicro), MICRO_WIDTH, MICRO_HEIGHT)
+  MICRO_CELLS.set(id, cells)
+  return cells
 }
 const MICRO_ROWS = MICRO_HEIGHT / 2
 
@@ -309,8 +312,7 @@ const MICRO_ROWS = MICRO_HEIGHT / 2
 function microMoveOf(spec: BandSpec): Move | undefined {
   if (spec.kind !== 'set' || spec.coach !== undefined || spec.cue === undefined) return undefined
   const id = moveForExercise(spec.cue.exercise.name)
-  const move = id === null ? undefined : moveById(id)
-  return move?.family === 'exercise' ? move : undefined
+  return id === null || microCellsOf(id) === undefined ? undefined : moveById(id)
 }
 
 /** The theme's own colours for each tone, so light and dark themes both read (muted is the dim style). */
@@ -1237,8 +1239,16 @@ async function betweenMoves($: EngineInterface, have: readonly Move[]): Promise<
 function idleFrames(step: IdleStep, size: PortraitSize): IdleFrame[] {
   if ('pose' in step) return [{ cells: art.frames[frameFor(size, step.pose)], ms: step.ms }]
   if ('aside' in step) return [{ aside: step.aside, ms: step.ms }]
-  if ('cameo' in step) return [{ cells: cached(art.cameoCells, step.cameo, () => encodeCells(cameoGrid(art.sprite, SPRITE, step.cameo))), ms: step.ms }]
-  if ('walk' in step) return [{ cells: cached(art.walkCells, step.walk, () => encodeCells(walkGrid(art.sprite, step.walk))), ms: step.ms }]
+  if ('cameo' in step) {
+    const cells = art.cameoCells.get(step.cameo) ?? encodeCells(cameoGrid(art.sprite, SPRITE, step.cameo))
+    art.cameoCells.set(step.cameo, cells)
+    return [{ cells, ms: step.ms }]
+  }
+  if ('walk' in step) {
+    const cells = art.walkCells.get(step.walk) ?? encodeCells(walkGrid(art.sprite, step.walk))
+    art.walkCells.set(step.walk, cells)
+    return [{ cells, ms: step.ms }]
+  }
   const move = moveById(step.move)
   const cells = moveCellsOf(step.move)
   if (move === undefined || cells === undefined) return []
@@ -1248,7 +1258,11 @@ function idleFrames(step: IdleStep, size: PortraitSize): IdleFrame[] {
 const SHINY_CELLS = new Map<string, string>()
 
 /** Cells recoloured for the shiny Swolomon, each frame once. */
-const shinyOf = (cells: string): string => cached(SHINY_CELLS, cells, () => recolour(cells, SHINY_COLOURS))
+function shinyOf(cells: string): string {
+  const shiny = SHINY_CELLS.get(cells) ?? recolour(cells, SHINY_COLOURS)
+  SHINY_CELLS.set(cells, shiny)
+  return shiny
+}
 
 /** A shiny Swolomon showed: counted; the first one ever, he says so. */
 async function sawShiny($: EngineInterface) {
