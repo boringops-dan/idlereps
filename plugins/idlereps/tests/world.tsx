@@ -53,12 +53,11 @@ export const OPTIONS = { options: { cueEvery: '15', cueAfter: '30', coachAnimati
 /** As OPTIONS, with Swolomon animated: typing, moves, idling, asides. */
 export const ANIMATED = { options: { ...OPTIONS.options, coachAnimation: true } } as const
 
-/** Every blit (but the peek's eyes, unless `withPeek`), with where it went and the columns it was drawn at. */
-export function blitLog(on: On, opts: { withPeek?: boolean } = {}) {
+/** Every blit, with where it went and the columns it was drawn at. */
+export function blitLog(on: On) {
   const blits: { requestId: string; key: string; cells: string; columns: number }[] = []
   on('ui.blit', ($, e) => {
-    // The peek's eyes (hooks/peek.ts) have their own tests; the rest are about the bands.
-    if ('cells' in e && (opts.withPeek === true || e.key !== 'swolomon-eyes')) blits.push({ requestId: e.requestId, key: e.key, cells: e.cells, columns: e.columns ?? 0 })
+    if ('cells' in e) blits.push({ requestId: e.requestId, key: e.key, cells: e.cells, columns: e.columns ?? 0 })
     return { value: {} }
   })
   return blits
@@ -323,6 +322,13 @@ export async function movesRows($: Engine, bodyColumns: number = PANE_PROPS.body
 
 /** The tally the plugin puts in the prompt footer (`💪 1/2`), or undefined when it shows none. */
 export async function tallyOf($: Engine): Promise<string | undefined> {
+  const label = await footerLabelOf($)
+  // The tally alone: his eyes before it, and the time (or a reaction) after it, set aside.
+  return label?.replace(/^(👀|😌) /, '').replace(/ · .*$/, '')
+}
+
+/** The whole footer label: his eyes when the set is near, the tally, and the time to the next set. */
+export async function footerLabelOf($: Engine): Promise<string | undefined> {
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', component: 'SessionMode', props: { modes: [] } })
   const text = textOf((await ui.drawn()) as Drawn)
   await ui.unmount()

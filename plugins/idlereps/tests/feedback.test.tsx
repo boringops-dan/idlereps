@@ -45,13 +45,12 @@ async function finishWorkout($: Engine) {
   }
 }
 
-/** The band's rows; `['no band']` when none of ours is up (the engine's own, or only Swolomon peeking). */
+/** The band's rows; `['no band']` when none of ours is up (the engine's own). */
 async function bandRows($: Engine): Promise<string[]> {
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  const isPeek = (await ui.find({ key: 'swolomon-eyes' })) !== undefined
   const rows = drawnRows(await ui.drawn())
   await ui.unmount()
-  return isPeek || (rows.length === 1 && rows[0] === 'prompt') ? ['no band'] : rows
+  return rows.length === 1 && rows[0] === 'prompt' ? ['no band'] : rows
 }
 
 // ---------------------------------------------------------------------------------------------------------

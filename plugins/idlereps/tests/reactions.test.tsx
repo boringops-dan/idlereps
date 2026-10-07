@@ -2,17 +2,18 @@ import { expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
 import { line } from '../hooks/copy'
-import { peekChangeIn, peekText } from '../hooks/peek'
-import { mayReact, PEEK_REACTION_MS, REACTION_GAP_MS, startReaction } from '../hooks/reactions'
-import { ANIMATED, BAND, drawnRows, OPTIONS, SESSION, TINY, TODAY, workout, world } from './world'
+import { footerOf } from '../hooks/footer'
+import { FOOTER_REACTION_MS, mayReact, REACTION_GAP_MS, startReaction } from '../hooks/reactions'
+import { ANIMATED, BAND, drawnRows, footerLabelOf, OPTIONS, SESSION, TINY, TODAY, workout, world } from './world'
 
 /** Live reactions (owner, 2026-10-06): what your agent's calls do, as it happens, read his way. */
 
+/** What shows: the band's rows, and the footer's label (where a reaction goes with nothing up). */
 const rowsOf = async ($: Engine) => {
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   const rows = drawnRows(await ui.drawn()).join('\n')
   await ui.unmount()
-  return rows
+  return `${rows}\n${(await footerLabelOf($)) ?? ''}`
 }
 
 test('an install starting is a reaction; a test run or a read is not, until it lands', () => {
@@ -31,15 +32,15 @@ test('once per kind a turn, and never two inside the gap', () => {
   expect(mayReact('commit', new Set(['tests-pass']), 0, REACTION_GAP_MS)).toBe(true)
 })
 
-test('in the peek: a reaction wakes him and shows until it ends', () => {
+test('in the footer: a reaction takes the time’s place until it ends', () => {
   const now = 1_000_000
-  expect(peekText({ isWorking: false, cueDueAt: null, now, isDozing: true, reaction: 'hey' })).toEqual({ text: 'hey', isNear: false, isDozing: false })
-  expect(peekChangeIn({ isWorking: true, cueDueAt: null, now, awakeUntil: 0, reactionUntil: now + PEEK_REACTION_MS })).toBe(PEEK_REACTION_MS)
-  expect(peekChangeIn({ isWorking: true, cueDueAt: now + 5 * 60_000, now, awakeUntil: 0, reactionUntil: now + PEEK_REACTION_MS })).toBe(PEEK_REACTION_MS)
-  expect(peekChangeIn({ isWorking: true, cueDueAt: null, now, awakeUntil: 0, reactionUntil: now - 1 })).toBeNull()
+  const reaction = { text: 'hey', until: now + FOOTER_REACTION_MS }
+  expect(footerOf({ isUnderWay: true, nextCueAt: now + 20 * 60_000, now, reaction })).toMatchObject({ when: 'hey', changeIn: FOOTER_REACTION_MS })
+  expect(footerOf({ isUnderWay: false, nextCueAt: undefined, now, reaction })).toMatchObject({ when: 'hey', changeIn: FOOTER_REACTION_MS })
+  expect(footerOf({ isUnderWay: true, nextCueAt: now + 20 * 60_000, now, reaction: { text: 'hey', until: now - 1 } }).when).toBe('20m')
 })
 
-test('tests green with nothing up: his word in the peek, then the usual word', OPTIONS, async ($, on) => {
+test('tests green with nothing up: his word in the footer, then the time again', OPTIONS, async ($, on) => {
   const { clock } = world(on, TINY)
   await $.session.start(SESSION)
   await $.turn.start({ text: 'go', turnId: 't1' })
@@ -47,7 +48,7 @@ test('tests green with nothing up: his word in the peek, then the usual word', O
   await $.tool.call({ tool: 'Bash', command: 'npm test' })
   const said = line('live-tests-pass', { day: TODAY })
   expect(await rowsOf($)).toContain(said)
-  await clock.advance(PEEK_REACTION_MS + 1)
+  await clock.advance(FOOTER_REACTION_MS + 1)
   expect(await rowsOf($)).not.toContain(said)
 })
 
@@ -58,7 +59,7 @@ test('red tests, then a second red run: one word a turn per kind', OPTIONS, asyn
   await $.turn.start({ text: 'go', turnId: 't1' })
   await $.tool.call({ tool: 'Bash', command: 'npm test' })
   expect(await rowsOf($)).toContain(line('live-tests-fail', { day: TODAY }))
-  await clock.advance(REACTION_GAP_MS + PEEK_REACTION_MS)
+  await clock.advance(REACTION_GAP_MS + FOOTER_REACTION_MS)
   await $.tool.call({ tool: 'Bash', command: 'npm test' })
   expect(await rowsOf($)).not.toContain(line('live-tests-fail', { day: TODAY }))
 })

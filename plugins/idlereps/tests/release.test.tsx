@@ -6,7 +6,8 @@ import { actionOf, type ActionKind } from '../hooks/actions'
 import { line } from '../hooks/copy'
 import { HISTORY_CAP, RANKS } from '../hooks/history'
 import { MOVES } from '../hooks/moves'
-import { ALT_NAMES, LIBRARY } from '../hooks/programs'
+import { ALT_NAMES, LIBRARY, STARTER_ANSWERS } from '../hooks/programs'
+import { newSetup } from '../hooks/setup'
 import { BAND, NOON, OPTIONS, SESSION, SETUP, STATUS, TINY, TODAY, WEIGHTED, workout, world } from './world'
 
 /** Stored data, drawing and releases (plan §1.12 items 6 to 8, D18, D19, Task 19), and done gate 6. */
@@ -89,6 +90,11 @@ test('the store, filled to every cap, stays under half its limit; Undo under 4 K
     laterStreak: { day: TODAY, n: 2 },
     easyDay: TODAY,
     mode: 'remind',
+    // The largest a setup left part way can be: every answer given, at the summary.
+    setupDraft: {
+      state: { ...newSetup({ isSafetyAcknowledged: true, isQuickStart: false, answers: STARTER_ANSWERS, cueEvery: '15', idleReminder: '60', telemetry: true }), screen: 'summary', trail: ['start', 'goal', 'equipment', 'setting', 'level', 'days', 'schedule', 'size', 'weeks', 'cueEvery', 'idleReminder', 'telemetry'] },
+      at: NOON,
+    },
     moves: Array.from({ length: MOVES_CAP }, (_, i) => MOVES[i]?.id ?? `a-long-move-name-${i}`),
     lastSeenOn: TODAY,
     shinies: 999_999,

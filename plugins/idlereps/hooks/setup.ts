@@ -186,6 +186,16 @@ export function screenOf(state: SetupState, planPath: string): Screen {
   switch (state.screen) {
     case 'safety':
       return { title: 'Before you start', copy: [SAFETY_TEXT] }
+    // A setup closed part way (owner, 2026-10-07: "interactions should be nimble and resumable").
+    case 'resume':
+      return {
+        title: 'Pick up where you left off?',
+        choices: [
+          { label: 'Resume', apply: s => s.draft ?? { ...s, screen: 'start' } },
+          { label: 'Start over', apply: ({ draft: _draft, ...s }) => ({ ...s, screen: 'start', trail: [] }) },
+        ],
+        primary: 0,
+      }
     case 'start':
       return {
         title: 'How do you want to start?',

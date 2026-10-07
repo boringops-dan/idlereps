@@ -11,7 +11,9 @@ update shows these lines once. **Under the hood** is everything else.
 - Press 1 to log a set, 0 to undo it, and /workout to see your week.
 - Meet Swolomon, your coach: every set counts toward your next rank.
 - Every set celebrated: high fives, low fives, gimme ten, confetti, and more. Don't be too slow.
-- He coaches every set, does it with you, and peeks over the prompt between sets.
+- He coaches every set and does it with you; between sets the footer counts down to the next one, and his eyes show up when it's close.
+- Swolomon steps back when your agent is done and comes back with your set on the next turn.
+- Start a set, then say how many you did.
 - He learns how long your project's commands take, and asks early when one will run long.
 - He dresses for the holidays: as your agent for Halloween (he still doesn't know what it is), a Santa hat, party hats, and more.
 - He remembers your sets: milestones, how far you've come, the same weekday week after week.

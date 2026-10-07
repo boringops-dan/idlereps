@@ -108,11 +108,22 @@ While your agent works · Week 1 · Full body A   ●●●○○○  set 3 of 6
 Push-ups: 8 reps  (1/2)   last: 8 reps
 ↳ knees down is fine
 
-1: Done   2: Edit   3: Skip   4: Later
+1: Start   2: Later   0: Not today
+```
+
+Press Start and do the set while he does it with you, then say how it went:
+
+```
+1: All 8   2: Fewer   3: Couldn't do it
 ```
 
 The dots are the workout's sets: done, this one, and the ones to come. Swolomon's line on top changes
 with each set (none when "How much Swolomon says" is Quiet).
+
+**He's here while your agent works.** Once its turn ends, the set shrinks to two rows (the exercise and
+the buttons) so it stays out of your way. Send a prompt without answering and he tucks the set away;
+it comes back, the same set, on your next long turn (or straight away with `/workout`). `0` is always
+the way out.
 
 Every button has a number, and the number always works. Ways to press a button:
 
@@ -121,22 +132,22 @@ Every button has a number, and the number always works. Ways to press a button:
 | **Number** | With the prompt **empty**, press the button's number. | Works everywhere. A digit typed into a prompt that has text is just text. |
 | Keyboard focus | `ctrl+x` then `tab` moves focus to the band; arrows or Tab move between buttons; Enter presses; Esc goes back to the prompt. | Numbers also work while the band has focus. |
 | Click | Click the button. | Works in the desktop app. In a terminal, clicks often don't reach Claude Code: they need the fullscreen layout and a terminal that reports mouse clicks (Apple Terminal: View → Allow Mouse Reporting). |
-| Command | `/workout <button>`, for example `/workout done`, `/workout skip`, `/workout later`, `/workout undo`. | Works on every surface. Use this if nothing else responds. A few buttons go by a short name: warm-up Done is `/workout warmed`, Stood up is `/workout stood`. |
+| Command | `/workout <button>`, for example `/workout start`, `/workout fewer`, `/workout later`, `/workout undo`. The old `/workout done [reps] [weight]`, `/workout skip` and `/workout edit` still work. | Works on every surface. Use this if nothing else responds. A few buttons go by a short name: warm-up Done is `/workout warmed`, Stood up is `/workout stood`. |
 
 What each band's numbers do:
 
 | Band | Buttons |
 |---|---|
-| First run | `1` Quick start (or Keep my plan) · `2` Just remind me · `3` Build my own · `4` Not now |
+| First run | `1` Quick start (or Keep my plan) · `2` Just remind me · `3` Build my own · `0` Not now |
 | Build my own | `1` Quick start · `2` Build it with me · `3` I have my own · `0` Back |
 | Where do you train? (Quick start) | `1` At a desk · `2` At home, no gear · `3` With weights |
 | Do a set (Just remind me) | `1` Upper · `2` Lower · `3` Cardio · `4` Other · `5` Later · `0` Not today |
 | New move unlocked | `1` Nice · `2` Again · `0` Undo |
-| Rest-day stretch | `1` Done · `2` Not now |
-| Ready for a workout? | `1` Start · `2` Later · `3` Not today · `4` Just half |
-| Bonus set (after an Easy workout) | `1` One more · `2` Done for today |
-| A set | `1` Done · `2` Edit · `3` Skip · `4` Later · `5` Timer (timed sets) |
-| Hold timer | `1` Done · `2` Stop timer; between sides: `1` Start side 2 · `2` Stop timer; at zero: `1` Done · `2` Edit |
+| Rest-day stretch | `1` Done · `0` Not now |
+| Ready for a workout? | `1` Start · `2` Later · `3` Just half · `0` Not today |
+| Bonus set (after an Easy workout) | `1` One more · `0` Done for today |
+| A set | `1` Start · `2` Later · `0` Not today; once started: `1` All (the target, e.g. `All 12`) · `2` Fewer · `3` Couldn't do it |
+| Hold timer (Start on a timed set) | `1` Done · `2` Stop timer; between sides: `1` Start side 2 · `2` Stop timer; at zero: `1` All (e.g. `All 30 s`) · `2` Fewer · `3` Couldn't do it |
 | Move a training day? | `1` Move to (day) · `2` Keep (day) |
 | Edit a set | `1` Save · `2` `< reps` · `3` `reps >` · `4` `< weight` · `5` `weight >` (seconds on timed sets, band levels for bands; weight only where there is one) |
 | Logged | `1` High five (or his celebration of the set) · `0` Undo |
@@ -145,16 +156,17 @@ What each band's numbers do:
 | Swolomon's introduction, or a flex | `1` Let's go, or `1` Nice |
 | How's IdleReps going? (once) | `1` Love it · `2` It's fine · `3` Not for me · `4` Tell us more |
 
-- **Done** logs the set as shown, in one key.
-- **Edit** is for a set that went differently: step the reps (or seconds) and the weight, then Save.
+- **Start** begins the set: Swolomon does it with you, and a timed set starts its countdown.
+- **All** logs the set as shown, in one key.
+- **Fewer** is for a set that went differently: step the reps (or seconds) and the weight, then Save.
   Typed: `/workout done 8` (8 reps) or `/workout done 8 14` (8 reps at 14 kg).
-- **Skip** logs the set as skipped. **Later** hides it without logging anything.
+- **Couldn't do it** logs the set as skipped. **Later** hides it without logging anything.
 - **Undo** puts back exactly what the last set changed, and shows the set again. `/workout undo` works
   even after the Logged line has gone.
-- **Timer** counts a timed set down (Swolomon counts the last three) and beeps once at zero (**Beep
-  when a timed hold ends** in `/config`). Done mid-hold logs the seconds you held.
+- **A timed set** counts down once started (Swolomon counts the last three) and beeps once at zero
+  (**Beep when a timed hold ends** in `/config`). Done mid-hold logs the seconds you held.
 - **Not today** means nothing more today, in any session.
-- **Warm-up:** the first set of a day's workout comes after a one-minute warm-up (`1` Done · `2` Skip).
+- **Warm-up:** the first set of a day's workout comes after a one-minute warm-up (`1` Done · `0` Skip).
   Turn it off with **Warm up first** in `/config`.
 - **The end of a plan** shows what it came to, with `1` Next block · `2` Change plan · `3` Later.
 
@@ -231,9 +243,9 @@ for it: confetti, a slow clap, a mic drop, raising the roof, fireworks, the worm
 **On every set** he's coaching: a form cue, a cheer or some banter, then he does the exercise with you,
 watches your form and flexes while you go. (On Quiet, a tiny Swolomon does a few reps beside the set.)
 
-**Between sets**, with nothing else up, his eyes peek over the prompt: blinking, glancing, counting down
-to your next set and staring right at you when it's close. A couple of minutes after your agent stops, he
-dozes off until it starts again.
+**Between sets** the prompt footer counts down to your next one: `💪 3/9 · 20m`, then `ready`. When
+it's under two minutes away his eyes join it, blinking (`👀 💪 3/9 · 1m`). Step away for a while and
+they rest open until your agent's next turn.
 
 **What your agent is up to.** Swolomon has never heard of coding, so he reads everything your agent does
 as gym talk. A push is push-ups, a curl is curls, a build is building muscle, and tests are a fitness
@@ -241,7 +253,7 @@ test. While a command runs, the spinner says what he thinks it is ("Doing push-u
 turn use it, and when the turn ends he tells you what he made of it. See the same thing a few times and he
 asks around, and gets a little closer. Never right. He reacts as it happens, too: tests green or red,
 work locked in, a pull request (a personal record, surely), an install starting ("loading plates"). An
-aside on the band once his line is out, or in the peek; once per kind a turn.
+aside on the band once his line is out, or in the footer; once per kind a turn.
 
 **Ranks.** Every set you do counts toward a rank, from New Face through Regular, Rack Regular, Iron
 Disciple, Demigod and Olympian to Greek God at 2,500 sets. Skipped sets don't count, and nothing about
@@ -270,7 +282,7 @@ All in `/config`, under IdleReps:
 | Only on turns longer than (seconds) | 30, 60, 120 | 60 | With no sign of a long task, a turn must run this long before a set shows. |
 | Remind me when idle (minutes) | off, 60, 120 | 60 | While no turn runs, on a training day with sets left: a reminder at most this often. |
 | Quiet hours | off, 22-07, 21-08, 23-06 | off | Nothing shows inside these hours (local time). |
-| Show today's sets under the prompt | on, off | on | `💪 3/9` at the right of the prompt footer, then `💪 done`. Nothing on rest days. |
+| Show today's sets under the prompt | on, off | on | `💪 3/9 · 20m` at the right of the prompt footer (the time to your next set), then `💪 done`. Nothing on rest days. |
 | Beep when a timed hold ends | on, off | on | The hold timer beeps once at zero. |
 | Warm up first | on, off | on | A one-minute warm-up before the first set of a workout, once a day. |
 | Animate Swolomon | on, off | on | Swolomon walks on, and the line types out while the portrait talks. Off shows it whole. |
@@ -284,7 +296,7 @@ All in `/config`, under IdleReps:
   exercise, its sets as dots, the amount and your best), this week, your streak, your rank with a bar to
   the next one, and your bests.
 - `/workout status` prints a one-line summary.
-- The prompt footer shows today's sets: `💪 3/9`.
+- The prompt footer shows today's sets and the time to the next one: `💪 3/9 · 20m`.
 
 Other commands:
 
@@ -296,7 +308,7 @@ Other commands:
 | `/workout no` | Not today. |
 | `/workout pause` · `/workout resume` | Stop all sets and reminders until you resume. |
 | `/workout reset` | Back to workout 1. Your history is kept. |
-| `/workout setup` | Make a new plan. |
+| `/workout setup` | Make a new plan. Close it partway and it offers to pick up where you left off (for a week). |
 | `/workout plan <text>` | Turn a plan described in plain words into your plan. |
 | `/workout remind` | Just remind me: no plan, a set of your choosing while your agent works. |
 | `/workout log` | Just remind me: log a set now. |

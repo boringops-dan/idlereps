@@ -58,7 +58,7 @@ import { sittingMs, STILL_MS } from './still'
 import { expectedWaitMs, keptTurns, waitSize } from './waits'
 import { greetingOf } from './greeting'
 import { anniversaryOf, callbackFor } from './callbacks'
-import { mayReact, PEEK_REACTION_MS, REACTION_LINE, startReaction } from './reactions'
+import { FOOTER_REACTION_MS, mayReact, REACTION_LINE, startReaction } from './reactions'
 import type { Reaction } from './reactions'
 import { asidesAllowed, engagementOf, extrasCap, recordOutcome, spend, START_ATTENTION } from './attention'
 import type { Attention, Chat } from './attention'
@@ -129,7 +129,6 @@ import {
   TICK_MS,
   timelineOf,
   walkGrid,
-  BLINK_MS,
   BREATH_HALF_MS,
   breathedIn,
   cameoGrid,
@@ -137,8 +136,7 @@ import {
 import { bandFilmSvg, moveFilmSvg, stillSvg } from './film'
 import { callKind, expectedMs, learn } from './durations'
 import type { CallKind, CallTimes } from './durations'
-import { PEEK_AWAKE_MS, peekChangeIn, peekGrid, PEEK_POSES, peekText, PEEK_WIDTH } from './peek'
-import type { PeekPose } from './peek'
+import { EYES, EYES_BLINK_MS, EYES_OPEN_MS, footerLabel, footerOf, isAwake, isUnderWay } from './footer'
 import type { Cameo, Fit, IdleBeat, IdleStep, Pose, PortraitSize, Timeline, Walk } from './portrait'
 import { backupOf, BACKUP_KEYS, backupPathOf, csvPathOf, historyCsv, parseBackup } from './data'
 import { PUSH_NAMES, STARTER_ANSWERS, generateProgram, stretchFor } from './programs'
@@ -190,7 +188,6 @@ const pending = atom({ plugin: 'idlereps', key: 'pending' } as const, [])
 const setup = atom({ plugin: 'idlereps', key: 'setup' } as const, null)
 const statusView = atom({ plugin: 'idlereps', key: 'statusView' } as const, null)
 const talk = atom({ plugin: 'idlereps', key: 'talk' } as const, null)
-const peek = atom({ plugin: 'idlereps', key: 'peek' } as const, null)
 const parked = atom({ plugin: 'idlereps', key: 'parked' } as const, null)
 
 const SETUP_PANE = 'workout-setup'
@@ -239,8 +236,6 @@ type Art = {
   svgs: Record<keyof Sprite['frames'], string>
   /** Each move's poses as full-portrait cells, encoded the first time it plays (`moveCellsOf`). */
   moveCells: Map<string, string[]>
-  /** Each peek pose's cells. */
-  peekCells: Record<PeekPose, string>
   /** His rest frames, a pixel up: he breathes while he stands at rest (a move or a blink plays as drawn). */
   breaths: ReadonlyMap<string, string>
   /** Each place on his walks, encoded once (the walks are the beats' own, so the same objects every time). */
@@ -257,7 +252,6 @@ function artOf(outfit: Outfit | null): Art {
     frames,
     svgs: Object.fromEntries((Object.keys(sprite.frames) as (keyof Sprite['frames'])[]).map(name => [name, svgOf(sprite, name)])) as Art['svgs'],
     moveCells: new Map(),
-    peekCells: Object.fromEntries(PEEK_POSES.map(pose => [pose, encodeCells(peekGrid(sprite, pose))])) as Art['peekCells'],
     breaths: new Map((['idle', 'flex', 'miniIdle'] as const).map(name => [frames[name], breathedIn(frames[name], name === 'miniIdle' ? sprite.miniSize : sprite.width)])),
     walkCells: new Map(),
     cameoCells: new Map(),
@@ -330,7 +324,7 @@ function microMoveOf(spec: BandSpec): Move | undefined {
 /** The theme's own colours for each tone, so light and dark themes both read (muted is the dim style). */
 const TONE_COLOUR: Record<Exclude<Tone, 'muted'>, string> = { accent: 'warning', good: 'success', aside: 'suggestion' }
 
-type Owner = 'band' | 'turn' | 'session' | 'pane' | 'peek' | 'moves'
+type Owner = 'band' | 'turn' | 'session' | 'pane' | 'footer' | 'moves'
 
 /** Per-load state; a hot reload starts it over (timers go with the old environment). */
 const coach: {
@@ -345,6 +339,8 @@ const coach: {
   midnightTimer: Timer | null
   isTurnRunning: boolean
   turnStartedAt: number
+  /** When the last turn ended (his footer eyes blink a while after it: hooks/footer.ts). */
+  turnEndedAt: number | undefined
   /** Decided at turn.start (D21): with no chance of a cue this turn, the tool hook does nothing. */
   turnCanCue: boolean
   toolCalls: number
@@ -394,10 +390,10 @@ const coach: {
   project: string
   callSeq: number
   callsRunning: Map<number, number>
-  /** His reactions this turn (hooks/reactions.ts), when the last was, and one showing in the peek. */
+  /** His reactions this turn (hooks/reactions.ts), when the last was, and one showing in the footer. */
   turnReactions: Set<Reaction>
   lastReactionAt: number | null
-  peekReaction: { text: string; until: number } | null
+  footerReaction: { text: string; until: number } | null
   /** What was learned of call times, once read (the store is written behind each call, never in front). */
   callTimes: CallTimes | undefined
   /** The band portrait's cells as last drawn (before the breath), and whether his breath is in. */
@@ -405,19 +401,9 @@ const coach: {
   isBreathIn: boolean
   /** The status pane's breath. */
   isPaneBreathIn: boolean
-  /** When the pending cue fires; null with none pending. */
-  cueDueAt: number | null
-  /** The peek: where it is drawn, the pose it shows, and whether its loop is running. */
-  peekAt: string | null
-  /** The eyes last blitted, so a redraw shows them where they are. */
-  peekCells: string | null
-  /** The running eye loop's number (null: none), and the count they are numbered by. */
-  peekLoop: number | null
-  peekSeq: number
-  isPeekNear: boolean
-  /** Until when he stays awake with no turn running; then he dozes, eyes shut, until the next turn. */
-  peekAwakeUntil: number
-  peekTextTimer: Timer | null
+  /** The footer beside the tally (hooks/footer.ts): what follows it, whether his eyes show, and if they are open. */
+  footer: { when: string | undefined; isNear: boolean }
+  isEyesOpen: boolean
   /** A timer band waiting for the prompt to empty (the gate's clause (c)). */
   deferred: BandSpec | null
   /** The first-run band was put off for this session (Not now). */
@@ -461,12 +447,13 @@ const coach: {
   home: '',
   planCache: null,
   brokenKey: null,
-  timers: { band: [], turn: [], session: [], pane: [], peek: [], moves: [] },
+  timers: { band: [], turn: [], session: [], pane: [], footer: [], moves: [] },
   cueTimer: null,
   idleTimer: null,
   midnightTimer: null,
   isTurnRunning: false,
   turnStartedAt: 0,
+  turnEndedAt: undefined,
   turnCanCue: false,
   toolCalls: 0,
   hasStrongSign: false,
@@ -498,19 +485,13 @@ const coach: {
   callsRunning: new Map(),
   turnReactions: new Set(),
   lastReactionAt: null,
-  peekReaction: null,
+  footerReaction: null,
   callTimes: undefined,
   portraitCells: null,
   isBreathIn: false,
   isPaneBreathIn: false,
-  cueDueAt: null,
-  peekAt: null,
-  peekCells: null,
-  peekLoop: null,
-  peekSeq: 0,
-  isPeekNear: false,
-  peekAwakeUntil: 0,
-  peekTextTimer: null,
+  footer: { when: undefined, isNear: false },
+  isEyesOpen: true,
   deferred: null,
   isIntroDismissed: false,
   isStatusOpen: false,
@@ -569,121 +550,51 @@ function cancelTimers(owner: Owner) {
 function stopCue() {
   coach.cueTimer?.cancel()
   coach.cueTimer = null
-  coach.cueDueAt = null
 }
 
 /** Cues after `ms` this turn, unless one is already pending. */
 function scheduleCue($: EngineInterface, ms: number) {
   if (coach.cueTimer !== null) return
-  const made = timer($, 'turn', ms, () => {
+  coach.cueTimer = timer($, 'turn', ms, () => {
     coach.cueTimer = null
-    coach.cueDueAt = null
     void showDueCue($)
   })
-  coach.cueTimer = made
-  // The peek counts down to it.
-  void (async () => {
-    const at = await now($)
-    if (coach.cueTimer !== made) return
-    coach.cueDueAt = at + ms
-    await refreshPeek($)
-  })().catch(() => undefined)
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// The peek (hooks/peek.ts): his eyes above the prompt when nothing else is there.
+// The footer (hooks/footer.ts): beside today's tally, the time to the next set, and his eyes once it is near.
 
-/** Whether he peeks now: approved art, not Quiet, a plan, not paused, onboarded, and the slot empty. */
-async function peekWanted($: EngineInterface): Promise<boolean> {
-  if (!art.sprite.approved || coach.options.coachChat === 'quiet') return false
-  if ((await read($, band)) !== null) return false
-  if (await load($, 'paused', false)) return false
-  if (await isOnboardingDue($)) return false
-  return (await loadPlan($)) !== null
-}
-
-/** Shows, updates or hides the peek; his eyes move while he is awake, and he dozes off a while after a turn. */
-async function refreshPeek($: EngineInterface) {
-  if (!(await peekWanted($))) {
-    hidePeek()
-    if ((await read($, peek)) !== null) await update($, peek, () => null)
-    return
-  }
+/** Works out the footer beside the tally, redraws it when it changed, and comes back when it next changes. */
+async function refreshFooter($: EngineInterface) {
+  cancelTimers('footer')
   const at = await now($)
-  const isAwake = coach.isTurnRunning || at < coach.peekAwakeUntil
-  const reaction = coach.peekReaction !== null && coach.peekReaction.until > at ? coach.peekReaction : null
-  const next = peekText({ isWorking: coach.isTurnRunning, cueDueAt: coach.cueDueAt, now: at, isDozing: !isAwake, ...(reaction === null ? {} : { reaction: reaction.text }) })
-  const shown = await read($, peek)
-  if (shown?.text !== next.text || shown?.isNear !== next.isNear || shown?.isDozing !== next.isDozing) await update($, peek, () => next)
-  // One timer for the next time the word changes (a minute ticks over, the set comes near, he dozes off).
-  coach.peekTextTimer?.cancel()
-  const wait = peekChangeIn({ isWorking: coach.isTurnRunning, cueDueAt: coach.cueDueAt, now: at, awakeUntil: coach.peekAwakeUntil, ...(reaction === null ? {} : { reactionUntil: reaction.until }) })
-  coach.peekTextTimer = wait === null ? null : timer($, 'peek', wait, () => void refreshPeek($))
-  coach.isPeekNear = next.isNear
-  // Asleep: his eyes shut (drawn from `isDozing`), and the loop that moved them ends.
-  if (!isAwake) {
-    stopPeekLoop()
-    return
+  // A set still to come today: the workout under way, not paused, not put off for the day.
+  const underWay = isUnderWay(coach.tally) && !(await load($, 'paused', false)) && (await load<number | undefined>($, 'declinedOn', undefined)) !== (await today($))
+  const reaction = coach.footerReaction ?? undefined
+  const next = footerOf({ isUnderWay: underWay, nextCueAt: await load<number | undefined>($, 'nextCueAt', undefined), now: at, ...(reaction === undefined ? {} : { reaction }) })
+  // His eyes: approved art only, and never in Quiet.
+  const isNear = next.isNear && art.sprite.approved && coach.options.coachChat !== 'quiet'
+  if (next.when !== coach.footer.when || isNear !== coach.footer.isNear) {
+    coach.footer = { when: next.when, isNear }
+    coach.isEyesOpen = true
+    $.ui.invalidate('ui.render')
   }
-  startPeekLoop($)
+  if (next.changeIn !== null) timer($, 'footer', next.changeIn, () => void refreshFooter($))
+  if (isNear && coach.options.coachAnimation) blink($, true)
 }
 
-function hidePeek() {
-  cancelTimers('peek')
-  coach.peekTextTimer = null
-  coach.peekAt = null
-  stopPeekLoop()
+/** His eyes in the footer, alive while they show: open a while, then a blink, never quicker than a second. */
+function blink($: EngineInterface, isOpen: boolean) {
+  timer($, 'footer', isOpen ? EYES_OPEN_MS : EYES_BLINK_MS, () => void blinkStep($, isOpen))
 }
 
-function stopPeekLoop() {
-  coach.peekLoop = null
-  coach.peekCells = null
-}
-
-/**
- * His eyes, beat by beat (the idle loop at the mini size, cropped to the peek): blinks and glances; the next
- * set close, he stares at you between blinks. Once it is drawn, and only while animated.
- */
-function startPeekLoop($: EngineInterface) {
-  if (coach.peekLoop !== null || coach.peekAt === null || !coach.options.coachAnimation) return
-  const seq = ++coach.peekSeq
-  coach.peekLoop = seq
-  idleLoop($, 'peek', {
-    size: () => (coach.peekAt === null ? undefined : 'mini'),
-    isWin: false,
-    alive: () => coach.peekLoop === seq,
-    blit: cells => void blitPeek($, cells),
-    beatOf: n => (coach.isPeekNear ? { wait: idleWait(n), steps: [{ pose: 'blink', ms: BLINK_MS }], rest: 'lookYou' } : idleBeat(n, 'mini')),
-    cellsOf: (pose: Pose) => art.peekCells[pose as PeekPose] ?? art.peekCells.idle,
-  })
-}
-
-async function blitPeek($: EngineInterface, cells: string) {
-  coach.peekCells = cells
-  if (coach.peekAt === null) return
-  await $.ui.blit({ requestId: coach.peekAt, key: 'swolomon-eyes', cells, columns: PEEK_WIDTH, rows: 1 }).catch(() => undefined)
-}
-
-/** The peek drawn above the prompt: his brows and eyes, and the word beside them. Terminal only. */
-async function drawPeek($: EngineInterface, surface: RenderSurface, requestId: string, elements: ElementTable) {
-  if (surface !== 'terminal' || !('Raster' in elements)) return null
-  const shown = await read($, peek)
-  if (shown === null) return null
-  const { Box, Raster, Text } = elements
-  coach.peekAt = requestId
-  if (!shown.isDozing) startPeekLoop($)
-  const cells = shown.isDozing ? art.peekCells.blink : (coach.peekCells ?? art.peekCells[shown.isNear ? 'lookYou' : 'idle'])
-  return (
-    <Box flexDirection="row">
-      <Raster key="swolomon-eyes" columns={PEEK_WIDTH} rows={1} cells={cells} />
-      {shown.text === '' ? null : <Box key="peek-gap" width={2} />}
-      {shown.text === '' ? null : (
-        <Text key="peek-text" dimColor>
-          {shown.text}
-        </Text>
-      )}
-    </Box>
-  )
+async function blinkStep($: EngineInterface, wasOpen: boolean) {
+  if (!coach.footer.isNear) return
+  // The person stepped away: the eyes rest open until the next turn (turn.start refreshes the footer).
+  if (wasOpen && !isAwake({ isTurnRunning: coach.isTurnRunning, turnEndedAt: coach.turnEndedAt, now: await now($) })) return
+  coach.isEyesOpen = !wasOpen
+  $.ui.invalidate('ui.render')
+  blink($, !wasOpen)
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -791,7 +702,7 @@ async function writePlan($: EngineInterface, plan: Plan) {
   const showing = await read($, band)
   if (showing !== null && showing.kind !== 'logged') await clearBand($)
   await refreshStatus($)
-  await refreshPeek($)
+  await refreshFooter($)
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -826,7 +737,7 @@ async function placeBand($: EngineInterface, given: BandSpec) {
   const placed = await startTalk($, spec)
   await update($, band, () => placed)
   await syncBandPane($)
-  await refreshPeek($)
+  await refreshFooter($)
   if (spec.kind === 'logged') timer($, 'band', LOGGED_MS, () => void expireBand($, spec))
 }
 
@@ -844,7 +755,7 @@ async function replaceBand($: EngineInterface, spec: BandSpec) {
   const placed = await startTalk($, spec)
   await update($, band, () => placed)
   await syncBandPane($)
-  await refreshPeek($)
+  await refreshFooter($)
   if (spec.kind === 'logged') timer($, 'band', LOGGED_MS, () => void expireBand($, placed))
 }
 
@@ -871,7 +782,7 @@ async function clearBand($: EngineInterface) {
   await syncBandPane($)
   const { next, pending: rest } = nextFromPending(await read($, pending))
   if (next === undefined) {
-    await refreshPeek($)
+    await refreshFooter($)
     return
   }
   await update($, pending, () => rest)
@@ -1124,7 +1035,7 @@ async function firstAside($: EngineInterface): Promise<{ id: LineId; ctx: Record
   return null
 }
 
-/** A word from him on what a call just did (hooks/reactions.ts): an aside on the band, else in the peek. */
+/** A word from him on what a call just did (hooks/reactions.ts): an aside on the band, else in the footer. */
 async function react($: EngineInterface, reaction: Reaction) {
   if (!coach.isTurnRunning || coach.options.coachChat === 'quiet' || !art.sprite.approved) return
   const at = await now($)
@@ -1141,11 +1052,11 @@ async function react($: EngineInterface, reaction: Reaction) {
     timer($, 'band', ASIDE_MS, () => void setAside($, said.key, undefined))
     return
   }
-  if ((await read($, peek)) === null) return
+  if (coach.tally === undefined) return
   coach.turnReactions.add(reaction)
   coach.lastReactionAt = at
-  coach.peekReaction = { text, until: at + PEEK_REACTION_MS }
-  await refreshPeek($)
+  coach.footerReaction = { text, until: at + FOOTER_REACTION_MS }
+  await refreshFooter($)
 }
 
 async function setAside($: EngineInterface, key: number, aside: string | undefined) {
@@ -1193,10 +1104,6 @@ type IdleOptions = {
   blit: (cells: string, size: PortraitSize) => void
   /** On a set band: the set's own move, which he does with you between watching you (set beats). */
   setMove?: string
-  /** The n-th beat, where the loop picks its own (the peek); else `idleBeat`'s. */
-  beatOf?: (n: number) => IdleBeat
-  /** A pose's cells, where the loop draws a crop of him (the peek's eyes); else the portrait's frame. */
-  cellsOf?: (pose: Pose) => string
   /** His word in a beat (a regular passing): where the loop's portrait has his lines to say it beside. */
   onAside?: (id: LineId) => void
 }
@@ -1209,7 +1116,7 @@ type IdleFrame = { cells: string; ms: number } | { aside: LineId; ms: number }
  * blitted in turn. A beat with no portrait drawn (a redraw too narrow for him) is skipped, not the end: he
  * carries on once there is room again. A frame is only blitted to the size it was made for.
  */
-function idleLoop($: EngineInterface, owner: 'band' | 'pane' | 'peek', opts: IdleOptions) {
+function idleLoop($: EngineInterface, owner: 'band' | 'pane', opts: IdleOptions) {
   // The moves he may do: those collected, the flexes aside (the wins keep those); read once per loop.
   let moves: string[] | undefined
   const beat = (n: number) =>
@@ -1226,9 +1133,9 @@ function idleLoop($: EngineInterface, owner: 'band' | 'pane' | 'peek', opts: Idl
           // On a set: the set's move twice as often as a flex he has; else his moves, the flexes aside.
           moves = opts.setMove !== undefined ? [opts.setMove, opts.setMove, ...have.filter(m => m.family === 'flex').map(m => m.id)] : await betweenMoves($, have)
         }
-        const { steps, rest } = opts.beatOf?.(n) ?? idleBeat(n, size, opts.isWin, size === 'full' ? moves : [], opts.setMove === undefined ? 'band' : 'set')
-        const cellsOf = opts.cellsOf ?? ((pose: Pose) => art.frames[frameFor(size, pose)])
-        const frames: IdleFrame[] = steps.flatMap(step => (opts.cellsOf === undefined ? idleFrames(step, size) : 'pose' in step ? [{ cells: cellsOf(step.pose), ms: step.ms }] : []))
+        const { steps, rest } = idleBeat(n, size, opts.isWin, size === 'full' ? moves : [], opts.setMove === undefined ? 'band' : 'set')
+        const cellsOf = (pose: Pose) => art.frames[frameFor(size, pose)]
+        const frames: IdleFrame[] = steps.flatMap(step => idleFrames(step, size))
         let at = 0
         for (const frame of [...frames, { cells: cellsOf(rest), ms: 0 }]) {
           timer($, owner, at, () => {
@@ -2652,13 +2559,36 @@ async function openSetup($: EngineInterface, opts: { isQuickStart: boolean }) {
     idleReminder: coach.options.idleReminder,
     ...(TELEMETRY_ENABLED ? { telemetry: coach.options.telemetry } : {}),
   })
-  await update($, setup, () => state)
+  // A setup left part way in the last week: offered back first.
+  const draft = await load<SetupDraft | undefined>($, 'setupDraft', undefined)
+  const isFresh = draft !== undefined && (await now($)) - draft.at <= SETUP_DRAFT_MS
+  if (draft !== undefined && !isFresh) await save($, 'setupDraft', undefined)
+  const shown: SetupState = isFresh && !opts.isQuickStart && state.screen !== 'safety' ? { ...state, screen: 'resume', trail: [], draft: draft.state } : state
+  await update($, setup, () => shown)
   await $.ui.open({ id: SETUP_PANE, title: 'Set up IdleReps', focus: true, closeOnEscape: true })
 }
 
-async function closeSetup($: EngineInterface) {
+/** How long a setup closed part way is offered back. */
+const SETUP_DRAFT_MS = 7 * 86_400_000
+
+type SetupDraft = { state: SetupState; at: number }
+
+/** Closes setup; finished (a plan written), its draft goes with it. */
+async function closeSetup($: EngineInterface, opts: { isFinished?: boolean } = {}) {
+  if (opts.isFinished === true) await save($, 'setupDraft', undefined)
   await update($, setup, () => null)
   await $.ui.close({ id: SETUP_PANE })
+}
+
+/**
+ * The setup showing, kept to resume, after every answer: however it is left (Esc, Close, a reload), what
+ * was answered is there next time. Nothing answered yet is no draft.
+ */
+async function keepSetupDraft($: EngineInterface) {
+  const state = await read($, setup)
+  if (state === null || state.trail.length === 0 || state.screen === 'resume') return
+  const { draft: _draft, ...kept } = state
+  await save($, 'setupDraft', { state: kept, at: await now($) } satisfies SetupDraft)
 }
 
 /** The safety step's I understand: marked once ever; Quick start then writes its plan. */
@@ -2666,7 +2596,7 @@ async function acknowledgeSafety($: EngineInterface) {
   await markSeen($, 'safety')
   const state = await read($, setup)
   if (state?.isQuickStart === true) {
-    await closeSetup($)
+    await closeSetup($, { isFinished: true })
     await quickStart($)
     return
   }
@@ -2678,11 +2608,15 @@ async function setupChoose($: EngineInterface, index: number) {
   if (state === null) return
   const choice = screenOf(state, planPath()).choices?.[index]
   if (choice === undefined) return
+  // Resumed or started over: the draft is in hand or gone, and kept again from here.
+  if (state.screen === 'resume') await save($, 'setupDraft', undefined)
   await update($, setup, () => choice.apply(state))
+  await keepSetupDraft($)
 }
 
 async function setupChange($: EngineInterface, change: (state: SetupState) => SetupState) {
   await update($, setup, s => (s === null ? s : change(s)))
+  await keepSetupDraft($)
 }
 
 /** Start plan: writes the plan, saves the cadence answers to /config, closes the dialog. */
@@ -2704,7 +2638,7 @@ async function startPlan($: EngineInterface) {
       break
     }
   }
-  await closeSetup($)
+  await closeSetup($, { isFinished: true })
   const showing = await read($, band)
   if (showing?.kind === 'intro') await clearBand($)
   const day = await today($)
@@ -2760,6 +2694,7 @@ async function refreshStatus($: EngineInterface) {
     const facts = await remindFacts($)
     coach.isMidWorkout = false
     setTally($, coach.options.statusLine ? remindLineOf(facts) : undefined)
+    await refreshFooter($)
     if (coach.isStatusOpen) await update($, statusView, () => remindViewOf(facts))
     return
   }
@@ -2768,6 +2703,7 @@ async function refreshStatus($: EngineInterface) {
   const tally = facts === null ? undefined : statusLineOf(facts)
   coach.isMidWorkout = /^💪 [1-9]\d*\//.test(tally ?? '')
   setTally($, coach.options.statusLine ? tally : undefined)
+  await refreshFooter($)
   if (facts !== null && coach.isStatusOpen) await update($, statusView, () => statusViewOf(facts))
 }
 
@@ -3375,7 +3311,7 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
     await save($, 'paused', true)
     stopCue()
     await refreshStatus($)
-    await refreshPeek($)
+    await refreshFooter($)
     return line('reply-pause', { day })
   }
   if (arg === 'resume') {
@@ -3383,7 +3319,7 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
     await save($, 'paused', undefined)
     await armIdle($)
     await refreshStatus($)
-    await refreshPeek($)
+    await refreshFooter($)
     return line('reply-resume', { day })
   }
   // Your data (§1.12 item 5): these work with or without a plan.
@@ -4056,8 +3992,7 @@ export const register: Register = (on, options) => {
     await refreshStatus($)
     await armIdle($)
     await armMidnight($)
-    coach.peekAwakeUntil = (await now($)) + PEEK_AWAKE_MS
-    await refreshPeek($)
+    await refreshFooter($)
     return next(e)
   })
 
@@ -4105,7 +4040,7 @@ export const register: Register = (on, options) => {
     if ((coach.turnCanCue || coach.turnCanStretch || coach.turnCanNudge || coach.turnCanRemind || coach.turnCanStill) && (showing === null || showing.kind === 'logged')) {
       scheduleCue($, cueDelayMs(turnWaitMs(isBig), await load<number | undefined>($, 'nextCueAt', undefined), coach.turnStartedAt))
     }
-    await refreshPeek($)
+    await refreshFooter($)
     return next(e)
   })
 
@@ -4147,6 +4082,7 @@ export const register: Register = (on, options) => {
 
   on('turn.complete', async ($, e, next) => {
     coach.isTurnRunning = false
+    coach.turnEndedAt = await now($)
     // The line that closes the turn says what the person did meanwhile; it is found by the turn's length.
     // Without sets, Swolomon still says what he thinks the agent was up to: once a day, on a long turn.
     const seenMisread = coach.turnMisread ?? undefined
@@ -4174,8 +4110,7 @@ export const register: Register = (on, options) => {
     cancelTimers('turn')
     coach.deferred = null
     await armIdle($)
-    coach.peekAwakeUntil = (await now($)) + PEEK_AWAKE_MS
-    await refreshPeek($)
+    await refreshFooter($)
     return next(e)
   })
 
@@ -4199,7 +4134,7 @@ export const register: Register = (on, options) => {
     if (e.props.hasSurvey) return next(e)
     const site = { surface: e.surface, requestId: e.requestId, maxRows: e.props.maxRows, bodyColumns: e.props.bodyColumns, isWorking: e.props.isWorking }
     const elements = $.ui.resolve(e)
-    return (await drawBand($, site, elements)) ?? (await drawPeek($, e.surface, e.requestId, elements)) ?? next(e)
+    return (await drawBand($, site, elements)) ?? next(e)
   })
 
   // Where no attached surface draws the band above the prompt (VS Code), the band is this pane.
@@ -4214,7 +4149,8 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
     const tally = coach.tally
     if (tally === undefined) return next(e)
-    return next({ ...e, props: { ...e.props, modes: [...e.props.modes, tally] } })
+    const eyes = coach.footer.isNear ? (coach.isEyesOpen ? EYES.open : EYES.blink) : undefined
+    return next({ ...e, props: { ...e.props, modes: [...e.props.modes, footerLabel(tally, { when: coach.footer.when, eyes })] } })
   })
 
   // While today's workout is under way, the spinner lifts too: a gym word in place of the engine's.

@@ -5,7 +5,7 @@ import { line, SAFETY_SENTENCES, SAFETY_TEXT } from '../hooks/copy'
 import { parsePlan } from '../hooks/plan'
 import { generateProgram, STARTER_ANSWERS } from '../hooks/programs'
 import { BYO_COPY, EQUIPMENT_COPY, EXAMPLE_PLAN, newSetup, START_COPY, summaryOf } from '../hooks/setup'
-import { BAND, drawnRows, NOON, OPTIONS, PLAN_PATH, SESSION, SETUP, TINY, TODAY, workout, world } from './world'
+import { BAND, drawnRows, NOON, OPTIONS, ownStore, PLAN_PATH, SESSION, SETUP, TINY, TODAY, workout, world } from './world'
 
 /** Setup and first run (plan §1.2, §1.5, Task 6). */
 
@@ -397,5 +397,95 @@ test('Start plan from the summary writes the plan the summary names', OPTIONS, a
   const named = (await setupRows(pane))[1]
   await pane.press({ key: 'start-plan' })
   expect(planWritten(w.writes)?.name).toBe(named)
+  await pane.unmount()
+})
+
+// ---------------------------------------------------------------------------------------------------------
+// A setup closed part way is kept (owner, 2026-10-07: "interactions should be nimble and resumable").
+
+/** Design one for me, then the goal and Continue on equipment: three answered, at the setting question. */
+async function threeAnswered(pane: { press: (q: { key: string }) => Promise<unknown> }) {
+  await pane.press({ key: 'choice-2' })
+  await pane.press({ key: 'choice-1' })
+  await pane.press({ key: 'continue' })
+}
+
+test('left part way, then /workout setup: Pick up where you left off?; Resume is the next question, answers kept', OPTIONS, async ($, on) => {
+  const { w } = world(on, null, ACKED)
+  await $.session.start(SESSION)
+  await $.command.run(workout('setup'))
+  let pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...SETUP })
+  await threeAnswered(pane)
+  const at = (await setupRows(pane))[0]
+  await pane.unmount()
+  await $.command.run(workout('setup'))
+  pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...SETUP })
+  const rows = await setupRows(pane)
+  expect(rows[0]).toBe('Pick up where you left off?')
+  expect(rows.some(row => row.includes('1: Resume') && row.includes('2: Start over'))).toBe(true)
+  await pane.press({ key: 'choice-1' })
+  expect((await setupRows(pane))[0]).toBe(at)
+  // The answers kept: through to Start plan, the plan Design one for me builds.
+  for (const key of SUMMARY_KEYS.slice(2)) await pane.press({ key })
+  await pane.press({ key: 'start-plan' })
+  expect(planWritten(w.writes)).toBeDefined()
+  await pane.unmount()
+})
+
+test('Start over: the first question, the draft gone for good', OPTIONS, async ($, on) => {
+  world(on, null, ACKED)
+  await $.session.start(SESSION)
+  await $.command.run(workout('setup'))
+  let pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...SETUP })
+  await threeAnswered(pane)
+  await pane.unmount()
+  await $.command.run(workout('setup'))
+  pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...SETUP })
+  await pane.press({ key: 'choice-2' })
+  expect((await setupRows(pane))[0]).toBe('How do you want to start?')
+  await pane.unmount()
+  await $.command.run(workout('setup'))
+  pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...SETUP })
+  expect((await setupRows(pane))[0]).toBe('How do you want to start?')
+  await pane.unmount()
+})
+
+test('the draft is stored after every answer, so it survives a reload; Start plan deletes it', OPTIONS, async ($, on) => {
+  const store = ownStore(on, ACKED)
+  world(on, null, 'own-store')
+  await $.session.start(SESSION)
+  await $.command.run(workout('setup'))
+  const pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...SETUP })
+  await threeAnswered(pane)
+  expect((store.get('setupDraft') as { state: { trail: string[] } } | undefined)?.state.trail.length).toBe(3)
+  await $.command.run(workout('setup'))
+  await pane.press({ key: 'choice-1' })
+  for (const key of SUMMARY_KEYS.slice(2)) await pane.press({ key })
+  await pane.press({ key: 'start-plan' })
+  expect(store.get('setupDraft')).toBeUndefined()
+  await pane.unmount()
+})
+
+test('a draft eight days old is dropped: setup starts fresh', OPTIONS, async ($, on) => {
+  const { clock } = world(on, null, ACKED)
+  await $.session.start(SESSION)
+  await $.command.run(workout('setup'))
+  let pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...SETUP })
+  await threeAnswered(pane)
+  await pane.unmount()
+  await clock.advance(8 * 86_400_000)
+  await $.command.run(workout('setup'))
+  pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...SETUP })
+  expect((await setupRows(pane))[0]).toBe('How do you want to start?')
+  await pane.unmount()
+})
+
+test('nothing answered, nothing kept: leaving the first question leaves no draft', OPTIONS, async ($, on) => {
+  world(on, null, ACKED)
+  await $.session.start(SESSION)
+  await $.command.run(workout('setup'))
+  await $.command.run(workout('setup'))
+  const pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...SETUP })
+  expect((await setupRows(pane))[0]).toBe('How do you want to start?')
   await pane.unmount()
 })

@@ -278,6 +278,8 @@ export type Talk = {
 
 export type SetupScreen =
   | 'safety'
+  /** A setup left part way, offered back: Resume or Start over. */
+  | 'resume'
   | 'start'
   | 'byo'
   | 'goal'
@@ -304,6 +306,8 @@ export type SetupState = {
   telemetry?: boolean
   /** Opened by Quick start: the safety step writes the starter plan. */
   isQuickStart: boolean
+  /** On the resume screen: the setup left part way, as it was. */
+  draft?: SetupState
 }
 
 /**
@@ -335,8 +339,6 @@ declare module 'claude-code' {
       setup: SetupState | null
       statusView: StatusView | null
       talk: Talk | null
-      /** The peek (hooks/peek.ts): his eyes above the prompt when nothing else is there, and its word. */
-      peek: { text: string; isNear: boolean; isDozing: boolean } | null
     }
   }
 }
