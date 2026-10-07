@@ -10,6 +10,7 @@
 
 import type { LineId } from './copy'
 import { hashUnit } from './portrait'
+import { MORE_CELEBRATIONS } from './celebrations-more'
 import type { BandSpec } from '../types'
 
 export type Celebration = {
@@ -51,6 +52,7 @@ export const CELEBRATIONS: readonly Celebration[] = [
   { id: 'raise-roof', kind: 'show', line: 'cel-raise-roof' },
   { id: 'chefs-kiss', kind: 'show', line: 'cel-chefs-kiss' },
   { id: 'fireworks', kind: 'show', line: 'cel-fireworks' },
+  ...MORE_CELEBRATIONS,
 ]
 
 /** One in this many offered fives is too slow, the first time. */

@@ -103,7 +103,7 @@ import {
 import { drawMicro, MICRO_HEIGHT, MICRO_WIDTH } from './figure'
 import { misreadOf, saysOf } from './misreads'
 import type { Misread } from './misreads'
-import { drawMove, GESTURES, moveById, moveForExercise, MOVES, poseAt } from './moves'
+import { DEMOS, drawMove, GESTURES, moveById, moveForExercise, MOVES, poseAt } from './moves'
 import type { Move } from './moves'
 import {
   encodeCells,
@@ -253,7 +253,7 @@ function artOf(outfit: Outfit | null): Art {
     sprite,
     frames,
     svgs: Object.fromEntries((Object.keys(sprite.frames) as (keyof Sprite['frames'])[]).map(name => [name, svgOf(sprite, name)])) as Art['svgs'],
-    moveCells: Object.fromEntries([...MOVES, ...GESTURES].map(move => [move.id, encodeMove(sprite, move.id, drawMove(move, sprite.outfit))])),
+    moveCells: Object.fromEntries([...MOVES, ...GESTURES, ...DEMOS].map(move => [move.id, encodeMove(sprite, move.id, drawMove(move, sprite.outfit))])),
     peekCells: Object.fromEntries(PEEK_POSES.map(pose => [pose, encodeCells(peekGrid(sprite, pose))])) as Art['peekCells'],
     breaths: new Map((['idle', 'flex', 'miniIdle'] as const).map(name => [frames[name], breathedIn(frames[name], name === 'miniIdle' ? sprite.miniSize : sprite.width)])),
     walkCells: new Map(),
@@ -283,7 +283,7 @@ function wear(outfit: Outfit | null) {
 const PORTRAIT_ROWS = SPRITE.height / 2
 /** The exercise moves drawn tiny, for beside a set (3 rows), encoded once per load. */
 const MICRO_CELLS: Record<string, string[]> = Object.fromEntries(
-  MOVES.filter(move => move.family === 'exercise').map(move => [move.id, encodeMicro(art.sprite, move.id, move.poses.map(drawMicro), MICRO_WIDTH, MICRO_HEIGHT)]),
+  [...MOVES, ...DEMOS].filter(move => move.family === 'exercise').map(move => [move.id, encodeMicro(art.sprite, move.id, move.poses.map(drawMicro), MICRO_WIDTH, MICRO_HEIGHT)]),
 )
 const MICRO_ROWS = MICRO_HEIGHT / 2
 

@@ -5,6 +5,11 @@
  */
 
 import type { Cue, LongTaskReason } from '../types'
+import { MORE_CELEBRATION_LINES } from './celebrations-more'
+import { EXISTING_DEMO_LINES } from './demos-existing'
+import { NEW_A_DEMO_LINES } from './demos-new-a'
+import { NEW_B_DEMO_LINES } from './demos-new-b'
+import { MORE_MOVE_LINES } from './moves-more'
 
 export const COACH_NAME = 'Swolomon'
 
@@ -696,6 +701,12 @@ export const LINES = [
   { id: 'cameo-big-greg', voice: 'swolomon', variants: ["That's Big Greg, {mate}. Shake number five.", 'Big Greg, {mate}. Looking for the shaker again.'] },
   { id: 'cameo-deadlift-doris', voice: 'swolomon', variants: ['Deadlift Doris, {mate}. Another PR, probably.', "Doris! Don't stare, {mate}. Doris is counting."] },
   { id: 'cameo-cardio-kevin', voice: 'swolomon', variants: ['Cardio Kevin, {mate}. Off the bike? A first.', 'Kevin, {mate}. Still warming up since Tuesday.'] },
+  // The files beside this one: exercise demos' form cues, more celebrations, more moves.
+  ...EXISTING_DEMO_LINES,
+  ...NEW_A_DEMO_LINES,
+  ...NEW_B_DEMO_LINES,
+  ...MORE_CELEBRATION_LINES,
+  ...MORE_MOVE_LINES,
 ] as const satisfies readonly LineEntry[]
 
 export type LineId = (typeof LINES)[number]['id']

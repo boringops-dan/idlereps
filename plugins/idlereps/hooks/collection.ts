@@ -6,6 +6,7 @@
  */
 
 import { MOVES } from './moves'
+import { MORE_UNLOCK_ORDER } from './moves-more'
 import type { Move } from './moves'
 
 /** His from day one, so the flex has something to show. */
@@ -43,6 +44,7 @@ export const UNLOCK_ORDER: readonly string[] = [
   'march',
   'stretch',
   'dead-bug',
+  ...MORE_UNLOCK_ORDER,
 ]
 
 /** Sets done by the k-th unlock (k from 1): 3, 6, 10, 15… one more set each time; the first set is its own reward. */
