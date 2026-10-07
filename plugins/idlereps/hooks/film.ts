@@ -128,6 +128,16 @@ function breathingRects(grid: Grid): string {
   ].join('')
 }
 
+/** One move looping, nothing else: a collected move's tile in the collection pane on the desktop. */
+export function moveFilmSvg(sprite: Sprite, id: string): string {
+  return filmSvg({ intro: [], loop: moveShots(sprite, id) }, sprite.width, sprite.height)
+}
+
+/** One grid, still: a locked move's dark shape, or a move's first pose with animation off. */
+export function stillSvg(grid: Grid, width: number, height: number): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" shape-rendering="crispEdges">${rectsOf(grid)}</svg>`
+}
+
 /** A band's film as an SVG under the engine's bound: fewer idle beats until it fits. */
 export function bandFilmSvg(opts: Parameters<typeof bandFilm>[0]): string {
   const side = opts.size === 'full' ? opts.sprite.width : opts.sprite.miniSize

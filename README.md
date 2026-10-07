@@ -180,7 +180,8 @@ jump when you finish a week, and tosses his laurel when you finish a program.
 
 **Collect his moves.** You start with three. Every set you do brings the next one closer: the first at
 3 sets, then one more set each time. When one unlocks, he performs it for you (`2` plays it again).
-`/workout flex` shows off the ones you have; `/workout moves` lists them. Not all of them are work: now
+`/workout flex` shows off the ones you have; `/workout moves` shows the collection: the ones you have,
+animated, and the ones to come as dark shapes. Not all of them are work: now
 and then he's caught on a pizza break, asleep on the job, gaming, scrolling, or on the beanbag, and
 snaps straight into a flex.
 
@@ -299,7 +300,7 @@ Other commands:
 | `/workout plan <text>` | Turn a plan described in plain words into your plan. |
 | `/workout remind` | Just remind me: no plan, a set of your choosing while your agent works. |
 | `/workout log` | Just remind me: log a set now. |
-| `/workout moves` | Swolomon's moves you've unlocked, and when the next one comes. |
+| `/workout moves` | Swolomon's moves: the ones you have, animated, and the ones to come. |
 | `/workout dontask` | Stop the first-run nudges. |
 | `/workout half` | The half version of today's workout: each exercise's sets halved. |
 | `/workout next-block` | Once the plan is done: the same plan again from workout 1, weights and reps kept. |

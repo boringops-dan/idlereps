@@ -103,9 +103,10 @@ import {
 import { drawMicro, MICRO_HEIGHT, MICRO_WIDTH } from './figure'
 import { misreadOf, saysOf } from './misreads'
 import type { Misread } from './misreads'
-import { drawMove, moveById, moveForExercise, movePlay, poseAt } from './moves'
+import { drawMove, moveById, moveForExercise, moveMs, movePlay, poseAt } from './moves'
 import type { Move } from './moves'
 import {
+  decodeCells,
   encodeCells,
   encodeMicro,
   encodeMove,
@@ -133,7 +134,7 @@ import {
   breathedIn,
   cameoGrid,
 } from './portrait'
-import { bandFilmSvg } from './film'
+import { bandFilmSvg, moveFilmSvg, stillSvg } from './film'
 import { callKind, expectedMs, learn } from './durations'
 import type { CallKind, CallTimes } from './durations'
 import { PEEK_AWAKE_MS, peekChangeIn, peekGrid, PEEK_POSES, peekText, PEEK_WIDTH } from './peek'
@@ -192,6 +193,7 @@ const talk = atom({ plugin: 'idlereps', key: 'talk' } as const, null)
 const peek = atom({ plugin: 'idlereps', key: 'peek' } as const, null)
 
 const SETUP_PANE = 'workout-setup'
+const MOVES_PANE = 'workout-moves'
 const STATUS_PANE = 'workout-status'
 /** The band, as a pane, where no attached surface draws the band above the prompt. */
 const BAND_PANE = 'workout-band'
@@ -297,6 +299,17 @@ function moveCellsOf(id: string): string[] | undefined {
 }
 
 const PORTRAIT_ROWS = SPRITE.height / 2
+
+/** A locked move's tile: its first pose as a dark shape, as idlereps.app draws the locked ones (#0d1130). */
+const SILHOUETTE = 0x0d1130
+const SILHOUETTE_CELLS = new Map<string, string>()
+function silhouetteCellsOf(id: string): string | undefined {
+  const first = moveCellsOf(id)?.[0]
+  if (first === undefined) return undefined
+  return cached(SILHOUETTE_CELLS, `${art.sprite.outfit?.id ?? ''}:${id}`, () =>
+    encodeCells(decodeCells(first, art.sprite.width).map(row => row.map(c => (c === null ? null : SILHOUETTE)))),
+  )
+}
 /** The exercise moves drawn tiny, for beside a set (3 rows), each encoded the first time it shows. */
 const MICRO_CELLS = new Map<string, string[]>()
 function microCellsOf(id: string): string[] | undefined {
@@ -316,7 +329,7 @@ function microMoveOf(spec: BandSpec): Move | undefined {
 /** The theme's own colours for each tone, so light and dark themes both read (muted is the dim style). */
 const TONE_COLOUR: Record<Exclude<Tone, 'muted'>, string> = { accent: 'warning', good: 'success', aside: 'suggestion' }
 
-type Owner = 'band' | 'turn' | 'session' | 'pane' | 'peek'
+type Owner = 'band' | 'turn' | 'session' | 'pane' | 'peek' | 'moves'
 
 /** Per-load state; a hot reload starts it over (timers go with the old environment). */
 const coach: {
@@ -409,6 +422,12 @@ const coach: {
   /** The first-run band was put off for this session (Not now). */
   isIntroDismissed: boolean
   isStatusOpen: boolean
+  /** The move collection pane (/workout moves): open, its page (-1: the page holding the next unlock, once its width is known), and what its tiles last drew. */
+  isMovesOpen: boolean
+  movesPage: number
+  movesTiles: Map<string, string>
+  /** The page the collection's timer plays, as `page:perRow:requestId`; null when none plays. */
+  movesPlaying: string | null
   /** The band's own pane is open (no attached surface draws the band above the prompt). */
   isBandPaneOpen: boolean
   /** The typewriter (§1.11): the run now playing, when it started, and its timeline. */
@@ -441,7 +460,7 @@ const coach: {
   home: '',
   planCache: null,
   brokenKey: null,
-  timers: { band: [], turn: [], session: [], pane: [], peek: [] },
+  timers: { band: [], turn: [], session: [], pane: [], peek: [], moves: [] },
   cueTimer: null,
   idleTimer: null,
   midnightTimer: null,
@@ -494,6 +513,10 @@ const coach: {
   deferred: null,
   isIntroDismissed: false,
   isStatusOpen: false,
+  isMovesOpen: false,
+  movesPage: -1,
+  movesTiles: new Map(),
+  movesPlaying: null,
   isBandPaneOpen: false,
   talkSeq: 0,
   talkStartedAt: 0,
@@ -2879,6 +2902,108 @@ async function closeStatus($: EngineInterface) {
   await $.ui.close({ id: STATUS_PANE })
 }
 
+// The move collection (owner, 2026-10-07: "show me what moves I've collected .. that's literally ON the
+// webpage"): /workout moves opens a pane of tiles as idlereps.app shows them, the moves they have playing,
+// the rest dark shapes.
+
+/** A tile: the sprite's width, two columns between; two tile rows to a page on the terminal. */
+const TILE_GAP = 2
+const TILE_ROWS_PER_PAGE = 2
+/** Header, a blank, two tile rows (8 for the sprite, 2 of text), a blank, the footer. */
+const MOVES_PANE_ROWS = 1 + 1 + TILE_ROWS_PER_PAGE * (PORTRAIT_ROWS + 2) + 1 + 1
+/** The collection's one timer: every playing tile moves on with it. */
+const MOVES_TICK_MS = 100
+/** How far apart, in their loops, neighbouring tiles start. */
+const TILE_STAGGER_MS = 700
+
+type MovesFacts = { day: number; order: string[]; have: Set<string>; next: string | undefined; toGo: number | null }
+
+async function movesFacts($: EngineInterface, day: number): Promise<MovesFacts> {
+  const unlocked = await load<string[]>($, 'moves', [])
+  const have = new Set(collected(unlocked).map(m => m.id))
+  const order = [...STARTER_MOVES, ...UNLOCK_ORDER]
+  return { day, order, have, next: order.find(id => !have.has(id)), toGo: setsToNext(await load($, 'totalDoneSets', 0), unlocked) }
+}
+
+/** How far to the next move, as the text reply and the pane's header both say it. */
+const movesNext = (toGo: number | null): string => (toGo === null ? 'All of them. Legend.' : `Next one in ${toGo} ${toGo === 1 ? 'set' : 'sets'}.`)
+
+/** /workout moves as text: where the pane cannot open, or there is no room for a tile. */
+async function movesReply($: EngineInterface, day: number): Promise<string> {
+  const facts = await movesFacts($, day)
+  const have = facts.order.filter(id => facts.have.has(id)).map(id => moveById(id)?.title ?? id)
+  return `${line('reply-moves', { day, n: facts.have.size, total: facts.order.length, next: movesNext(facts.toGo) })}\n${have.join(' · ')}`
+}
+
+/** The header of the collection pane. */
+const movesHeader = (facts: MovesFacts): string =>
+  `Moves ${facts.have.size} of ${facts.order.length}  ·  ${facts.toGo === null ? 'All of them. Legend.' : `next in ${facts.toGo} ${facts.toGo === 1 ? 'set' : 'sets'}`}`
+
+/** /workout moves: the collection pane; the text reply when it cannot open. */
+async function openMoves($: EngineInterface, day: number): Promise<string | null> {
+  coach.isMovesOpen = true
+  coach.movesPage = -1
+  stopMoves()
+  const opened = await $.ui.open({ id: MOVES_PANE, title: "Swolomon's moves", focus: true, closeOnEscape: true, rows: MOVES_PANE_ROWS }).catch(() => ({ isPlaced: false }))
+  if (opened.isPlaced) return null
+  coach.isMovesOpen = false
+  return movesReply($, day)
+}
+
+/** Its timer stopped and what it drew forgotten: closed, or a new page. */
+function stopMoves() {
+  cancelTimers('moves')
+  coach.movesPlaying = null
+  coach.movesTiles.clear()
+}
+
+/** Tiles per row at a width: 16 wide, two between, at least one. */
+const tilesPerRow = (bodyColumns: number): number => Math.max(1, Math.floor((bodyColumns + TILE_GAP) / (art.sprite.width + TILE_GAP)))
+
+/**
+ * The page's moves playing, each through its own beats on a loop, a little apart (by their place on the
+ * page) so they are not in step: one timer for the page, a blit only where a tile's pose changed.
+ */
+function playMoves($: EngineInterface, requestId: string, ids: readonly string[], key: string) {
+  if (coach.movesPlaying === key) return
+  stopMoves()
+  coach.movesPlaying = key
+  const tiles = ids.flatMap((id, i) => {
+    const move = moveById(id)
+    const cells = moveCellsOf(id)
+    return move === undefined || cells === undefined ? [] : [{ id, move, cells, offset: (i * TILE_STAGGER_MS) % moveMs(move) }]
+  })
+  let ms = 0
+  const tick = () => {
+    if (!coach.isMovesOpen) return stopMoves()
+    for (const tile of tiles) {
+      const pose = poseAt(tile.move, (ms + tile.offset) % moveMs(tile.move)) ?? 0
+      const cells = tile.cells[pose] ?? tile.cells[0]!
+      if (coach.movesTiles.get(tile.id) === cells) continue
+      coach.movesTiles.set(tile.id, cells)
+      void $.ui.blit({ requestId, key: `tile-${tile.id}`, cells, columns: art.sprite.width, rows: PORTRAIT_ROWS }).catch(() => undefined)
+    }
+    ms += MOVES_TICK_MS
+  }
+  ticker($, 'moves', MOVES_TICK_MS, tick)
+}
+
+/** `<` or `>` in the collection: the page before or after, its moves playing in place of the last's. */
+function turnMovesPage($: EngineInterface, by: number) {
+  coach.movesPage = Math.max(0, coach.movesPage + by)
+  stopMoves()
+  $.ui.invalidate('ui.render')
+}
+
+/** A collected move as a looping SVG for the desktop, and a still one (a locked move's dark shape), each made once per outfit. */
+const MOVE_FILMS = new Map<string, string>()
+const moveFilmOf = (id: string): string => cached(MOVE_FILMS, `${art.sprite.outfit?.id ?? ''}:film:${id}`, () => moveFilmSvg(art.sprite, id))
+const stillOf = (id: string, isLocked: boolean): string =>
+  cached(MOVE_FILMS, `${art.sprite.outfit?.id ?? ''}:${isLocked ? 'locked' : 'still'}:${id}`, () => {
+    const cells = isLocked ? silhouetteCellsOf(id) : moveCellsOf(id)?.[0]
+    return stillSvg(cells === undefined ? [] : decodeCells(cells, art.sprite.width), art.sprite.width, art.sprite.height)
+  })
+
 /** Give me a plan: the three ways to one. */
 async function offerProgram($: EngineInterface) {
   const day = await today($)
@@ -2904,6 +3029,15 @@ async function runAction($: EngineInterface, kind: ActionKind, id: string, surfa
 }
 
 async function answerAction($: EngineInterface, kind: ActionKind, id: string, surface: string): Promise<void> {
+  if (kind === 'moves') {
+    if (id === 'close') {
+      coach.isMovesOpen = false
+      stopMoves()
+      await $.ui.close({ id: MOVES_PANE })
+    }
+    else turnMovesPage($, id === 'prev' ? -1 : 1)
+    return
+  }
   if (kind === 'intro') {
     if (id === 'quickstart') await quickStart($)
     else if (id === 'keep') await keepPlan($)
@@ -3206,13 +3340,7 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
     if (move !== undefined && (await placeIfFree($, flexBand(day, move)))) return null
     return `${COACH_NAME}: ${line('flex', { day })}`
   }
-  if (arg === 'moves') {
-    const unlocked = await load<string[]>($, 'moves', [])
-    const toGo = setsToNext(await load($, 'totalDoneSets', 0), unlocked)
-    const next = toGo === null ? 'All of them. Legend.' : `Next one in ${toGo} ${toGo === 1 ? 'set' : 'sets'}.`
-    const have = collected(unlocked)
-    return `${line('reply-moves', { day, n: have.length, total: STARTER_MOVES.length + UNLOCK_ORDER.length, next })}\n${have.map(m => m.title).join(' · ')}`
-  }
+  if (arg === 'moves') return openMoves($, day)
   if (arg === 'protein' || arg === 'wisdom') return `${COACH_NAME}: ${line(arg, { day })}`
   // Hidden ones (owner, 2026-10-03: "found by word of mouth"): in no usage line, never tracked.
   // On a logged set, high five is that band's own button.
@@ -4103,6 +4231,113 @@ export const register: Register = (on, options) => {
         {rest}
       </Box>
     )
+  })
+
+  on('ui.render', { component: 'Pane', requestId: MOVES_PANE }, async ($, e) => {
+    const elements = $.ui.resolve(e)
+    const { Box, Button, Text } = elements
+    const facts = await movesFacts($, await today($))
+    const header = <Text key="header">{movesHeader(facts)}</Text>
+    const isTerminal = e.surface === 'terminal'
+    const width = art.sprite.width
+    // Too narrow for a tile: the text reply, as lines.
+    if ((isTerminal && (!('Raster' in elements) || e.props.bodyColumns < width)) || (!isTerminal && !('Svg' in elements))) {
+      const text = await movesReply($, facts.day)
+      return (
+        <Box flexDirection="column">
+          {text.split('\n').map((row, i) => (
+            <Text key={`reply-${i}`} wrap="wrap">
+              {row}
+            </Text>
+          ))}
+        </Box>
+      )
+    }
+    const perRow = tilesPerRow(e.props.bodyColumns)
+    const perPage = isTerminal ? perRow * TILE_ROWS_PER_PAGE : facts.order.length
+    const pages = Math.max(1, Math.ceil(facts.order.length / perPage))
+    if (coach.movesPage < 0) coach.movesPage = facts.next === undefined ? 0 : Math.floor(facts.order.indexOf(facts.next) / perPage)
+    coach.movesPage = Math.min(coach.movesPage, pages - 1)
+    const page = coach.movesPage
+    const ids = facts.order.slice(page * perPage, (page + 1) * perPage)
+    const truncated = (text: string) => (text.length > width ? `${text.slice(0, width - 1)}…` : text)
+    const tile = (id: string) => {
+      const isHave = facts.have.has(id)
+      const move = moveById(id)
+      const title = isHave ? (move?.title ?? id) : '???'
+      const note = isHave ? ' ' : id === facts.next && facts.toGo !== null ? `in ${facts.toGo} ${facts.toGo === 1 ? 'set' : 'sets'}` : 'locked'
+      let art_: unknown
+      if (isTerminal && 'Raster' in elements) {
+        const { Raster } = elements
+        const cells = isHave ? (coach.movesTiles.get(id) ?? moveCellsOf(id)?.[0] ?? '') : (silhouetteCellsOf(id) ?? '')
+        art_ = <Raster key={`tile-${id}`} columns={width} rows={PORTRAIT_ROWS} cells={cells} />
+      } else if ('Svg' in elements) {
+        const { Svg } = elements
+        const pixels = SVG_PIXELS.full * width
+        const source = isHave ? (coach.options.coachAnimation ? moveFilmOf(id) : stillOf(id, false)) : stillOf(id, true)
+        art_ = <Svg key={`tile-${id}`} source={source} alt={title} width={pixels} height={pixels} {...(isHave && coach.options.coachAnimation ? { isInteractive: true } : {})} />
+      }
+      return (
+        <Box key={`t-${id}`} flexDirection="column" width={width}>
+          {art_ as never}
+          <Text key={`title-${id}`}>{truncated(title)}</Text>
+          <Text key={`note-${id}`} dimColor>
+            {truncated(note)}
+          </Text>
+        </Box>
+      )
+    }
+    const rows: string[][] = []
+    for (let i = 0; i < ids.length; i += perRow) rows.push(ids.slice(i, i + perRow))
+    const grid = rows.map((row, r) => (
+      <Box key={`row-${r}`} flexDirection="row">
+        {row.map((id, i) => (
+          <Box key={`cell-${id}`} flexDirection="row">
+            {i > 0 && <Box key={`gap-${id}`} width={TILE_GAP} />}
+            {tile(id)}
+          </Box>
+        ))}
+      </Box>
+    ))
+    if (isTerminal && coach.options.coachAnimation) {
+      playMoves($, e.requestId, ids.filter(id => facts.have.has(id)), `${page}:${perRow}:${e.requestId}`)
+    }
+    // Previous only past the first page, Next only before the last; Close always (Esc closes it too).
+    const surface = e.surface
+    const numbered = (hotkey: string, label: string) =>
+      surface === 'terminal' ? ({ hotkey, label, plain: true } as const) : ({ hotkey, label: `${hotkey} · ${label}` } as const)
+    const footerIds = isTerminal ? [...(page > 0 ? ['prev'] : []), ...(page < pages - 1 ? ['next'] : []), 'close'] : ['close']
+    const footer = (
+      <Box key="footer">
+        {isTerminal && <Text key="page">{`Page ${page + 1} of ${pages}`}</Text>}
+        {footerIds.map((id, i) => {
+          const action = actionOf('moves', id)
+          return (
+            <Box key={`b-${id}`}>
+              {(isTerminal || i > 0) && <Text>   </Text>}
+              <Button key={id} {...numbered(action.hotkey, action.label)} onPress={() => runAction($, 'moves', id, surface)} />
+            </Box>
+          )
+        })}
+      </Box>
+    )
+    return (
+      <Box flexDirection="column">
+        {header}
+        <Text key="gap-top"> </Text>
+        {grid}
+        <Text key="gap-bottom"> </Text>
+        {footer}
+      </Box>
+    )
+  })
+
+  on('ui.close', async ($, e, next) => {
+    if (e.id === MOVES_PANE) {
+      coach.isMovesOpen = false
+      stopMoves()
+    }
+    return next(e)
   })
 
   on('ui.render', { component: 'Pane', requestId: SETUP_PANE }, async ($, e) => {

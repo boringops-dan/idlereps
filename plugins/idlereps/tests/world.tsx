@@ -117,7 +117,8 @@ export type World = {
 
 type Seed = Record<string, unknown> | 'own-store'
 /** `fresh`: someone Swolomon hasn't walked in yet; otherwise the store says onboarding and the safety note are behind them. */
-type WorldOptions = { legacy?: string; now?: number; surfaces?: RenderSurface[]; fresh?: true }
+/** `refuseOpen`: every pane the plugin opens is left unplaced, as on a terminal too narrow for it. */
+type WorldOptions = { legacy?: string; now?: number; surfaces?: RenderSurface[]; fresh?: true; refuseOpen?: true }
 
 /** Every question of Swolomon's asked, passed on. */
 export const ASKED = Object.fromEntries(QUESTIONS.map(q => [q.id, 'pass']))
@@ -198,7 +199,7 @@ export function world(on: On, plan: Plan | null, seed: Seed = {}, opts: WorldOpt
   on('ui.log', () => ({ value: undefined }))
   on('ui.open', ($, e) => {
     w.opened.push(e.id)
-    return { value: { isPlaced: true } }
+    return { value: opts.refuseOpen === true ? { isPlaced: false, reason: 'narrow' } : { isPlaced: true } }
   })
   on('ui.close', ($, e) => {
     w.closed.push(e.id)
@@ -309,6 +310,16 @@ const PANE_PROPS = {
 export const SETUP = { component: 'Pane', requestId: 'workout-setup', props: { ...PANE_PROPS, title: 'Set up IdleReps' } } as const
 /** The status pane, as a mount target. */
 export const STATUS = { component: 'Pane', requestId: 'workout-status', props: PANE_PROPS } as const
+/** The move collection pane (/workout moves), as a mount target. */
+export const COLLECTION = { component: 'Pane', requestId: 'workout-moves', props: { ...PANE_PROPS, title: "Swolomon's moves" } } as const
+
+/** The collection pane's rows as drawn on the terminal at `bodyColumns`, mounted and gone again. */
+export async function movesRows($: Engine, bodyColumns: number = PANE_PROPS.bodyColumns): Promise<string[]> {
+  const pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...COLLECTION, props: { ...COLLECTION.props, bodyColumns } })
+  const rows = drawnRows(await pane.drawn())
+  await pane.unmount()
+  return rows
+}
 
 /** The tally the plugin puts in the prompt footer (`💪 1/2`), or undefined when it shows none. */
 export async function tallyOf($: Engine): Promise<string | undefined> {

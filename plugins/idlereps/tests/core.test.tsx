@@ -192,6 +192,9 @@ test('ACTIONS is D11 for the bands and panes Phase A draws (with Replay: 1 Let\'
     'byo 1 Copy example',
     'byo b Back',
     'byo 0 Close',
+    'moves 1 < Previous',
+    'moves 2 Next >',
+    'moves 0 Close',
   ])
   // Hotkeys are unique on each band as drawn: the first-run band with and without a plan, every other kind whole.
   const kinds = [...new Set(ACTIONS.map(a => a.kind))]

@@ -4,7 +4,7 @@
  * every button has a command by construction. Pure data.
  */
 
-export type ActionKind = 'spotme' | 'prep' | 'question' | 'still' | 'unlock' | 'remindPane' | 'remind' | 'program' | 'byoplan' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex' | 'status' | 'safety' | 'byo'
+export type ActionKind = 'spotme' | 'prep' | 'question' | 'still' | 'unlock' | 'remindPane' | 'remind' | 'program' | 'byoplan' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex' | 'status' | 'safety' | 'byo' | 'moves'
 
 export type Action = {
   id: string
@@ -153,6 +153,10 @@ export const ACTIONS: readonly Action[] = [
   { kind: 'byo', id: 'copy', hotkey: '1', label: 'Copy example', isPrimary: true },
   { kind: 'byo', id: 'back', hotkey: 'b', label: 'Back' },
   { kind: 'byo', id: 'close', hotkey: '0', label: 'Close' },
+  // The move collection (/workout moves): its pages, then away.
+  { kind: 'moves', id: 'prev', hotkey: '1', label: '< Previous' },
+  { kind: 'moves', id: 'next', hotkey: '2', label: 'Next >', isPrimary: true },
+  { kind: 'moves', id: 'close', hotkey: '0', label: 'Close' },
 ]
 
 export function actionOf(kind: ActionKind, id: string): Action {

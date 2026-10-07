@@ -8,7 +8,7 @@ import { ADDRESS_TERMS, FEEDBACK_URL, line, LINES } from '../hooks/copy'
 import { START } from '../hooks/plan'
 import { nextTarget } from '../hooks/history'
 import { generateProgram, STARTER_ANSWERS } from '../hooks/programs'
-import { BAND, drawnRows, NOON, OPTIONS, ownStore, PLAN_PATH, SESSION, STATUS, TINY, TODAY, WEIGHTED, workout, world } from './world'
+import { BAND, COLLECTION, drawnRows, NOON, OPTIONS, ownStore, PLAN_PATH, SESSION, STATUS, textOf, TINY, TODAY, WEIGHTED, workout, world } from './world'
 
 /**
  * idlereps.app's claims about the Workout pane and the FAQ, each proved against the running plugin. A test
@@ -499,4 +499,16 @@ test('quiet hours keep it silent: no set, no reminder', { options: { ...OPTIONS.
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   expect(await ui.find({ key: 'start' })).toBeUndefined()
   await ui.unmount()
+})
+
+// "Collect Swolomon's moves. He starts with three." (idlereps.app #moves): the tiles the page shows, in the plugin.
+test('site: /workout moves shows the collection, three of his moves in hand on a fresh install', OPTIONS, async ($, on) => {
+  const { w } = world(on, TINY, { moves: [], totalDoneSets: 0 })
+  await $.session.start(SESSION)
+  await $.command.run(workout('moves'))
+  expect(w.opened).toContain('workout-moves')
+  const pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...COLLECTION })
+  const titled = await Promise.all([...STARTER_MOVES, ...UNLOCK_ORDER].map(async id => textOf(((await pane.find({ key: `t-${id}` })) as { children?: never[] } | undefined)?.children?.[1] ?? '')))
+  expect(titled.filter(t => t !== '' && t !== '???').length).toBe(3)
+  await pane.unmount()
 })

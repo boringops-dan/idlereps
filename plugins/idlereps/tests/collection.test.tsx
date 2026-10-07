@@ -2,8 +2,7 @@ import { expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
 import { collected, dueUnlock, setsForUnlock, setsToNext, STARTER_MOVES, UNLOCK_ORDER, unlocksEarned } from '../hooks/collection'
-import { line } from '../hooks/copy'
-import { BAND, drawnRows, OPTIONS, ownStore, SESSION, TINY, TODAY, workout, world } from './world'
+import { BAND, drawnRows, movesRows, OPTIONS, ownStore, SESSION, TINY, workout, world } from './world'
 
 /**
  * Swolomon's moves, collected (owner, 2026-10-03: "surprise me with something that's really gonna help
@@ -84,11 +83,13 @@ test('/workout flex shows only the moves they have', OPTIONS, async ($, on) => {
 })
 
 test('/workout moves: how many, the next one, and the ones they have', OPTIONS, async ($, on) => {
-  world(on, TINY, { moves: [UNLOCK_ORDER[0]], totalDoneSets: 4 })
+  const { w } = world(on, TINY, { moves: [UNLOCK_ORDER[0]], totalDoneSets: 4 })
   await $.session.start(SESSION)
-  const text = (await $.command.run(workout('moves'))).text ?? ''
-  expect(text).toContain(line('reply-moves', { day: TODAY, n: STARTER_MOVES.length + 1, total: STARTER_MOVES.length + UNLOCK_ORDER.length, next: 'Next one in 2 sets.' }))
-  expect(text).toContain('Kiss the gun')
+  expect((await $.command.run(workout('moves'))).text ?? '').toBe('')
+  expect(w.opened).toContain('workout-moves')
+  const rows = await movesRows($)
+  expect(rows[0]).toBe(`Moves ${STARTER_MOVES.length + 1} of ${STARTER_MOVES.length + UNLOCK_ORDER.length}  ·  next in 2 sets`)
+  expect(rows.some(row => row.includes('Kiss the gun'))).toBe(true)
 })
 
 test('Just remind me sets unlock moves too', OPTIONS, async ($, on) => {
