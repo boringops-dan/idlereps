@@ -4433,6 +4433,10 @@ export const register: Register = (on, options) => {
         ))}
         <Text key="space"> </Text>
         {controls}
+        {screen.more !== undefined && <Text key="more-space"> </Text>}
+        {(screen.more ?? []).map((text, i) => (
+          <Text key={`more-${i}`}>{text}</Text>
+        ))}
       </Box>
     )
   })

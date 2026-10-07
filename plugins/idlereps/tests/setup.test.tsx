@@ -4,8 +4,8 @@ import type { Plan } from '../types'
 import { line, SAFETY_SENTENCES, SAFETY_TEXT } from '../hooks/copy'
 import { parsePlan } from '../hooks/plan'
 import { generateProgram, STARTER_ANSWERS } from '../hooks/programs'
-import { BYO_COPY, EQUIPMENT_COPY, EXAMPLE_PLAN, START_COPY } from '../hooks/setup'
-import { BAND, NOON, OPTIONS, PLAN_PATH, SESSION, SETUP, TINY, TODAY, workout, world } from './world'
+import { BYO_COPY, EQUIPMENT_COPY, EXAMPLE_PLAN, newSetup, START_COPY, summaryOf } from '../hooks/setup'
+import { BAND, drawnRows, NOON, OPTIONS, PLAN_PATH, SESSION, SETUP, TINY, TODAY, workout, world } from './world'
 
 /** Setup and first run (plan §1.2, §1.5, Task 6). */
 
@@ -314,4 +314,88 @@ test('Don’t ask again holds across sessions', OPTIONS, async ($, on) => {
   expect(await band.find({ key: 'program' })).toBeUndefined()
   await band.unmount()
   expect(JSON.stringify(await $.command.run(workout('status')))).toMatch(/No plan yet/)
+})
+
+// ---------------------------------------------------------------------------------------------------------
+// A pane above the prompt grows only to a cap and cuts its last rows (owner, 2026-10-07: the summary's Start
+// plan was cut, so a finished questionnaire was never saved). The buttons come before anything long.
+
+/** Build it with me, every question answered with its first choice: the summary. */
+const SUMMARY_KEYS = ['choice-1', 'continue', 'choice-1', 'choice-1', 'choice-1', 'choice-1', 'choice-1', 'choice-1', 'choice-1', 'choice-1']
+
+/** The setup pane as drawn, row by row. */
+const setupRows = async (pane: { drawn: () => Promise<unknown> }) => drawnRows(await pane.drawn())
+const buttonRow = (rows: string[]) => rows.findIndex(row => /^\s*[0-9a-z]: /.test(row))
+
+test('the summary: the plan’s head, then Start plan, then the first workout and the notes', OPTIONS, async ($, on) => {
+  world(on, null, ACKED)
+  await $.session.start(SESSION)
+  await $.command.run(workout('setup'))
+  const pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...SETUP })
+  await pane.press({ key: 'choice-2' })
+  for (const key of SUMMARY_KEYS) await pane.press({ key })
+  const rows = await setupRows(pane)
+  const start = rows.findIndex(row => row.includes('1: Start plan'))
+  expect(rows[0]).toBe('Your plan')
+  expect(rows.slice(2, 4).map(row => row.split(':')[0])).toEqual(['Built for', 'Schedule'])
+  expect(start).toBe(5)
+  expect(rows.findIndex(row => row.startsWith('First workout:'))).toBeGreaterThan(start)
+  await pane.unmount()
+})
+
+test('the summary’s safety and failure notes come after its buttons, never above them', OPTIONS, async ($, on) => {
+  world(on, null, ACKED)
+  await $.session.start(SESSION)
+  await $.command.run(workout('setup'))
+  const pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...SETUP })
+  await pane.press({ key: 'choice-2' })
+  for (const key of SUMMARY_KEYS) await pane.press({ key })
+  const rows = await setupRows(pane)
+  const start = rows.findIndex(row => row.includes('1: Start plan'))
+  expect(rows.findIndex(row => row.includes(SAFETY_SENTENCES[0]!.slice(0, 30)))).toBeGreaterThan(start)
+  expect(rows.findIndex(row => row.startsWith('What happens next'))).toBeGreaterThan(start)
+  await pane.unmount()
+})
+
+test('every setup screen draws its buttons within its first eight rows', OPTIONS, async ($, on) => {
+  world(on, null, ACKED)
+  await $.session.start(SESSION)
+  await $.command.run(workout('setup'))
+  const pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...SETUP })
+  const seen: [string, number][] = []
+  const look = async () => {
+    const rows = await setupRows(pane)
+    seen.push([rows[0] ?? '', buttonRow(rows)])
+  }
+  await look()
+  await pane.press({ key: 'choice-2' })
+  for (const key of SUMMARY_KEYS) {
+    await look()
+    await pane.press({ key })
+  }
+  await look()
+  expect(seen.filter(([, at]) => at < 0 || at > 7)).toEqual([])
+  await pane.unmount()
+})
+
+test('the summary splits into a short head and the rest, the safety text last', () => {
+  const state = newSetup({ isSafetyAcknowledged: true, isQuickStart: false, answers: STARTER_ANSWERS, cueEvery: '15', idleReminder: 'off' })
+  const { head, rest } = summaryOf(state)
+  expect(head.length).toBe(3)
+  expect(head[0]).toBe(generateProgram(STARTER_ANSWERS).name)
+  expect(rest[0]).toMatch(/^First workout: /)
+  expect(rest.at(-1)).toBe(SAFETY_TEXT)
+})
+
+test('Start plan from the summary writes the plan the summary names', OPTIONS, async ($, on) => {
+  const { w } = world(on, null, ACKED)
+  await $.session.start(SESSION)
+  await $.command.run(workout('setup'))
+  const pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...SETUP })
+  await pane.press({ key: 'choice-2' })
+  for (const key of SUMMARY_KEYS) await pane.press({ key })
+  const named = (await setupRows(pane))[1]
+  await pane.press({ key: 'start-plan' })
+  expect(planWritten(w.writes)?.name).toBe(named)
+  await pane.unmount()
 })

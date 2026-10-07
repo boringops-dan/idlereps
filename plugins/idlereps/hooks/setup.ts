@@ -110,6 +110,12 @@ function withTemplate(state: SetupState, template: Answers['template']): SetupSt
 export type Screen = {
   title: string
   copy?: string[]
+  /**
+   * Drawn after the buttons. A pane above the prompt grows only to a cap, and what it cuts is its last rows
+   * (owner, 2026-10-07: the summary's Start plan was cut, so the plan was never saved): the buttons go above
+   * anything long, so a short pane cuts only this.
+   */
+  more?: string[]
   choices?: Choice[]
   /** The choice drawn as primary: the current answer, else the default. */
   primary?: number
@@ -312,27 +318,31 @@ export function screenOf(state: SetupState, planPath: string): Screen {
         primary: indexOr(shares, shares.findIndex(([telemetry]) => telemetry === state.telemetry)),
       }
     }
-    case 'summary':
-      return { title: 'Your plan', copy: summaryOf(state) }
+    case 'summary': {
+      const { head, rest } = summaryOf(state)
+      return { title: 'Your plan', copy: head, more: rest }
+    }
   }
 }
 
-/** The summary screen (Q11): the plan, what it is built for, the schedule, the first workout, what happens next. */
-export function summaryOf(state: SetupState): string[] {
+/**
+ * The summary screen (Q11): its head (the plan, what it is built for, the schedule) above Start plan, and the
+ * rest (the first workout, what happens next, the notes) below it.
+ */
+export function summaryOf(state: SetupState): { head: string[]; rest: string[] } {
   const plan = planOf(state)
   const first = plan.workouts[0]
   const sets = first === undefined ? [] : stepsOf(first)
-  const lines = [
-    plan.name,
-    `Built for: ${equipmentLabel(plan.builtFor)}`,
-    `Schedule: ${scheduleLabel(plan.schedule)}`,
-    `First workout: ${first?.name ?? ''}, ${sets.length} sets`,
-    ...(first?.exercises ?? []).map(ex => `  ${ex.name}: ${ex.reps} × ${ex.sets}`),
-    "What happens next: I'll ask once while your agent is working, then hand you one set at a time.",
-    FAILURE_TEXT,
-    SAFETY_TEXT,
-  ]
-  return lines
+  return {
+    head: [plan.name, `Built for: ${equipmentLabel(plan.builtFor)}`, `Schedule: ${scheduleLabel(plan.schedule)}`],
+    rest: [
+      `First workout: ${first?.name ?? ''}, ${sets.length} sets`,
+      ...(first?.exercises ?? []).map(ex => `  ${ex.name}: ${ex.reps} × ${ex.sets}`),
+      "What happens next: I'll ask once while your agent is working, then hand you one set at a time.",
+      FAILURE_TEXT,
+      SAFETY_TEXT,
+    ],
+  }
 }
 
 /** A new setup, at the safety step until it is acknowledged; Change plan starts from the plan's answers. */
