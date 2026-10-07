@@ -400,7 +400,7 @@ export function cueLineContext(cue: Cue, day: number, agentDoing: string): LineC
 /** The set band (§1.1 step 4): target pre-filled, last time beside it, the workout's sets as dots. */
 export function setBand(
   cue: Cue,
-  opts: { coach?: string; memory?: ExerciseMemory; showHint: boolean; hint: string },
+  opts: { coach?: string; memory?: ExerciseMemory; showHint: boolean; hint: string; isStarted?: boolean },
 ): BandSpec {
   const { exercise, planExercise } = cue
   const parts: BandPart[] = [
@@ -426,8 +426,9 @@ export function setBand(
     progress: { done: cue.step - 1, total: cue.stepCount },
     body: [parts],
     ...(extras.length === 0 ? {} : { extras }),
-    // A timed set gets the hold timer (§1.12 item 1).
-    actions: actionIdsOf('set').filter(id => id !== 'timer' || targetOf(exercise.reps)?.isTimed === true),
+    // Before Start: Start, Later, Not today; started: how it went.
+    actions: actionIdsOf(opts.isStarted === true ? 'doing' : 'set'),
+    ...(opts.isStarted === true ? { isStarted: true as const } : {}),
     cue,
   }
 }

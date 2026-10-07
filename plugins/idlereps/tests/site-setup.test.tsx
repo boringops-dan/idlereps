@@ -6,7 +6,7 @@ import { CELEBRATIONS, celebrationFor } from '../hooks/celebrate'
 import { STARTER_MOVES, UNLOCK_ORDER } from '../hooks/collection'
 import { parsePlan, setSeconds, targetOf, timeWords } from '../hooks/plan'
 import { generateProgram, OFFICE_REPLACED, STARTER_ANSWERS } from '../hooks/programs'
-import { ANIMATED, BAND, blitLog, cellsOf, drawnRows, movesRows, NOON, OPTIONS, ownStore, PLAN_PATH, SESSION, SETUP, TINY, workout, world } from './world'
+import { setShown, ANIMATED, BAND, blitLog, cellsOf, drawnRows, movesRows, NOON, OPTIONS, ownStore, PLAN_PATH, SESSION, SETUP, TINY, workout, world } from './world'
 
 /**
  * idlereps.app's claims about setup, plans, progression and Swolomon's moves, each proved against the
@@ -154,7 +154,7 @@ test('site: Quick start asks only where you train, then the first set is right t
   // No second question: the next thing up is the set itself.
   expect(await band.find({ key: 'start' })).toBeDefined()
   await band.press({ key: 'start' })
-  expect(await band.find({ key: 'done' })).toBeDefined()
+  expect(await setShown(band)).toBe(true)
   expect(drawnRows(await band.drawn()).some(r => /^Desk push-ups: 10 reps/.test(r))).toBe(true)
   await band.unmount()
 })

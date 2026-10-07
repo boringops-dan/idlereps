@@ -46,7 +46,7 @@ test('a later session opens quietly: no band until the agent is working', OPTION
   expect(nudged).toBe(true)
   expect(rows).toContain(line('nudge', { day: TODAY }))
   expect(rows).toContain(line('nudge-detail', { day: TODAY }))
-  expect(rows.at(-1)).toBe('1: Quick start   2: Just remind me   3: Build my own   4: Not now')
+  expect(rows.at(-1)).toBe('1: Quick start   2: Just remind me   3: Build my own   0: Not now')
 })
 
 test('the nudge leads straight into Quick start', OPTIONS, async ($, on) => {

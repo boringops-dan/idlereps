@@ -33,7 +33,7 @@ import type { RecordStore } from '../hooks/record'
 import { rankText } from '../hooks/status'
 import { SPRITE } from '../hooks/swolomon-sprite'
 import type { FrameName, MiniFrameName } from '../hooks/swolomon-sprite'
-import { ANIMATED, BAND, blitLog, cellsOf, drawnRows, mountAt, NOON, OPTIONS, PLAN_PATH, SESSION, STATUS, tallyOf, TINY, TODAY, workout, ownStore, world } from './world'
+import { setShown, answerSet, ANIMATED, BAND, blitLog, cellsOf, drawnRows, mountAt, NOON, OPTIONS, PLAN_PATH, SESSION, STATUS, tallyOf, TINY, TODAY, workout, ownStore, world } from './world'
 
 /** Swolomon as a character (plan §1.11, §1.13), and the first-run and status polish around him. */
 
@@ -302,9 +302,9 @@ test('the ask band and every set band draw the full portrait where it fits (each
   await short.unmount()
   await ui.press({ key: 'start' })
   expect(await head()).toBe(16)
-  await ui.press({ key: 'done' })
+  await answerSet(ui, 'done')
   await $.command.run(workout('now'))
-  expect(await ui.find({ key: 'done' })).toBeDefined()
+  expect(await setShown(ui)).toBe(true)
   expect(await head()).toBe(16)
   await ui.unmount()
 })
@@ -326,7 +326,7 @@ test('animated: the line types out while the buttons already work', ANIMATED, as
   expect(partial.length).toBeGreaterThan(0)
   expect(said.startsWith(partial)).toBe(true)
   // A press mid-line does its job at once.
-  await ui.press({ key: 'done' })
+  await answerSet(ui, 'done')
   expect(await tallyOf($)).toBe('💪 1/2')
   await ui.unmount()
 })
@@ -953,7 +953,7 @@ test('a regular shows on the first set after Start only', OPTIONS, async ($, on)
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   expect(await ui.find({ type: 'Text', text: line('regulars', { day: REGULARS_DAY }) })).toBeDefined()
-  await ui.press({ key: 'done' })
+  await answerSet(ui, 'done')
   await $.command.run(workout('now'))
   expect(await ui.find({ type: 'Text', text: line('regulars', { day: REGULARS_DAY }) })).toBeUndefined()
   await ui.unmount()
@@ -1067,8 +1067,8 @@ test('/workout flex during a set: the set stays, Swolomon answers in words, and 
   await $.command.run(workout('start'))
   expect((await $.command.run(workout('flex'))).text).toBe(`${COACH_NAME}: ${line('flex', { day: TODAY })}`)
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(await ui.find({ key: 'done' })).toBeDefined()
-  await ui.press({ key: 'done' })
+  expect(await setShown(ui)).toBe(true)
+  await answerSet(ui, 'done')
   expect(await ui.find({ key: 'nice' })).toBeUndefined()
   // Shown, it needs no reply: the band is the answer.
   expect((await $.command.run(workout('swolomon'))).text).toBeUndefined()
@@ -1081,7 +1081,7 @@ test('/workout swolomon during a set leaves the set alone', OPTIONS, async ($, o
   await $.command.run(workout('start'))
   expect((await $.command.run(workout('swolomon'))).text).toBe(line('reply-swolomon-busy', { day: TODAY }))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(await ui.find({ key: 'done' })).toBeDefined()
+  expect(await setShown(ui)).toBe(true)
   await ui.unmount()
 })
 
@@ -1097,7 +1097,7 @@ test('Quick start on a training day offers today’s workout at once', OPTIONS, 
   const cue = cueOn(generateProgram(STARTER_ANSWERS))
   expect(await ui.find({ type: 'Text', text: line('plan-ready-ask', { day: TODAY, workout: 'Full body A', n: cue.stepCount }) })).toBeDefined()
   await ui.press({ key: 'start' })
-  expect(await ui.find({ key: 'done' })).toBeDefined()
+  expect(await setShown(ui)).toBe(true)
   await ui.unmount()
 })
 
@@ -1114,7 +1114,7 @@ test('Quick start on a rest day: the plan, and a taste of it offered at once', O
   expect(w.toasts).toContain(line('quick-start', { day: TODAY + 1 }))
   // Try a set now: a set, on a rest day.
   await ui.press({ key: 'now' })
-  expect(await ui.find({ key: 'done' })).toBeDefined()
+  expect(await setShown(ui)).toBe(true)
   await ui.unmount()
 })
 
@@ -1200,10 +1200,10 @@ test('the first set ever: the logged line says what happens next, once ever', OP
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await ui.press({ key: 'done' })
+  await answerSet(ui, 'done')
   expect(await ui.find({ type: 'Text', text: line('first-logged', { day: TODAY }) })).toBeDefined()
   await $.command.run(workout('now'))
-  await ui.press({ key: 'done' })
+  await answerSet(ui, 'done')
   expect(await ui.find({ type: 'Text', text: line('first-logged', { day: TODAY }) })).toBeUndefined()
   await ui.unmount()
 })

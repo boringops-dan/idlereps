@@ -76,7 +76,7 @@ test('the ask band offers Just half while it is still open', OPTIONS, async ($, 
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   await $.turn.start({ text: 'go', turnId: 't1' })
   await clock.advance(30_000)
-  expect(drawnRows(await ui.drawn()).at(-1)).toBe('1: Start   2: Later   3: Not today   4: Just half')
+  expect(drawnRows(await ui.drawn()).at(-1)).toBe('1: Start   2: Later   0: Not today   3: Just half')
   await ui.unmount()
 })
 
@@ -174,7 +174,7 @@ test('Easy on a full workout: one bonus set at the new target; One more counts i
   expect(await ui.find({ type: 'Text', text: line('bonus-ask', { day: TODAY }) })).toBeDefined()
   const rows = drawnRows(await ui.drawn())
   expect(rows.some(row => /^Push-ups: 1[1-2] reps$/.test(row))).toBe(true)
-  expect(rows.at(-1)).toBe('1: One more   2: Done for today')
+  expect(rows.at(-1)).toBe('1: One more   0: Done for today')
   await ui.press({ key: 'bonus' })
   expect(store.get('totalDoneSets')).toBe(6)
   expect((store.get('history') as HistoryEntry[]).at(-1)).toMatchObject({ kind: 'set', exercise: 'Push-ups', result: 'done' })

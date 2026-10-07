@@ -84,7 +84,7 @@ test('a band that matters more is up: the hug is a line instead', OPTIONS, async
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   expect((await $.command.run(workout('hug'))).text).toMatch(/^Swolomon: (Bring it in|Hug accepted|Come here)/)
-  expect((await bandOf($)).keys).toContain('done')
+  expect((await bandOf($)).keys).toContain('all')
 })
 
 test('hidden: in no usage line', OPTIONS, async ($, on) => {

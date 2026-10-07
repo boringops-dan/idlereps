@@ -205,6 +205,8 @@ export type BandSpec = {
   entrance?: true
   /** Once his line is out, the move he acts out in the full portrait (§1.11 Moves; an id in moves.ts). */
   act?: string
+  /** A set they pressed Start on: its buttons ask how it went (the `doing` actions). */
+  isStarted?: true
   /**
    * The hold timer (§1.12 item 1) on a timed set: when it ends, the hold's seconds, which side of how
    * many, and the whole seconds left as last drawn.
@@ -327,6 +329,8 @@ declare module 'claude-code' {
   interface PluginState {
     idlereps: {
       band: BandSpec | null
+      /** A set or ask put away by a prompt, unanswered: it comes back at the next cue point (owner, 2026-10-07). */
+      parked: BandSpec | null
       pending: BandSpec[]
       setup: SetupState | null
       statusView: StatusView | null

@@ -7,7 +7,7 @@ import { line } from '../hooks/copy'
 import { misreadOf } from '../hooks/misreads'
 import { START } from '../hooks/plan'
 import { generateProgram, STARTER_ANSWERS } from '../hooks/programs'
-import { BAND, drawnRows, editPrompt, NOON, OPTIONS, ownStore, SESSION, STATUS, tallyOf, TODAY, typing, workout, world } from './world'
+import { setShown, answerSet, BAND, drawnRows, editPrompt, NOON, OPTIONS, ownStore, SESSION, STATUS, tallyOf, TODAY, typing, workout, world } from './world'
 
 /**
  * idlereps.app, its live demo and its FAQ, checked against the plugin itself: one test per claim the site
@@ -105,7 +105,7 @@ test('site: the ask for npm test: his timed line, the first set in words, the sa
   expect(rows).toContain(line('reason-long-run-timed', { day: TODAY, wait: 'about a minute' }))
   expect(rows).toContain('First up: Desk push-ups, 10 reps · about 45 s.')
   expect(rows).toContain(line('safety-short', { day: TODAY }))
-  expect(rows.at(-1)).toBe('1: Start   2: Later   3: Not today   4: Just half')
+  expect(rows.at(-1)).toBe('1: Start   2: Later   0: Not today   3: Just half')
 })
 
 test('site: the ask after a helper agent opens with the helpers line', OPTIONS, async ($, on) => {
@@ -149,7 +149,7 @@ test('site: while npm test runs, the spinner says his misreading of it', OPTIONS
 // ---------------------------------------------------------------------------------------------------------
 // 4. Start: the one-minute warm-up, then the set band.
 
-test('site: Start brings the one-minute warm-up (1 Done, 2 Skip) before a workout’s first set', WARM, async ($, on) => {
+test('site: Start brings the one-minute warm-up (1 Done, 0 Skip) before a workout’s first set', WARM, async ($, on) => {
   const { clock } = world(on, STARTER)
   await longTask($, clock, bash('npm test'))
   await clock.advance(5_000)
@@ -158,7 +158,7 @@ test('site: Start brings the one-minute warm-up (1 Done, 2 Skip) before a workou
   const rows = drawnRows(await ui.drawn())
   expect(rows).toContain(line('warmup', { day: TODAY }))
   expect(line('warmup', { day: TODAY })).toMatch(/minute|60 s/i)
-  expect(rows.at(-1)).toBe('1: Done   2: Skip')
+  expect(rows.at(-1)).toBe('1: Done   0: Skip')
   await ui.unmount()
 })
 
@@ -175,7 +175,8 @@ test('site: the set band: lead, workout, dots and set 1 of 6; his line; the set;
   expect(rows).toContain('Desk push-ups: 10 reps  (1/2)')
   expect(rows).toContain('↳ hands on the desk edge, body straight')
   expect(rows).toContain(line('hint', { day: TODAY }))
-  expect(rows.at(-1)).toBe('1: Done   2: Edit   3: Skip   4: Later')
+  // Started by the warm-up: how it went (owner, 2026-10-07: "START and then they can say how many they did").
+  expect(rows.at(-1)).toBe("1: All 10   2: Fewer   3: Couldn't do it")
   // He demonstrates the move: the portrait plays it (a Raster), not the name tag.
   expect(await ui.find({ type: 'Raster' })).toBeDefined()
   await ui.unmount()
@@ -190,7 +191,7 @@ test('site: Done logs it: the logged line, today’s count, the first-ever line,
   await clock.advance(5_000)
   const ui = await band($)
   await ui.press({ key: 'start' })
-  await ui.press({ key: 'done' })
+  await answerSet(ui, 'done')
   const rows = drawnRows(await ui.drawn())
   // The logged line carries its buttons on the same row.
   expect(rows).toContainEqual(expect.stringMatching(/^✓ Logged Desk push-ups 10 reps · 1 of 6 today {3}1: [A-Z][\w !-]+ {3}0: Undo$/))
@@ -204,7 +205,7 @@ test('site: Undo brings the set back with a during-set line, not the reason line
   await clock.advance(5_000)
   const ui = await band($)
   await ui.press({ key: 'start' })
-  await ui.press({ key: 'done' })
+  await answerSet(ui, 'done')
   await ui.press({ key: 'undo' })
   const rows = drawnRows(await ui.drawn())
   expect(rows).toContain('Desk push-ups: 10 reps  (1/2)')
@@ -222,7 +223,7 @@ test('site: Edit: 1 Save, 2 < reps, 3 reps >; a press steps one rep; Save logs t
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   const ui = await band($)
-  await ui.press({ key: 'edit' })
+  await answerSet(ui, 'edit')
   expect(drawnRows(await ui.drawn())).toContain('1: Save   2: < reps   3: reps >')
   await ui.press({ key: 'more' })
   expect(drawnRows(await ui.drawn()).join('\n')).toMatch(/\b11 reps\b/)
@@ -239,7 +240,7 @@ test('site: Skip: “✓ Skipped Desk push-ups · 1 of 6 today”, with 1 High f
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   const ui = await band($)
-  await ui.press({ key: 'skip' })
+  await answerSet(ui, 'skip')
   const rows = drawnRows(await ui.drawn())
   expect(rows).toContain('✓ Skipped Desk push-ups · 1 of 6 today   1: High five   0: Undo')
   await ui.unmount()
@@ -256,9 +257,9 @@ test('site: after a set, no next set inside 15 minutes, even with the agent stil
   await $.command.run(workout('done'))
   // The logged line goes by itself; the turn runs on.
   await clock.advance(14 * MIN)
-  expect(await keysOf($)).not.toContain('done')
+  expect(await keysOf($)).not.toContain('notoday')
   await clock.advance(2 * MIN)
-  expect(await keysOf($)).toContain('done')
+  expect(await keysOf($)).toContain('notoday')
 })
 
 // ---------------------------------------------------------------------------------------------------------
@@ -334,7 +335,7 @@ test('site: Not today: a toast naming the next training day; no more sets today;
   await $.tool.call(bash('npm test'))
   await clock.advance(2 * H)
   expect(await ui.find({ key: 'start' })).toBeUndefined()
-  expect(await ui.find({ key: 'done' })).toBeUndefined()
+  expect(await setShown(ui)).toBe(false)
   await ui.unmount()
 })
 
@@ -450,7 +451,7 @@ test('site: on a rest day, one optional stretch instead of sets', OPTIONS, async
 /** Today: the agent worked 2.5 hours this morning, nothing moved. */
 const SAT = { workIntervals: { [String(TODAY)]: [[NOON - 3 * H, NOON - H / 2]] } }
 
-test('site: two hours of agent work and nothing moved: stand up, 1 Stood up / 2 Later; Later just closes it, once a day', OPTIONS, async ($, on) => {
+test('site: two hours of agent work and nothing moved: stand up, 1 Stood up / 0 Later; Later just closes it, once a day', OPTIONS, async ($, on) => {
   const { clock, w } = world(on, STARTER, SAT)
   await $.session.start(SESSION)
   await $.turn.start({ text: 'go', turnId: 't1' })
@@ -459,7 +460,7 @@ test('site: two hours of agent work and nothing moved: stand up, 1 Stood up / 2 
   expect((await ui.findAll({ type: 'Button' })).map(b => String(b.key))).toEqual(['stood', 'later'])
   const rows = drawnRows(await ui.drawn())
   expect(rows).toContain(line('still-detail', { day: TODAY }))
-  expect(rows.at(-1)).toBe('1: Stood up   2: Later')
+  expect(rows.at(-1)).toBe('1: Stood up   0: Later')
   const toasts = w.toasts.length
   await ui.press({ key: 'later' })
   expect(await ui.find({ key: 'stood' })).toBeUndefined()
@@ -481,10 +482,9 @@ test('site: every button carries its number as its hotkey, drawn as “N: Label�
   const ui = await band($)
   const buttons = await ui.findAll({ type: 'Button' })
   expect(buttons.map(b => [String(b.key), b.props.hotkey])).toEqual([
-    ['done', '1'],
-    ['edit', '2'],
-    ['skip', '3'],
-    ['later', '4'],
+    ['all', '1'],
+    ['fewer', '2'],
+    ['couldnt', '3'],
   ])
   await ui.unmount()
 })

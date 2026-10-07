@@ -8,7 +8,7 @@ import { dayNumberOf, START, startOfDayMs, stepsOf } from '../hooks/plan'
 import { generateProgram, STARTER_ANSWERS } from '../hooks/programs'
 import { isNewBest } from '../hooks/record'
 import { addInterval, formatDuration, shareLine, workedMs } from '../hooks/worktime'
-import { BAND, drawnRows, NOON, OPTIONS, PLAN_PATH, SESSION, STATUS, TINY, TODAY, workout, ownStore, world } from './world'
+import { setShown, BAND, drawnRows, NOON, OPTIONS, PLAN_PATH, SESSION, STATUS, TINY, TODAY, workout, ownStore, world } from './world'
 
 /** The rest of Phase B: the warm-up, the end of a block, your data, sharing the week. */
 
@@ -27,9 +27,9 @@ test('Start: the warm-up first, then Done shows the first set at once, Swolomonâ
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   expect(drawnRows(await ui.drawn())).toContain(line('warmup', { day: TODAY }))
-  expect(drawnRows(await ui.drawn()).at(-1)).toBe('1: Done   2: Skip')
+  expect(drawnRows(await ui.drawn()).at(-1)).toBe('1: Done   0: Skip')
   await ui.press({ key: 'warmed' })
-  expect(await ui.find({ key: 'done' })).toBeDefined()
+  expect(await setShown(ui)).toBe(true)
   expect(drawnRows(await ui.drawn()).some(row => row.startsWith('Swolomon') || row.includes('Push-ups'))).toBe(true)
   await ui.unmount()
 })
@@ -41,7 +41,7 @@ test('Skip the warm-up: the first set at once, and nothing recorded', WARM, asyn
   await $.command.run(workout('start'))
   await $.command.run(workout('skipwarmup'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(await ui.find({ key: 'done' })).toBeDefined()
+  expect(await setShown(ui)).toBe(true)
   expect(store.get('history')).toBeUndefined()
   await ui.unmount()
 })
@@ -76,7 +76,7 @@ test('the warm-up turned off: Start is the set', OPTIONS, async ($, on) => {
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   expect(await ui.find({ key: 'warmed' })).toBeUndefined()
-  expect(await ui.find({ key: 'done' })).toBeDefined()
+  expect(await setShown(ui)).toBe(true)
   await ui.unmount()
 })
 

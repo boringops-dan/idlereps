@@ -9,7 +9,7 @@ import { advance, cueFor, parseLegacyPlan, parsePlan, START, stepCount, stepsOf,
 import { generateProgram, STARTER_ANSWERS } from '../hooks/programs'
 import { isTrainingDay } from '../hooks/schedule'
 import type { Plan } from '../types'
-import { BAND, OPTIONS, SESSION, TINY, TODAY, WEIGHTED, workout, world } from './world'
+import { setShown, answerSet, BAND, OPTIONS, SESSION, TINY, TODAY, WEIGHTED, workout, world } from './world'
 
 /** The prototype's tests, on the v1 plan shape (plan §6 Task 2: fixtures, setup and copy changed; behaviour kept). */
 
@@ -47,7 +47,7 @@ test('a set is cued once Claude has worked startAfterSeconds, and Done advances'
 
   for (const surface of ['terminal', 'desktop'] as const) {
     const quiet = await $.ui.mount({ plugin: 'idlereps', surface, ...BAND })
-    expect(await quiet.find({ key: 'done' })).toBeUndefined()
+    expect(await setShown(quiet)).toBe(false)
     await quiet.unmount()
   }
 
@@ -56,7 +56,7 @@ test('a set is cued once Claude has worked startAfterSeconds, and Done advances'
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ plugin: 'idlereps', surface, ...BAND })
     expect(await ui.find({ type: 'Text', text: 'First up: Push-ups, 10 reps · about 45 s.' })).toBeDefined()
-    expect(await ui.find({ key: 'done' })).toBeUndefined()
+    expect(await setShown(ui)).toBe(false)
     await ui.unmount()
   }
 
@@ -64,13 +64,13 @@ test('a set is cued once Claude has worked startAfterSeconds, and Done advances'
   await ui.press({ key: 'start' })
   expect(await ui.find({ type: 'Text', text: /Push-ups: 10 reps/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /set 1 of 2/ })).toBeDefined()
-  await ui.press({ key: 'done' })
+  await answerSet(ui, 'done')
   expect(JSON.stringify(await $.command.run(workout('status')))).toMatch(/set 2 of 2/)
-  expect(await ui.find({ key: 'done' })).toBeUndefined()
+  expect(await setShown(ui)).toBe(false)
 
   // The next set waits out the 15-minute gap, even while the turn still runs.
   await clock.advance(14 * 60_000)
-  expect(await ui.find({ key: 'done' })).toBeUndefined()
+  expect(await setShown(ui)).toBe(false)
   await clock.advance(60_000)
   expect(await ui.find({ type: 'Text', text: /set 2 of 2/ })).toBeDefined()
   await ui.unmount()
@@ -84,7 +84,7 @@ test('Later hides the cue for the rest of the turn without advancing', OPTIONS, 
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   await ui.press({ key: 'later' })
   await clock.advance(120_000)
-  expect(await ui.find({ key: 'done' })).toBeUndefined()
+  expect(await setShown(ui)).toBe(false)
   expect(JSON.stringify(await $.command.run(workout('status')))).toMatch(/Workout 1 of 2 \(A\), set 1 of 2/)
   await ui.unmount()
 })
@@ -96,7 +96,7 @@ test('a short turn shows nothing, and a rest day stays quiet', OPTIONS, async ($
   await $.turn.start({ text: 'go', turnId: 't1' })
   await clock.advance(60_000)
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(await ui.find({ key: 'done' })).toBeUndefined()
+  expect(await setShown(ui)).toBe(false)
   expect(await ui.find({ key: 'start' })).toBeUndefined()
   expect(JSON.stringify(await $.command.run(workout('status')))).toMatch(/rest day/)
   await $.command.run(workout('today'))
@@ -119,7 +119,7 @@ test('/workout done records the showing set and hides the band', OPTIONS, async 
   expect(JSON.stringify(said)).toMatch(/Set done/)
   expect(JSON.stringify(await $.command.run(workout('status')))).toMatch(/set 2 of 2/)
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(await ui.find({ key: 'done' })).toBeUndefined()
+  expect(await setShown(ui)).toBe(false)
   await ui.unmount()
 })
 
@@ -146,7 +146,7 @@ test('/workout later hides the band without advancing and holds through the turn
   expect(JSON.stringify(await $.command.run(workout('later')))).toMatch(/Hidden/)
   await clock.advance(120_000)
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(await ui.find({ key: 'done' })).toBeUndefined()
+  expect(await setShown(ui)).toBe(false)
   await ui.unmount()
   expect(JSON.stringify(await $.command.run(workout('status')))).toMatch(/set 1 of 2/)
 })
@@ -158,8 +158,8 @@ test('pressing Done on the band advances on every surface', OPTIONS, async ($, o
     await $.command.run(workout('reset'))
     await $.command.run(workout('now'))
     const ui = await $.ui.mount({ plugin: 'idlereps', surface, ...BAND })
-    await ui.press({ key: 'done' })
-    expect(await ui.find({ key: 'done' })).toBeUndefined()
+    await answerSet(ui, 'done')
+    expect(await setShown(ui)).toBe(false)
     await ui.unmount()
     expect(JSON.stringify(await $.command.run(workout('status')))).toMatch(/set 2 of 2/)
   }
@@ -170,10 +170,9 @@ test('every band button shows its number on every surface', OPTIONS, async ($, o
   await $.session.start(SESSION)
   await $.command.run(workout('now'))
   const buttons = [
-    ['done', '1', 'Done'],
-    ['edit', '2', 'Edit'],
-    ['skip', '3', 'Skip'],
-    ['later', '4', 'Later'],
+    ['all', '1', 'All 10'],
+    ['fewer', '2', 'Fewer'],
+    ['couldnt', '3', "Couldn't do it"],
   ] as const
   for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
     const ui = await $.ui.mount({ plugin: 'idlereps', surface, ...BAND })
@@ -181,7 +180,7 @@ test('every band button shows its number on every surface', OPTIONS, async ($, o
       const button = await ui.find({ key })
       expect(button?.props.hotkey).toBe(hotkey)
       if (surface === 'terminal') {
-        // A plain terminal Button is drawn `1: Done`: hotkey, colon, label.
+        // A plain terminal Button is drawn `1: All 10`: hotkey, colon, label.
         expect(button?.props.plain).toBe(true)
         expect(button?.props.label).toBe(label)
       } else {
@@ -201,7 +200,7 @@ test('a new turn inside the gap stays quiet, and cues once the gap has passed', 
 
   await $.turn.start({ text: 'next', turnId: 't2' })
   await clock.advance(10 * 60_000)
-  expect(await ui.find({ key: 'done' })).toBeUndefined()
+  expect(await setShown(ui)).toBe(false)
 
   await clock.advance(5 * 60_000)
   expect(await ui.find({ type: 'Text', text: /set 2 of 2/ })).toBeDefined()
@@ -217,9 +216,9 @@ test('a turn that starts after the gap still waits the warm-up first', OPTIONS, 
   await $.turn.start({ text: 'later on', turnId: 't3' })
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   await clock.advance(20_000)
-  expect(await ui.find({ key: 'done' })).toBeUndefined()
+  expect(await setShown(ui)).toBe(false)
   await clock.advance(10_000)
-  expect(await ui.find({ key: 'done' })).toBeDefined()
+  expect(await setShown(ui)).toBe(true)
   await ui.unmount()
 })
 
@@ -233,7 +232,7 @@ test('Later holds across turns for the whole gap', OPTIONS, async ($, on) => {
     await $.turn.start({ text: 'go', turnId })
     await clock.advance(4 * 60_000)
   }
-  expect(await ui.find({ key: 'done' })).toBeUndefined()
+  expect(await setShown(ui)).toBe(false)
   await $.turn.start({ text: 'go', turnId: 'd' })
   await clock.advance(4 * 60_000)
   expect(await ui.find({ type: 'Text', text: /set 1 of 2/ })).toBeDefined()
@@ -273,7 +272,7 @@ test('Not today silences the rest of the day, across turns', OPTIONS, async ($, 
     await clock.advance(30 * 60_000)
   }
   expect(await ui.find({ key: 'start' })).toBeUndefined()
-  expect(await ui.find({ key: 'done' })).toBeUndefined()
+  expect(await setShown(ui)).toBe(false)
   await ui.unmount()
 })
 
@@ -311,7 +310,8 @@ test('once started today, later sets come without asking again', OPTIONS, async 
   await $.turn.start({ text: 'go', turnId: 't1' })
   await clock.advance(15 * 60_000)
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(await ui.find({ key: 'start' })).toBeUndefined()
+  // The set itself (its own Start), not the ask (whose Not today is `no`).
+  expect(await ui.find({ key: 'no' })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: /set 2 of 2/ })).toBeDefined()
   await ui.unmount()
 })
@@ -323,7 +323,7 @@ test('the question shows numbered buttons on every surface, and done/skip refuse
   await clock.advance(30_000)
   for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
     const ui = await $.ui.mount({ plugin: 'idlereps', surface, ...BAND })
-    for (const [key, hotkey, label] of [['start', '1', 'Start'], ['later', '2', 'Later'], ['no', '3', 'Not today']] as const) {
+    for (const [key, hotkey, label] of [['start', '1', 'Start'], ['later', '2', 'Later'], ['no', '0', 'Not today']] as const) {
       const button = await ui.find({ key })
       expect(button?.props.hotkey).toBe(hotkey)
       expect(button?.props.label).toBe(surface === 'terminal' ? label : `${hotkey} · ${label}`)
@@ -340,7 +340,8 @@ test('Later on a set mid-turn brings the same set back when the cooldown ends', 
   await $.turn.start({ text: 'go', turnId: 't1' })
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await ui.press({ key: 'later' })
+  // Started by the ask, the set asks how it went; Later is its command.
+  await $.command.run(workout('later'))
   await clock.advance(15 * 60_000)
   expect(await ui.find({ type: 'Text', text: /set 1 of 2/ })).toBeDefined()
   await ui.unmount()
@@ -398,7 +399,7 @@ test('Later after Not today never brings the question back today', OPTIONS, asyn
   await clock.advance(60 * 60_000)
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   expect(await ui.find({ key: 'start' })).toBeUndefined()
-  expect(await ui.find({ key: 'done' })).toBeUndefined()
+  expect(await setShown(ui)).toBe(false)
   await ui.unmount()
 })
 
@@ -407,7 +408,7 @@ test('Done opens a stepper at the target; < and > adjust it; Save records it', O
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   const first = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await first.press({ key: 'edit' })
+  await answerSet(first, 'edit')
   await first.unmount()
   for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
     const ui = await $.ui.mount({ plugin: 'idlereps', surface, ...BAND })
@@ -488,7 +489,7 @@ test('a target with no number is recorded straight from Done, without asking', O
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await ui.press({ key: 'done' })
+  await answerSet(ui, 'done')
   expect(await ui.find({ type: 'Text', text: /how many/ })).toBeUndefined()
   await ui.unmount()
   expect(JSON.stringify(await $.command.run(workout('status')))).toMatch(/set 2 of 2/)
@@ -515,7 +516,7 @@ test('a stale band (set already recorded in another session) clears without reco
   store.set('progress', { ...START, done: 1 })
 
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await ui.press({ key: 'skip' })
+  await answerSet(ui, 'skip')
   expect(await ui.find({ key: 'skip' })).toBeUndefined()
   await ui.unmount()
   expect(store.get('progress')).toEqual({ ...START, done: 1 })
@@ -527,7 +528,7 @@ test('a weighted exercise adds a weight stepper starting at its start weight', O
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await ui.press({ key: 'edit' })
+  await answerSet(ui, 'edit')
   expect(await ui.find({ type: 'Text', text: 'at 8 kg' })).toBeDefined()
   expect((await ui.find({ key: 'lighter' }))?.props.hotkey).toBe('4')
   expect((await ui.find({ key: 'heavier' }))?.props.hotkey).toBe('5')
@@ -547,7 +548,7 @@ test('the next set of a weighted exercise starts at the weight used last', OPTIO
   await $.command.run(workout('done 10 12'))
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await ui.press({ key: 'edit' })
+  await answerSet(ui, 'edit')
   expect(await ui.find({ type: 'Text', text: 'at 12 kg' })).toBeDefined()
   await ui.unmount()
 })
@@ -585,7 +586,7 @@ test('Done logs the set as prescribed in one key, weight included, and shows it 
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   expect(await ui.find({ type: 'Text', text: /Goblet squats: 10 reps @ 8 kg/ })).toBeDefined()
-  await ui.press({ key: 'done' })
+  await answerSet(ui, 'done')
   expect(await ui.find({ type: 'Text', text: /✓ Logged Goblet squats 10 reps @ 8 kg/ })).toBeDefined()
   expect((await ui.find({ key: 'undo' }))?.props.hotkey).toBe('0')
   await ui.unmount()
@@ -612,7 +613,7 @@ test('Undo puts the set back exactly: progress, log, weight memory and cooldown'
   await $.turn.start({ text: 'go', turnId: 't9' })
   await clock.advance(30_000)
   const again = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(await again.find({ key: 'done' })).toBeDefined()
+  expect(await setShown(again)).toBe(true)
   await again.unmount()
 })
 
@@ -777,7 +778,7 @@ test('a strong sign inside the cooldown still waits for the cooldown to end', OP
   await $.tool.call({ tool: 'Bash', command: 'npm test' })
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   await clock.advance(10 * 60_000)
-  expect(await ui.find({ key: 'done' })).toBeUndefined()
+  expect(await setShown(ui)).toBe(false)
   await clock.advance(5 * 60_000)
   expect(await ui.find({ type: 'Text', text: /set 2 of 2/ })).toBeDefined()
   await ui.unmount()

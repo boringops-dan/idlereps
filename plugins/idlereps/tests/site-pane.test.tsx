@@ -8,7 +8,7 @@ import { ADDRESS_TERMS, FEEDBACK_URL, line, LINES } from '../hooks/copy'
 import { START } from '../hooks/plan'
 import { nextTarget } from '../hooks/history'
 import { generateProgram, STARTER_ANSWERS } from '../hooks/programs'
-import { BAND, COLLECTION, drawnRows, NOON, OPTIONS, ownStore, PLAN_PATH, SESSION, STATUS, textOf, TINY, TODAY, WEIGHTED, workout, world } from './world'
+import { setShown, answerSet, BAND, COLLECTION, drawnRows, NOON, OPTIONS, ownStore, PLAN_PATH, SESSION, STATUS, textOf, TINY, TODAY, WEIGHTED, workout, world } from './world'
 
 /**
  * idlereps.app's claims about the Workout pane and the FAQ, each proved against the running plugin. A test
@@ -212,8 +212,8 @@ test('the turn summary: · 1 set while you waited 💪 (a long turn with no tool
   await clock.advance(31_000)
   expect(await band.find({ key: 'start' })).toBeDefined()
   await band.press({ key: 'start' })
-  expect(await band.find({ key: 'done' })).toBeDefined()
-  await band.press({ key: 'done' })
+  expect(await setShown(band)).toBe(true)
+  await answerSet(band, 'done')
   expect(drawnRows(await band.drawn()).some(row => row.includes('✓ Logged Push-ups'))).toBe(true)
   await band.unmount()
   await $.turn.complete({ turnId: 't1', answer: '', reason: 'answer', durationMs: 372_000, isAborted: false } as never)
@@ -437,7 +437,7 @@ test('VS Code: sets open in their own IdleReps panel', OPTIONS, async ($, on) =>
   await $.command.run(workout('start'))
   expect(w.opened).toContain('workout-band')
   const pane = await $.ui.mount({ plugin: 'idlereps', surface: 'vscode', component: 'Pane', requestId: 'workout-band', props: { ...STATUS.props } })
-  expect(await pane.find({ key: 'done' })).toBeDefined()
+  expect(await setShown(pane)).toBe(true)
   await pane.unmount()
 })
 
@@ -447,7 +447,7 @@ test('the desktop app: buttons click, and Swolomon is a picture', OPTIONS, async
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'desktop', ...BAND })
   expect(await ui.find({ type: 'Svg' })).toBeDefined()
-  await ui.press({ key: 'done' })
+  await answerSet(ui, 'done')
   await ui.unmount()
   expect(JSON.stringify(await $.command.run(workout('status')))).toMatch(/set 2 of 2/)
 })
@@ -457,8 +457,8 @@ test('the terminal: with the prompt empty, the button’s number presses it', OP
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  const done = await ui.find({ key: 'done' })
-  expect([done?.props.hotkey, done?.props.label]).toEqual(['1', 'Done'])
+  const all = await ui.find({ key: 'all' })
+  expect([all?.props.hotkey, all?.props.label]).toEqual(['1', 'All 10'])
   await ui.unmount()
 })
 

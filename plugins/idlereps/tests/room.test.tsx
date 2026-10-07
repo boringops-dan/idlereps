@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
 import { line } from '../hooks/copy'
-import { BAND, OPTIONS, SESSION, TINY, TODAY, workout, world } from './world'
+import { setShown, BAND, OPTIONS, SESSION, TINY, TODAY, workout, world } from './world'
 
 /**
  * Room for Swolomon (owner, 2026-10-06): the full portrait wherever it fits; and where only the window's
@@ -85,7 +85,7 @@ test('a band with no portrait at all (a silent set, Quiet) never asks where he i
   await $.command.run(workout('done'))
   await $.command.run(workout('now'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...at({ bodyColumns: 30 }) })
-  expect(await ui.find({ key: 'done' })).toBeDefined()
+  expect(await setShown(ui)).toBe(true)
   await ui.unmount()
   expect(said(w.toasts)).toBe(0)
 })

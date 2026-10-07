@@ -590,6 +590,7 @@ export const LINES = [
   { id: 'rescheduled', voice: 'plain', variants: ['Moved: {from} is now {to}.'] },
   { id: 'safety-header', voice: 'plain', variants: ['Before your first set'] },
   { id: 'hint', voice: 'plain', variants: ['Press a number with an empty prompt, or /workout done.'] },
+  { id: 'hint-start', voice: 'plain', variants: ['Press a number with an empty prompt, or /workout start.'] },
   { id: 'edit-question', voice: 'plain', variants: ['{exercise}: how did it go?'] },
   { id: 'edit-typed', voice: 'plain', variants: ['Or type /workout done and the reps.'] },
   { id: 'edit-typed-weight', voice: 'plain', variants: ['Or type /workout done and the reps and weight.'] },

@@ -27,7 +27,7 @@ import type { LineId } from '../hooks/copy'
 import { RANKS } from '../hooks/history'
 import { PORTRAIT_GAP } from '../hooks/portrait'
 import { LIBRARY } from '../hooks/programs'
-import { BAND, NOON, OPTIONS, SESSION, SETUP, speaks, STATUS, tallyOf, TINY, TODAY, WEIGHTED, workout, world, ownStore } from './world'
+import { setShown, answerSet, BAND, NOON, OPTIONS, SESSION, SETUP, speaks, STATUS, tallyOf, TINY, TODAY, WEIGHTED, workout, world, ownStore } from './world'
 
 /** Swolomon's voice and the line registry (plan §1.10 to §1.10c, §1.13.2, D22, Task 15). */
 
@@ -318,7 +318,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.press({ key: 'start' })
     expect(['set speaking', await rows()]).toEqual(['set speaking', 7])
     // Edit: question · values · buttons · typed hint.
-    await ui.press({ key: 'edit' })
+    await answerSet(ui, 'edit')
     expect(['edit', await rows()]).toEqual(['edit', 5])
     await ui.press({ key: 'save' })
     // The first set ever adds one row: what happens next; and his celebration above it (owner, 2026-10-06).
@@ -327,11 +327,11 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await $.command.run(workout('now'))
     // Later sets have his line too now (owner, 2026-10-06): one row more.
     expect(['set, later', await rows()]).toEqual(['set, later', 6])
-    await ui.press({ key: 'skip' })
+    await answerSet(ui, 'skip')
     expect(['logged after a skip', await rows()]).toEqual(['logged after a skip', 2])
     await $.command.run(workout('now'))
     expect(['set, later', await rows()]).toEqual(['set, later', 6])
-    await ui.press({ key: 'done' })
+    await answerSet(ui, 'done')
     // The plan's one week-8 workout: finishing it crosses the week's finish line, a tall band (§1.10b).
     expect(['rating, week done', (await rows()) <= 8]).toEqual(['rating, week done', true])
     await ui.unmount()
@@ -345,7 +345,7 @@ test('a silent set band (Quiet) without the note or hint is 4 rows, the blank ab
   await $.command.run(workout('done'))
   await $.command.run(workout('now'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(await ui.find({ key: 'done' })).toBeDefined()
+  expect(await setShown(ui)).toBe(true)
   expect(rowsOf(await ui.drawn())).toBe(4)
   await ui.unmount()
 })
@@ -380,7 +380,7 @@ test('/workout now after today was started: his set line, not the Start line; Qu
   await $.session.start(SESSION)
   await $.command.run(workout('now'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(await ui.find({ key: 'done' })).toBeDefined()
+  expect(await setShown(ui)).toBe(true)
   expect(await coachRow(ui)).toBe(true)
   expect(await ui.find({ type: 'Text', text: line('set', { day: TODAY }) })).toBeUndefined()
   await ui.unmount()
@@ -400,11 +400,11 @@ test('the set Undo brings back is silent in Quiet, and so is /workout today mid-
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await ui.press({ key: 'done' })
+  await answerSet(ui, 'done')
   await ui.press({ key: 'undo' })
-  expect(await ui.find({ key: 'done' })).toBeDefined()
+  expect(await setShown(ui)).toBe(true)
   expect(await coachRow(ui)).toBe(false)
-  await ui.press({ key: 'done' })
+  await answerSet(ui, 'done')
   await $.command.run(workout('today'))
   expect(await ui.find({ type: 'Text', text: /set 2 of 3/ })).toBeDefined()
   expect(await coachRow(ui)).toBe(false)
@@ -480,9 +480,9 @@ test('the control hint shows on the first three set bands ever, across a reload'
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   expect(await ui.find({ type: 'Text', text: hint })).toBeDefined()
-  await ui.press({ key: 'done' })
+  await answerSet(ui, 'done')
   await $.command.run(workout('start'))
-  expect(await ui.find({ key: 'done' })).toBeDefined()
+  expect(await setShown(ui)).toBe(true)
   expect(await ui.find({ type: 'Text', text: hint })).toBeUndefined()
   await ui.unmount()
 })
@@ -526,10 +526,10 @@ test('after a record: a celebration, or the skip reassurance', OPTIONS, async ($
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await ui.press({ key: 'done' })
+  await answerSet(ui, 'done')
   expect(await speaks(ui)).toBe(true)
   await $.command.run(workout('start'))
-  await ui.press({ key: 'skip' })
+  await answerSet(ui, 'skip')
   expect(await ui.find({ type: 'Text', text: line('skip', { day: TODAY }) })).toBeDefined()
   await ui.unmount()
 })
@@ -634,7 +634,7 @@ test('no band, pane, toast, status line or reply says Claude', OPTIONS, async ($
   await look()
   await ui.press({ key: 'start' })
   await look()
-  await ui.press({ key: 'edit' })
+  await answerSet(ui, 'edit')
   await look()
   await ui.press({ key: 'save' })
   await look()

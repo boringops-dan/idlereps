@@ -9,7 +9,7 @@ import { cueFor, dayNumberOf, START } from '../hooks/plan'
 import { applyInverse, applyPatch, record, RECORD_KEYS } from '../hooks/record'
 import type { RecordAction, RecordStore } from '../hooks/record'
 import { gate } from '../hooks/schedule'
-import { BAND, NOON, OPTIONS, SESSION, TINY, TODAY, editPrompt, liveClock, typing, WEIGHTED, workout, world, ONBOARDED } from './world'
+import { setShown, answerSet, BAND, NOON, OPTIONS, SESSION, TINY, TODAY, editPrompt, liveClock, typing, WEIGHTED, workout, world, ONBOARDED } from './world'
 
 /** The core mechanisms (plan §4.3, Task 22). */
 
@@ -99,7 +99,7 @@ test('ACTIONS is D11 for the bands and panes Phase A draws (with Replay: 1 Let\'
     'intro 1 Keep my plan',
     'intro 2 Just remind me',
     'intro 3 Build my own',
-    'intro 4 Not now',
+    'intro 0 Not now',
     'program 1 Quick start',
     'program 2 Build it with me',
     'program 3 I have my own',
@@ -112,7 +112,7 @@ test('ACTIONS is D11 for the bands and panes Phase A draws (with Replay: 1 Let\'
     'remind 5 Later',
     'remind 0 Not today',
     'spotme 1 You got this!',
-    'spotme 2 Not now',
+    'spotme 0 Not now',
     "prep 1 Let's go",
     'question 1 Answer',
     'question 2 Answer',
@@ -120,34 +120,36 @@ test('ACTIONS is D11 for the bands and panes Phase A draws (with Replay: 1 Let\'
     'question 4 Answer',
     'question 0 Pass',
     'still 1 Stood up',
-    'still 2 Later',
+    'still 0 Later',
     'where 1 At a desk',
     'where 2 At home, no gear',
     'where 3 With weights',
     'stretch 1 Done',
-    'stretch 2 Not now',
+    'stretch 0 Not now',
     'ready 1 Try a set now',
-    'ready 2 Got it',
+    'ready 0 Got it',
     'reschedule 1 Move it',
     'reschedule 2 Keep it',
     "replay 1 Let's go",
     'warmup 1 Done',
-    'warmup 2 Skip',
+    'warmup 0 Skip',
     'ask 1 Start',
     'ask 2 Later',
-    'ask 3 Not today',
-    'ask 4 Just half',
-    'set 1 Done',
-    'set 2 Edit',
-    'set 3 Skip',
-    'set 4 Later',
-    'set 5 Timer',
+    'ask 0 Not today',
+    'ask 3 Just half',
+    'set 1 Start',
+    'set 2 Later',
+    'set 0 Not today',
+    'doing 1 All',
+    'doing 2 Fewer',
+    "doing 3 Couldn't do it",
     'timer 1 Done',
     'timer 2 Stop timer',
     'switch 1 Start side 2',
     'switch 2 Stop timer',
-    'time 1 Done',
-    'time 2 Edit',
+    'time 1 All',
+    'time 2 Fewer',
+    "time 3 Couldn't do it",
     'edit 1 Save',
     'edit 2 < reps',
     'edit 3 reps >',
@@ -165,7 +167,7 @@ test('ACTIONS is D11 for the bands and panes Phase A draws (with Replay: 1 Let\'
     'unlock 2 Again',
     'unlock 0 Undo',
     'bonus 1 One more',
-    'bonus 2 Done for today',
+    'bonus 0 Done for today',
     'programEnd 1 Next block',
     'programEnd 2 Change plan',
     'programEnd 3 Later',
@@ -307,13 +309,13 @@ test('every store key the plugin reads or writes is registered', OPTIONS, async 
   await clock.advance(5_000)
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   await ui.press({ key: 'start' })
-  await ui.press({ key: 'edit' })
+  await answerSet(ui, 'edit')
   await ui.press({ key: 'heavier' })
   await ui.press({ key: 'save' })
   await ui.press({ key: 'undo' })
-  await ui.press({ key: 'done' })
+  await answerSet(ui, 'done')
   await $.command.run(workout('start'))
-  await ui.press({ key: 'done' })
+  await answerSet(ui, 'done')
   await ui.press({ key: 'tough' })
   for (const args of ['status', 'pause', 'resume', 'later', 'no', 'today', 'reset', 'undo', '']) await $.command.run(workout(args))
   await ui.unmount()
@@ -354,10 +356,10 @@ test('the logged line’s own timer goes with it: Undo’s set band is not clear
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await ui.press({ key: 'done' })
+  await answerSet(ui, 'done')
   await ui.press({ key: 'undo' })
   await clock.advance(3 * 60_000)
-  expect(await ui.find({ key: 'done' })).toBeDefined()
+  expect(await setShown(ui)).toBe(true)
   await ui.unmount()
 })
 
@@ -398,7 +400,7 @@ test('the first set after Start shows at once even with text in the prompt', OPT
   w.prompt.text = 'half a thought'
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(await ui.find({ key: 'done' })).toBeDefined()
+  expect(await setShown(ui)).toBe(true)
   await ui.unmount()
 })
 
@@ -424,7 +426,7 @@ test('Undo from the logged line shows the set again', OPTIONS, async ($, on) => 
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await ui.press({ key: 'done' })
+  await answerSet(ui, 'done')
   expect(await ui.find({ type: 'Text', text: /✓ Logged Push-ups 10 reps/ })).toBeDefined()
   await ui.press({ key: 'undo' })
   expect(await ui.find({ type: 'Text', text: /\(1\/2\)/ })).toBeDefined()
@@ -458,7 +460,7 @@ test('Undo after a rating takes back only the rating', OPTIONS, async ($, on) =>
   await $.command.run(workout('tough'))
   expect(JSON.stringify(await $.command.run(workout('undo')))).toMatch(/Undone/)
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(await ui.find({ key: 'done' })).toBeUndefined()
+  expect(await setShown(ui)).toBe(false)
   await ui.unmount()
   // The workout stays finished: the rating was the last record, not the set.
   expect(JSON.stringify(await $.command.run(workout('status')))).toMatch(/Workout 2 of 2/)
@@ -481,7 +483,7 @@ test('a band’s Undo for a record another session replaced records nothing', OP
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await ui.press({ key: 'done' })
+  await answerSet(ui, 'done')
   // Another session recorded since: its record is the one `undo` holds now.
   const theirs = { ...(store.get('undo') as object), id: NOON + 1 }
   store.set('undo', theirs)
@@ -499,8 +501,8 @@ test('Edit replaces the set band, and Save from it logs and offers Undo', OPTION
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await ui.press({ key: 'edit' })
-  expect(await ui.find({ key: 'done' })).toBeUndefined()
+  await answerSet(ui, 'edit')
+  expect(await setShown(ui)).toBe(false)
   expect(await ui.find({ key: 'save' })).toBeDefined()
   await ui.press({ key: 'fewer' })
   await ui.press({ key: 'save' })

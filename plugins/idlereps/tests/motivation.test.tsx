@@ -294,11 +294,16 @@ test('the SVG portrait: one rect per run of a colour, the sprite’s own size, c
 test('VS Code alone (no band above the prompt there): the band opens as its own pane, and closes with it', OPTIONS, async ($, on) => {
   const { w } = world(on, TINY, {}, { surfaces: ['vscode'] })
   await $.session.start(SESSION)
+  await $.turn.start({ text: 'go', turnId: 't1' })
   await $.command.run(workout('start'))
   expect(w.opened).toContain('workout-band')
   const pane = await $.ui.mount({ plugin: 'idlereps', surface: 'vscode', component: 'Pane', requestId: 'workout-band', props: { ...STATUS.props } })
-  // The set, its buttons, and Swolomon as an SVG.
+  // The agent working: the set, its buttons, and Swolomon as an SVG.
   expect(await pane.find({ type: 'Svg' })).toBeDefined()
+  // The agent done: the set, compact, no Swolomon (owner, 2026-10-07: "we're for working when the agent works").
+  await $.turn.complete({ turnId: 't1', answer: '', reason: 'answer', durationMs: 60_000, isAborted: false } as never)
+  await pane.redraw()
+  expect(await pane.find({ type: 'Svg' })).toBeUndefined()
   expect(await pane.find({ type: 'Text', text: /Push-ups/ })).toBeDefined()
   await $.command.run(workout('later'))
   expect(w.closed).toContain('workout-band')

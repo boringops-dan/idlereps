@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import { line } from '../hooks/copy'
 import { ENTRANCE_MS, frameAt, TICK_MS, timelineOf } from '../hooks/portrait'
-import { BAND, OPTIONS, SESSION, TINY, TODAY, workout, world } from './world'
+import { answerSet, BAND, OPTIONS, SESSION, TINY, TODAY, workout, world } from './world'
 
 /** Swolomon's sound (§1.11 Sound, coachSound): blips while he talks, or the line read aloud. */
 
@@ -123,7 +123,7 @@ test('a refused play or speak is ignored: the band works on', SOUND('blips'), as
   await $.command.run(workout('start'))
   await clock.advance(10_000)
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await ui.press({ key: 'done' })
+  await answerSet(ui, 'done')
   expect(await ui.find({ key: 'undo' })).toBeDefined()
   await ui.unmount()
 })

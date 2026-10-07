@@ -7,7 +7,7 @@ import type { Snapshot } from '../hooks/migrations'
 import { START } from '../hooks/plan'
 import { harderVariant, OFFICE_REPLACED } from '../hooks/programs'
 import { moveForExercise } from '../hooks/moves'
-import { BAND, NOON, OPTIONS, SESSION, TINY, TODAY, workout, world } from './world'
+import { answerSet, BAND, NOON, OPTIONS, SESSION, TINY, TODAY, workout, world } from './world'
 
 /** History, streaks, week marks and double progression (plan §5.3, Task 4). */
 
@@ -151,10 +151,10 @@ test('after a swap the band and last: use the variant; Undo of the set that swap
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   expect(await ui.find({ type: 'Text', text: /Incline push-ups: 15 reps/ })).toBeDefined()
-  await ui.press({ key: 'done' })
+  await answerSet(ui, 'done')
   await ui.press({ key: 'undo' })
   expect(await ui.find({ type: 'Text', text: /Incline push-ups: 15 reps/ })).toBeDefined()
-  await ui.press({ key: 'done' })
+  await answerSet(ui, 'done')
   await ui.press({ key: 'good' })
   await clock.advance(86_400_000)
   await $.command.run(workout('start'))

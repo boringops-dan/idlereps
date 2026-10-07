@@ -29,7 +29,7 @@ test('a quiet turn: he is stuck on his last rep; You got this! gets it up, and h
   await $.session.start(SESSION)
   const band = await quietTurn($, clock)
   expect(band.keys).toEqual(['spot', 'nospot'])
-  expect(band.text).toContain('1: You got this!   2: Not now')
+  expect(band.text).toContain('1: You got this!   0: Not now')
   await $.command.run(workout('spot'))
   const after = await bandOf($)
   expect(after.keys).toEqual(['nice'])

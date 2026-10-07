@@ -5,7 +5,7 @@ import { isLineId, line, plainOf } from '../hooks/copy'
 import { MOVES, moveForExercise } from '../hooks/moves'
 import { idleBeat } from '../hooks/portrait'
 import type { Cue } from '../types'
-import { ANIMATED, BAND, blitLog, cellsOf, OPTIONS, SESSION, speaks, TINY, TODAY, workout, world } from './world'
+import { setShown, ANIMATED, BAND, blitLog, cellsOf, OPTIONS, SESSION, speaks, TINY, TODAY, workout, world } from './world'
 
 /** Swolomon on every set (owner, 2026-10-06): coaching, watching your form, doing it with you. */
 
@@ -44,7 +44,7 @@ test('the second set of the day speaks: one of his set lines, not the Start line
   await $.command.run(workout('done'))
   await $.command.run(workout('now'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(await ui.find({ key: 'done' })).toBeDefined()
+  expect(await setShown(ui)).toBe(true)
   expect(await speaks(ui)).toBe(true)
   expect(await ui.find({ type: 'Text', text: line('set', { day: TODAY }) })).toBeUndefined()
   await ui.unmount()

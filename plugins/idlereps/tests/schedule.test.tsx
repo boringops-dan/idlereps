@@ -3,7 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import type { Plan } from '../types'
 import { START } from '../hooks/plan'
 import { cueAllowed, cueDelayMs, inQuietHours, isTrainingDay, nextTrainingDay, weekdayName, weekdayOf } from '../hooks/schedule'
-import { BAND, NOON, OPTIONS, SESSION, TINY, TODAY, workout, world } from './world'
+import { setShown, BAND, NOON, OPTIONS, SESSION, TINY, TODAY, workout, world } from './world'
 
 /** Schedule and cadence (plan D5 to D7, Task 3). */
 
@@ -134,7 +134,7 @@ test('a set the person asks for still shows while paused', OPTIONS, async ($, on
   expect(JSON.stringify(await $.command.run(workout('pause')))).toMatch(/Paused\. No sets/)
   expect(JSON.stringify(await $.command.run(workout('now')))).toMatch(/Paused\. Up next: Push-ups/)
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  expect(await ui.find({ key: 'done' })).toBeDefined()
+  expect(await setShown(ui)).toBe(true)
   await ui.unmount()
 })
 

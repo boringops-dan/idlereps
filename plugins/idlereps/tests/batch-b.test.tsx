@@ -127,7 +127,7 @@ test('a rest day’s long turn offers one desk stretch, the day choosing which',
   const stretch = stretchFor(TODAY)
   expect(await ui.find({ type: 'Text', text: line('stretch-ask', { day: TODAY }) })).toBeDefined()
   expect(drawnRows(await ui.drawn())).toContain(`${stretch.name}: 30 s`)
-  expect(drawnRows(await ui.drawn()).at(-1)).toBe('1: Done   2: Not now')
+  expect(drawnRows(await ui.drawn()).at(-1)).toBe('1: Done   0: Not now')
   await ui.unmount()
 })
 

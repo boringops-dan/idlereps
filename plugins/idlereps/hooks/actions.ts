@@ -4,7 +4,7 @@
  * every button has a command by construction. Pure data.
  */
 
-export type ActionKind = 'spotme' | 'prep' | 'question' | 'still' | 'unlock' | 'remindPane' | 'remind' | 'program' | 'byoplan' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex' | 'status' | 'safety' | 'byo' | 'moves'
+export type ActionKind = 'spotme' | 'prep' | 'question' | 'still' | 'unlock' | 'remindPane' | 'remind' | 'program' | 'byoplan' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'time' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex' | 'status' | 'safety' | 'byo' | 'moves' | 'doing'
 
 export type Action = {
   id: string
@@ -15,13 +15,15 @@ export type Action = {
   isPrimary?: true
 }
 
+// The way out of a band, where it has one, is always 0 (owner, 2026-10-07: interactions nimble): Not now,
+// Not today, Later, Skip, Got it, Close; on the logged line and Give me a plan, 0 is Undo and Back.
 export const ACTIONS: readonly Action[] = [
   // The way in: Quick start is one key from the first set; a plan already there is kept.
   { kind: 'intro', id: 'quickstart', hotkey: '1', label: 'Quick start', isPrimary: true },
   { kind: 'intro', id: 'keep', hotkey: '1', label: 'Keep my plan', isPrimary: true },
   { kind: 'intro', id: 'remind', hotkey: '2', label: 'Just remind me' },
   { kind: 'intro', id: 'program', hotkey: '3', label: 'Build my own' },
-  { kind: 'intro', id: 'notnow', hotkey: '4', label: 'Not now' },
+  { kind: 'intro', id: 'notnow', hotkey: '0', label: 'Not now' },
 
   // Build my own: the other ways to a plan.
   { kind: 'program', id: 'quickstart', hotkey: '1', label: 'Quick start', isPrimary: true },
@@ -40,7 +42,7 @@ export const ACTIONS: readonly Action[] = [
 
   // Spot me: he is stuck on his last rep.
   { kind: 'spotme', id: 'spot', hotkey: '1', label: 'You got this!', isPrimary: true },
-  { kind: 'spotme', id: 'nospot', hotkey: '2', label: 'Not now' },
+  { kind: 'spotme', id: 'nospot', hotkey: '0', label: 'Not now' },
 
   // Back from a competition.
   { kind: 'prep', id: 'letsgo', hotkey: '1', label: "Let's go", isPrimary: true },
@@ -54,17 +56,17 @@ export const ACTIONS: readonly Action[] = [
 
   // Sitting a long while: stand up with him.
   { kind: 'still', id: 'stood', hotkey: '1', label: 'Stood up', isPrimary: true },
-  { kind: 'still', id: 'later', hotkey: '2', label: 'Later' },
+  { kind: 'still', id: 'later', hotkey: '0', label: 'Later' },
 
   { kind: 'where', id: 'desk', hotkey: '1', label: 'At a desk', isPrimary: true },
   { kind: 'where', id: 'home', hotkey: '2', label: 'At home, no gear' },
   { kind: 'where', id: 'gym', hotkey: '3', label: 'With weights' },
 
   { kind: 'stretch', id: 'stretched', hotkey: '1', label: 'Done', isPrimary: true },
-  { kind: 'stretch', id: 'notnow', hotkey: '2', label: 'Not now' },
+  { kind: 'stretch', id: 'notnow', hotkey: '0', label: 'Not now' },
 
   { kind: 'ready', id: 'now', hotkey: '1', label: 'Try a set now', isPrimary: true },
-  { kind: 'ready', id: 'gotit', hotkey: '2', label: 'Got it' },
+  { kind: 'ready', id: 'gotit', hotkey: '0', label: 'Got it' },
 
   { kind: 'reschedule', id: 'move', hotkey: '1', label: 'Move it', isPrimary: true },
   { kind: 'reschedule', id: 'keep', hotkey: '2', label: 'Keep it' },
@@ -72,27 +74,31 @@ export const ACTIONS: readonly Action[] = [
   { kind: 'replay', id: 'letsgo', hotkey: '1', label: "Let's go", isPrimary: true },
 
   { kind: 'warmup', id: 'warmed', hotkey: '1', label: 'Done', isPrimary: true },
-  { kind: 'warmup', id: 'skipwarmup', hotkey: '2', label: 'Skip' },
+  { kind: 'warmup', id: 'skipwarmup', hotkey: '0', label: 'Skip' },
 
   { kind: 'ask', id: 'start', hotkey: '1', label: 'Start', isPrimary: true },
   { kind: 'ask', id: 'later', hotkey: '2', label: 'Later' },
-  { kind: 'ask', id: 'no', hotkey: '3', label: 'Not today' },
+  { kind: 'ask', id: 'no', hotkey: '0', label: 'Not today' },
   // Showing up beats doing nothing: each exercise's sets halved, while the half version is still open.
-  { kind: 'ask', id: 'half', hotkey: '4', label: 'Just half' },
+  { kind: 'ask', id: 'half', hotkey: '3', label: 'Just half' },
 
-  { kind: 'set', id: 'done', hotkey: '1', label: 'Done', isPrimary: true },
-  { kind: 'set', id: 'edit', hotkey: '2', label: 'Edit' },
-  { kind: 'set', id: 'skip', hotkey: '3', label: 'Skip' },
-  { kind: 'set', id: 'later', hotkey: '4', label: 'Later' },
-  // Timed sets only (§1.12 item 1).
-  { kind: 'set', id: 'timer', hotkey: '5', label: 'Timer' },
+  // A set: Start it, then say how it went (owner, 2026-10-07: "why not START and then they can say how many
+  // they did?"). Before: Start, Later, or nothing more today. A timed set's Start runs its hold timer.
+  { kind: 'set', id: 'start', hotkey: '1', label: 'Start', isPrimary: true },
+  { kind: 'set', id: 'later', hotkey: '2', label: 'Later' },
+  { kind: 'set', id: 'notoday', hotkey: '0', label: 'Not today' },
+  // Started (the set band's doing state, and a hold that ran out): how many. All's label names the target.
+  { kind: 'doing', id: 'all', hotkey: '1', label: 'All', isPrimary: true },
+  { kind: 'doing', id: 'fewer', hotkey: '2', label: 'Fewer' },
+  { kind: 'doing', id: 'couldnt', hotkey: '3', label: "Couldn't do it" },
 
   { kind: 'timer', id: 'done', hotkey: '1', label: 'Done', isPrimary: true },
   { kind: 'timer', id: 'stop', hotkey: '2', label: 'Stop timer' },
   { kind: 'switch', id: 'side2', hotkey: '1', label: 'Start side 2', isPrimary: true },
   { kind: 'switch', id: 'stop', hotkey: '2', label: 'Stop timer' },
-  { kind: 'time', id: 'done', hotkey: '1', label: 'Done', isPrimary: true },
-  { kind: 'time', id: 'edit', hotkey: '2', label: 'Edit' },
+  { kind: 'time', id: 'all', hotkey: '1', label: 'All', isPrimary: true },
+  { kind: 'time', id: 'fewer', hotkey: '2', label: 'Fewer' },
+  { kind: 'time', id: 'couldnt', hotkey: '3', label: "Couldn't do it" },
 
   { kind: 'edit', id: 'save', hotkey: '1', label: 'Save', isPrimary: true },
   { kind: 'edit', id: 'fewer', hotkey: '2', label: '< reps' },
@@ -116,7 +122,7 @@ export const ACTIONS: readonly Action[] = [
 
   // An Easy workout: push a little further while it feels good.
   { kind: 'bonus', id: 'bonus', hotkey: '1', label: 'One more', isPrimary: true },
-  { kind: 'bonus', id: 'enough', hotkey: '2', label: 'Done for today' },
+  { kind: 'bonus', id: 'enough', hotkey: '0', label: 'Done for today' },
 
   { kind: 'programEnd', id: 'nextblock', hotkey: '1', label: 'Next block', isPrimary: true },
   { kind: 'programEnd', id: 'changeplan', hotkey: '2', label: 'Change plan' },

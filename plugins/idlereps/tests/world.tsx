@@ -363,3 +363,23 @@ export function drawnRows(tree: unknown): string[] {
   walk(tree as Drawn, true)
   return rows
 }
+
+/** A set's answers as they were (Done, Edit, Skip) and the buttons that give them now (owner, 2026-10-07). */
+const SET_ANSWER_KEYS = { done: 'all', edit: 'fewer', skip: 'couldnt' } as const
+
+/**
+ * Answers the set a band shows the way a person now does: Start, if it is waiting for it, then All (Done),
+ * Fewer (Edit) or Couldn't do it (Skip). `start` only starts it (a timed set's hold timer).
+ */
+export async function answerSet(ui: { find: (q: { key: string }) => Promise<unknown>; press: (q: { key: string }) => Promise<unknown> }, answer: 'done' | 'edit' | 'skip' | 'start') {
+  if ((await ui.find({ key: 'start' })) !== undefined) await ui.press({ key: 'start' })
+  if (answer === 'start') return
+  // A band with its own Done (the hold timer's) keeps it.
+  const key = (await ui.find({ key: SET_ANSWER_KEYS[answer] })) !== undefined ? SET_ANSWER_KEYS[answer] : answer
+  await ui.press({ key })
+}
+
+/** Whether a band shows a set: waiting for Start (its Not today, which the ask's is not) or started (All). */
+export async function setShown(ui: { find: (q: { key: string }) => Promise<unknown> }): Promise<boolean> {
+  return (await ui.find({ key: 'notoday' })) !== undefined || (await ui.find({ key: 'all' })) !== undefined
+}

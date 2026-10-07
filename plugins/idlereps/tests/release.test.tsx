@@ -190,7 +190,8 @@ test('every band kind shows each button’s number on every surface', OPTIONS, a
   await clock.advance(30 * 60_000)
   await check('ask')
   await $.command.run(workout('start'))
-  await check('set')
+  // The ask's Start is the first set's: started, asking how it went.
+  await check('doing')
   await $.command.run(workout('edit'))
   await check('edit')
   await $.command.run(workout('save'))
@@ -200,7 +201,7 @@ test('every band kind shows each button’s number on every surface', OPTIONS, a
     await $.command.run(workout('done'))
   }
   await check('rating')
-  expect([...kinds].sort()).toEqual(['ask', 'edit', 'intro', 'logged', 'rating', 'set', 'where'])
+  expect([...kinds].sort()).toEqual(['ask', 'doing', 'edit', 'intro', 'logged', 'rating', 'where'])
 })
 
 test('the tall bands (replay, rank-up, flex) show each button’s number on every surface', OPTIONS, async ($, on) => {

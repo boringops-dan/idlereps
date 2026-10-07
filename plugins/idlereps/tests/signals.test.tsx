@@ -5,7 +5,7 @@ import { BUSY_TOOL_CALLS, isBigAsk, toolSign } from '../hooks/signals'
 
 const toolSignal = (tool: string, command: string | undefined, calls: number) =>
   toolSign({ tool, ...(command === undefined ? {} : { command }) }, calls)?.reason ?? null
-import { BAND, countingClock, OPTIONS, SESSION, speaks, TINY, TODAY, workout, world } from './world'
+import { answerSet, BAND, countingClock, OPTIONS, SESSION, speaks, TINY, TODAY, workout, world } from './world'
 
 /** Long-task detection beyond the prototype's tests (plan §6 Task 1, D21). */
 
@@ -173,7 +173,7 @@ test('Start after a sign: the first set opens with the reason; the next set has 
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   await ui.press({ key: 'start' })
   expect(await ui.find({ type: 'Text', text: line('reason-helpers', { day: TODAY }) })).toBeDefined()
-  await ui.press({ key: 'done' })
+  await answerSet(ui, 'done')
   await clock.advance(15 * 60_000)
   expect(await ui.find({ type: 'Text', text: /set 2 of 2/ })).toBeDefined()
   expect(await speaks(ui)).toBe(true)

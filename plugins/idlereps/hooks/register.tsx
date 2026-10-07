@@ -4,7 +4,7 @@ import type { ElementTable, EngineInterface, PluginOptions, Register, RenderSurf
 import type { Answers, BandKind, BandPart, BandSpec, Cue, Draft, HistoryEntry, LongTaskReason, Mode, Moved, Plan, Progress, Rating, Seen, SetupState, Targets, Tone, Weekday } from '../types'
 import { STORE_KEYS } from '../types/store-keys'
 import type { StoreKey } from '../types/store-keys'
-import { ACTIONS, actionOf, loadLabel, stepperLabel } from './actions'
+import { ACTIONS, actionIdsOf, actionOf, loadLabel, stepperLabel } from './actions'
 import type { ActionKind } from './actions'
 import {
   askBand,
@@ -191,6 +191,7 @@ const setup = atom({ plugin: 'idlereps', key: 'setup' } as const, null)
 const statusView = atom({ plugin: 'idlereps', key: 'statusView' } as const, null)
 const talk = atom({ plugin: 'idlereps', key: 'talk' } as const, null)
 const peek = atom({ plugin: 'idlereps', key: 'peek' } as const, null)
+const parked = atom({ plugin: 'idlereps', key: 'parked' } as const, null)
 
 const SETUP_PANE = 'workout-setup'
 const MOVES_PANE = 'workout-moves'
@@ -1417,7 +1418,7 @@ async function coachLine($: EngineInterface, id: LineId, ctx: LineContext): Prom
 }
 
 /** The set band for a cue; `coach` only on the first set after Start (§1.10c). */
-async function setBandFor($: EngineInterface, cue: Cue, coachText: string | undefined): Promise<BandSpec> {
+async function setBandFor($: EngineInterface, cue: Cue, coachText: string | undefined, opts: { isStarted?: boolean } = {}): Promise<BandSpec> {
   const memory = (await load<Record<string, RecordStore['lastByExercise'][string]>>($, 'lastByExercise', {}))[cue.exercise.name]
   const day = await today($)
   const showHint = await isDue($, 'hint', { count: 3 })
@@ -1428,7 +1429,8 @@ async function setBandFor($: EngineInterface, cue: Cue, coachText: string | unde
     ...(said === undefined ? {} : { coach: said }),
     ...(memory === undefined ? {} : { memory }),
     showHint,
-    hint: line('hint', { day }),
+    hint: line(opts.isStarted === true ? 'hint' : 'hint-start', { day }),
+    ...(opts.isStarted === true ? { isStarted: true } : {}),
   })
   // Once his line is out, he shows the set's exercise in the full portrait, then lives in it.
   const demo = moveForExercise(cue.exercise.name)
@@ -1442,6 +1444,10 @@ async function rememberedLine($: EngineInterface, cue: Cue, day: number): Promis
   await markSeen($, callback.mark)
   return line(callback.id, { day, ...callback.ctx })
 }
+
+/** A parked band is still the one due: the same set of the same exercise, and an ask only until they agreed. */
+const isStillDue = (waiting: BandSpec, cue: Cue, isAgreed: boolean): boolean =>
+  waiting.cue?.step === cue.step && waiting.cue.exercise.name === cue.exercise.name && (waiting.kind === 'set' ? isAgreed : !isAgreed)
 
 /** A cue's timer went off: the next set when today's workout was agreed to, else the question. */
 async function showDueCue($: EngineInterface) {
@@ -1480,6 +1486,15 @@ async function showDueCue($: EngineInterface) {
   const cue = cueFor(plan, ctx.progress, await load<Targets>($, 'targets', {}))
   if (cue === null) return
   const isAgreed = (await load<number | undefined>($, 'startedOn', undefined)) === ctx.today
+  // The set (or ask) a prompt put away comes back as it was, while it is still the one due.
+  const waiting = await read($, parked)
+  if (waiting !== null) {
+    await update($, parked, () => null)
+    if (isStillDue(waiting, cue, isAgreed)) {
+      await offerBand($, waiting, 'timer')
+      return
+    }
+  }
   void track($, { event: 'cue_shown', properties: {} })
   if (isAgreed) {
     await offerBand($, await setBandFor($, cue, undefined), 'timer')
@@ -1804,9 +1819,19 @@ async function startWorkout($: EngineInterface, reason: LongTaskReason | undefin
   if (coach.options.warmUp && progress.done === 0 && (await isDue($, 'warmup', 'day'))) {
     await markSeen($, 'warmup')
     await placeBand($, warmupBand(cue, day, coachText))
-  } else await placeBand($, await setBandFor($, cue, coachText))
+  } else await placeStartedSet($, cue, coachText)
   await refreshStatus($)
   return cue
+}
+
+/** A set already started (by the ask's Start, or the warm-up done): a timed one into its hold timer. */
+async function placeStartedSet($: EngineInterface, cue: Cue, coachText: string | undefined) {
+  if (targetOf(cue.exercise.reps)?.isTimed === true) {
+    await placeBand($, await setBandFor($, cue, coachText))
+    await startHold($, 1)
+    return
+  }
+  await placeBand($, await setBandFor($, cue, coachText, { isStarted: true }))
 }
 
 /** Not today: nothing more today, in any session. */
@@ -2072,6 +2097,26 @@ async function pressDone($: EngineInterface) {
   })
 }
 
+/** How it went (a started set, a hold that ran out) as the set's own answers: All is Done, Fewer is Edit, Couldn't do it is Skip. */
+const HOW_IT_WENT: Readonly<Record<string, string>> = { all: 'done', fewer: 'edit', couldnt: 'skip' }
+
+/** The buttons a band draws, by kind; a started set's are the `doing` ones. */
+const actionKindOf = (spec: BandSpec): ActionKind => (spec.kind === 'set' && spec.isStarted === true ? 'doing' : spec.kind)
+
+/** Start on a set: a timed one runs its hold timer; any other shows how-it-went, while he does it with you. */
+async function startSet($: EngineInterface) {
+  const shown = await read($, band)
+  if (shown?.kind !== 'set' || shown.cue === undefined || shown.isStarted === true) return
+  if (targetOf(shown.cue.exercise.reps)?.isTimed === true) {
+    await startHold($, 1)
+    return
+  }
+  // The same band, its buttons now how it went; its hint, if it shows, names the command for that.
+  const extras = shown.extras?.map(text => (text === line('hint-start', { day: 0 }) ? line('hint', { day: 0 }) : text))
+  const started: BandSpec = { ...shown, isStarted: true, actions: actionIdsOf('doing'), ...(extras === undefined ? {} : { extras }) }
+  await update($, band, () => started)
+}
+
 /** Edit: the steppers, at the prescribed values (from a set, or a hold that just ended). */
 async function pressEdit($: EngineInterface) {
   const shown = await read($, band)
@@ -2251,6 +2296,8 @@ async function rate($: EngineInterface, rating: Rating): Promise<boolean> {
 
 /** `/workout now`, `start` and `today`: ignores the training day and the gap, never a second workout in a day. */
 async function startFromCommand($: EngineInterface, arg: 'now' | 'start' | 'today'): Promise<string> {
+  // The set they ask for now is the one a prompt put away: it is no longer waiting.
+  await update($, parked, () => null)
   const plan = await loadPlan($)
   const day = await today($)
   if (plan === null) return noPlanReply($)
@@ -3028,7 +3075,14 @@ async function runAction($: EngineInterface, kind: ActionKind, id: string, surfa
   }
 }
 
-async function answerAction($: EngineInterface, kind: ActionKind, id: string, surface: string): Promise<void> {
+async function answerAction($: EngineInterface, kind: ActionKind, given: string, surface: string): Promise<void> {
+  // How it went, on a started set or a hold that ran out, is the set's own Done, Edit and Skip.
+  let id = (kind === 'doing' || kind === 'time') && given in HOW_IT_WENT ? HOW_IT_WENT[given]! : given
+  if (kind === 'set' && id === 'start') {
+    await startSet($)
+    return
+  }
+  if (kind === 'set' && id === 'notoday') id = 'no'
   if (kind === 'moves') {
     if (id === 'close') {
       coach.isMovesOpen = false
@@ -3091,7 +3145,7 @@ async function answerAction($: EngineInterface, kind: ActionKind, id: string, su
   if (kind === 'warmup') {
     // Either answer: the first set at once, with the word it would have had.
     const shown = await read($, band)
-    if (shown?.cue !== undefined) await placeBand($, await setBandFor($, shown.cue, shown.thenCoach))
+    if (shown?.cue !== undefined) await placeStartedSet($, shown.cue, shown.thenCoach)
     else await clearBand($)
     return
   }
@@ -3218,7 +3272,7 @@ async function answerAction($: EngineInterface, kind: ActionKind, id: string, su
       await startHold($, 2)
       return
     case 'stop':
-      if (shown?.cue !== undefined) await replaceBand($, await setBandFor($, shown.cue, undefined))
+      if (shown?.cue !== undefined) await replaceBand($, await setBandFor($, shown.cue, undefined, { isStarted: true }))
       return
     case 'fewer':
     case 'more':
@@ -3240,9 +3294,18 @@ async function answerAction($: EngineInterface, kind: ActionKind, id: string, su
 // ---------------------------------------------------------------------------------------------------------
 // `/workout`.
 
+/** The commands that answer a set even when it is not showing: the set's own, typed. */
+const SET_ANSWERS: readonly string[] = ['done', 'edit', 'skip']
+
 async function workoutCommand($: EngineInterface, args: string): Promise<string | null> {
   const [arg = '', ...rest] = args.trim().split(/\s+/)
   const day = await today($)
+  // Answering a set (or ask) a prompt put away: it comes back to be answered, so the command lands on it.
+  const waiting = (await read($, band)) === null ? await read($, parked) : null
+  if (waiting !== null && (waiting.actions.includes(arg) || SET_ANSWERS.includes(arg))) {
+    await update($, parked, () => null)
+    await placeBand($, waiting)
+  }
   const shown = await read($, band)
 
   // Never straight into a workout with someone Swolomon hasn't met: the introduction first, where they are.
@@ -3279,6 +3342,13 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
   if (arg === '') {
     const plan = await loadPlan($)
     if (plan === null) return noPlanReply($)
+    // A set a prompt put away: /workout brings it straight back.
+    const waiting = await read($, parked)
+    if (waiting !== null) {
+      await update($, parked, () => null)
+      await placeBand($, waiting)
+      return line('reply-meet', { day })
+    }
     const facts = await statusFacts($, plan)
     await update($, statusView, () => statusViewOf(facts))
     coach.isStatusOpen = true
@@ -3376,6 +3446,17 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
   if (plan === null && shown?.actions.includes(arg) !== true && !['restore', 'erase', 'cancel', 'quickstart', 'notnow', 'dontask', 'desk', 'home', 'gym', 'understand', 'copy', 'back', 'close'].includes(arg)) {
     return noPlanReply($)
   }
+  // Start on a set waiting for it is that set's Start, not today's workout's; Timer (the old button's
+  // command) starts a timed one the same way.
+  if ((arg === 'start' || arg === 'timer') && shown?.kind === 'set' && shown.isStarted !== true) {
+    await startSet($)
+    return null
+  }
+  // Edit, the old button's command, is the steppers from any set, as Fewer is.
+  if (arg === 'edit' && (shown?.kind === 'set' || shown?.kind === 'time')) {
+    await pressEdit($)
+    return null
+  }
   switch (arg) {
     case 'reset':
       await save($, 'progress', START)
@@ -3405,13 +3486,18 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
     case 'done':
       // The hold timer's bands have a Done of their own (the seconds held, or the full hold): the button's, below.
       if (rest.length === 0 && shown !== null && shown.kind !== 'set' && shown.kind !== 'edit' && shown.actions.includes('done')) break
+      // Time! asks how it went: Done is its All.
+      if (rest.length === 0 && shown?.kind === 'time') {
+        await runAction($, 'time', 'all', 'terminal')
+        return null
+      }
     // falls through
     case 'skip':
       return doneCommand($, arg, rest)
   }
   // Every button has its command (§4.3 item 4): the showing band's own ids.
   if (shown !== null && shown.actions.includes(arg)) {
-    await runAction($, shown.kind, arg, 'terminal')
+    await runAction($, actionKindOf(shown), arg, 'terminal')
     return null
   }
   const pane = await read($, setup)
@@ -3582,9 +3668,21 @@ function rowText(Text: unknown, row: string | readonly BandPart[], key: string, 
 type BandSite = { surface: RenderSurface; requestId: string; maxRows: number; bodyColumns: number; isWorking: boolean }
 
 /** The band in the slot, drawn for a site; null when the slot is empty. */
+/** The workout's own bands: compact once the agent is done (owner, 2026-10-07: "we're for working when the agent works"). */
+const WORKOUT_KINDS: readonly BandKind[] = ['set', 'ask', 'edit']
+
+/** A workout band with the agent done: the exercise row and the buttons, nothing else, no portrait. */
+const compactOf = (spec: BandSpec): BandSpec => {
+  const { coach: _coach, header: _header, extras: _extras, footer: _footer, portrait: _portrait, ...rest } = spec
+  return rest
+}
+
 async function drawBand($: EngineInterface, site: BandSite, elements: ElementTable) {
-  const spec = await read($, band)
-  if (spec === null) return null
+  const shown = await read($, band)
+  if (shown === null) return null
+  // While the agent works he has the stage; once it is done, its output does (memory: agent-turn-is-the-stage).
+  const isCompact = !site.isWorking && WORKOUT_KINDS.includes(shown.kind)
+  const spec = isCompact ? compactOf(shown) : shown
   const said = await read($, talk)
     const { Box, Button, Text } = elements
   const surface = site.surface
@@ -3592,6 +3690,7 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
     surface === 'terminal' ? ({ hotkey, label, plain: true } as const) : ({ hotkey, label: `${hotkey} · ${label}` } as const)
   const isTimed = spec.cue === undefined ? false : (targetOf(spec.cue.exercise.reps)?.isTimed ?? false)
   const isBand = spec.cue?.exercise.band !== undefined
+  const actionKind = actionKindOf(spec)
   const labelOf = (id: string) => {
     const named = spec.labels?.[id]
     if (named !== undefined) return named
@@ -3599,7 +3698,9 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
     if (spec.kind === 'edit' && (id === 'lighter' || id === 'heavier')) return loadLabel(id, isBand)
     if (spec.kind === 'question' && spec.question !== undefined && id !== 'pass') return spec.question.labels[ANSWER_IDS.indexOf(id as (typeof ANSWER_IDS)[number])] ?? id
     if (spec.kind === 'reschedule' && spec.move !== undefined) return id === 'move' ? `Move to ${weekdayShortName(spec.move.to)}` : `Keep ${weekdayShortName(spec.move.from)}`
-    return actionOf(spec.kind, id).label
+    // All names what it logs: `All 12`, `All 30 s`.
+    if (id === 'all' && spec.cue?.count != null) return `All ${spec.cue.count}${isTimed ? ' s' : ''}`
+    return actionOf(actionKind, id).label
   }
 
   // The header: its lead, then the workout's sets as dots (when they fit on a row) and in words.
@@ -3625,7 +3726,7 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
   const widthOf = (row: string | BandPart[]) =>
     typeof row === 'string' ? row.length : row.filter(part => part.truncate !== true).reduce((n, part) => n + part.text.length, 0)
   const columnsWith = (gapAt: number) => {
-    const buttonColumns = spec.actions.reduce((n, id, i) => n + (i > 0 ? gapAt : 0) + actionOf(spec.kind, id).hotkey.length + 2 + labelOf(id).length, 0)
+    const buttonColumns = spec.actions.reduce((n, id, i) => n + (i > 0 ? gapAt : 0) + actionOf(actionKind, id).hotkey.length + 2 + labelOf(id).length, 0)
     return Math.max(
       widthOf(headerParts),
       ...(spec.coach ?? []).map(text => plainOf(text).length),
@@ -3645,7 +3746,7 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
   const textColumns = gapWidth === 2 ? tight : roomy
   const fit: Fit = fitWith(textColumns)
   const buttons = spec.actions.map((id, i) => {
-    const action = actionOf(spec.kind, id)
+    const action = actionOf(actionKind, id)
     return (
       <Box key={`b-${id}`}>
         {i > 0 && <Text>{' '.repeat(gapWidth)}</Text>}
@@ -3653,7 +3754,7 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
           key={id}
           {...numbered(action.hotkey, labelOf(id))}
           {...(action.isPrimary === true ? { variant: 'primary' as const } : {})}
-          onPress={() => runAction($, spec.kind, id, surface)}
+          onPress={() => runAction($, actionKind, id, surface)}
         />
       </Box>
     )
@@ -3709,7 +3810,7 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
       </Text>
     )),
     // A blank row between what is said and what can be pressed (owner, 2026-10-03).
-    spec.inline !== true && buttons.length > 0 ? <Text key="before-buttons"> </Text> : null,
+    spec.inline !== true && buttons.length > 0 && !isCompact ? <Text key="before-buttons"> </Text> : null,
     spec.inline !== true && buttons.length > 0 ? (
       <Box key="buttons">
         {buttons}
@@ -3762,6 +3863,7 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
   const micro = microMoveOf(spec)
   coach.micro = null
   if (
+    !isCompact &&
     fit === 'none' &&
     micro !== undefined &&
     surface === 'terminal' &&
@@ -3981,6 +4083,12 @@ export const register: Register = (on, options) => {
     const isIntroDone = shown?.kind === 'intro' && (await trainingPlan($)) !== null
     const isDismissedByPrompt = ['logged', 'rating', 'bonus', 'rankup', 'replay', 'flex', 'ready', 'prep'].includes(shown?.kind ?? '') || shown?.isNudge === true
     if (isDismissedByPrompt || isIntroDone) await clearBand($)
+    // A set or ask still waiting when they prompt again: put away, not lost; it comes back at the next cue point
+    // (owner, 2026-10-07: "interactions should be nimble and resumable").
+    if (shown?.kind === 'set' || shown?.kind === 'ask') {
+      await update($, parked, () => shown)
+      await clearBand($)
+    }
     const isBig = isBigAsk(e.text)
     coach.reason = isBig ? 'big-ask' : undefined
     coach.turnCanCue = await couldCueThisTurn($)
