@@ -2,6 +2,7 @@ import { expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
 import { line } from '../hooks/copy'
+import type { LineId } from '../hooks/copy'
 import { nextQuestion, QUESTIONS, recallFor } from '../hooks/questions'
 import { ANIMATED, BAND, drawnRows, mountAt, NOON, ONBOARDED, OPTIONS, ownStore, SESSION, TINY, TODAY, workout, world } from './world'
 
@@ -37,7 +38,7 @@ test('the questions: asked in order; a pass is never asked again; recalls only f
   for (const q of QUESTIONS) expect(q.recall).toHaveLength(q.options.length)
 })
 
-test('a quiet turn: his question, its answers as the buttons; an answer is kept and thanked', OPTIONS, async ($, on) => {
+test('a quiet turn: his question, its answers as the buttons; an answer is kept, and he replies to it in the band', OPTIONS, async ($, on) => {
   const store = ownStore(on, QUIET_TURN)
   const { clock, w } = world(on, null, 'own-store')
   await $.session.start(SESSION)
@@ -45,10 +46,48 @@ test('a quiet turn: his question, its answers as the buttons; an answer is kept 
   expect(band.keys).toEqual(['a', 'b', 'c', 'pass'])
   expect(band.text).toContain(line('ask-owl', { day: TODAY }))
   expect(band.text).toContain('1: Morning   2: Night owl   3: Depends   0: Pass')
+  const toasts = w.toasts.length
   await $.command.run(workout('b'))
   expect(store.get('about')).toEqual({ owl: 1 })
-  expect(w.toasts.at(-1)).toMatch(/Noted|Writing that|remember/)
+  const reply = await bandOf($)
+  expect(reply.text).toContain('A night owl')
+  expect(reply.keys).toEqual(['nice'])
+  expect(w.toasts.length).toBe(toasts)
+  await $.command.run(workout('nice'))
   expect((await bandOf($)).keys).toEqual([])
+})
+
+test('every answer has its own reply, and it names the answer', () => {
+  for (const q of QUESTIONS) {
+    expect(q.reply).toHaveLength(q.options.length)
+    expect(new Set(q.reply).size).toBe(q.reply.length)
+    q.options.forEach((option, i) => {
+      const said = line(q.reply[i] as LineId, { day: TODAY }).toLowerCase()
+      expect(said).toContain(option.toLowerCase().split(' ')[0] as string)
+    })
+  }
+})
+
+test('the morning answer gets the morning reply, not the night one', OPTIONS, async ($, on) => {
+  const store = ownStore(on, QUIET_TURN)
+  const { clock } = world(on, null, 'own-store')
+  await $.session.start(SESSION)
+  await longTurn($, clock)
+  await $.command.run(workout('a'))
+  const text = (await bandOf($)).text
+  expect(text).toContain(line('reply-owl-morning', { day: TODAY }))
+  expect(text).not.toContain('night owl')
+  expect(store.get('about')).toEqual({ owl: 0 })
+})
+
+test('a later question replies to its own answer', OPTIONS, async ($, on) => {
+  const store = ownStore(on, { ...QUIET_TURN, about: { owl: 1, why: 'pass' } })
+  const { clock } = world(on, null, 'own-store')
+  await $.session.start(SESSION)
+  expect((await longTurn($, clock)).text).toContain(line('ask-pet', { day: TODAY }))
+  await $.command.run(workout('b'))
+  expect((await bandOf($)).text).toContain(line('reply-pet-cats', { day: TODAY }))
+  expect(store.get('about')).toEqual({ owl: 1, why: 'pass', pet: 1 })
 })
 
 test('once a day', OPTIONS, async ($, on) => {
@@ -75,6 +114,7 @@ test('Pass: kept as passed, no thanks, never asked again', OPTIONS, async ($, on
   await $.command.run(workout('pass'))
   expect(store.get('about')).toEqual({ owl: 'pass' })
   expect(w.toasts.length).toBe(toasts)
+  expect((await bandOf($)).keys).toEqual([])
 })
 
 test('never the day they met him', OPTIONS, async ($, on) => {

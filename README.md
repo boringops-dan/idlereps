@@ -214,8 +214,8 @@ chapter he's in and his medals are in the pane.
 
 **He knows you.** Back after a couple of days, he missed you; after a week, your spot is still warm; the
 day after, how yesterday went for you and your agent both. Now and then, on a turn with nothing due, he
-asks you something: morning person or night owl, dogs or cats, what you lift to. Later he brings it
-up. He counts the days you showed up, is groggy before eight and puzzled to see you after eleven (in the
+asks you something: morning person or night owl, dogs or cats, what you lift to. He answers back
+right then, and later he brings it up. He counts the days you showed up, is groggy before eight and puzzled to see you after eleven (in the
 pane at night he's asleep), and notices when you open a project he hasn't seen you in: a new gym.
 
 **He remembers.** On a set he brings up your own history: your 10th (25th, 100th...) set of that

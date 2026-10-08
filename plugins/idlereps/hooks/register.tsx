@@ -67,7 +67,7 @@ import type { PunchCard } from './punch'
 import { isShinyAt, SHINY_COLOURS } from './shiny'
 import { afterSet, compete, competitionOf, isPosing } from './prep'
 import type { Prep } from './prep'
-import { ANSWER_IDS, nextQuestion, recallFor } from './questions'
+import { ANSWER_IDS, nextQuestion, QUESTIONS, recallFor } from './questions'
 import type { About } from './questions'
 import { ASIDE_GAP, ASIDE_MS, ASIDES, asideSpot, asideText, hasAsides } from './asides'
 import { collected, dueUnlock, setsForUnlock, setsToNext, STARTER_MOVES, UNLOCK_ORDER } from './collection'
@@ -1631,14 +1631,16 @@ async function answerSpotMe($: EngineInterface, id: string) {
   else await replaceBand($, { ...showOffBand(line('spotted', { day }), move), isWin: true })
 }
 
-/** An answer (or Pass): kept, and never asked again; an answer is thanked. */
+/** An answer (or Pass): kept, and never asked again; an answer gets his reply to it, in the band, not a toast. */
 async function answerQuestion($: EngineInterface, id: string) {
   const shown = await read($, band)
   if (shown?.question === undefined) return
   const index = ANSWER_IDS.indexOf(id as (typeof ANSWER_IDS)[number])
   await save($, 'about', { ...(await load<About>($, 'about', {})), [shown.question.id]: index === -1 ? 'pass' : index })
-  await clearBand($)
-  if (index !== -1) $.ui.toast(line('answer-noted', { day: await today($) }))
+  const reply = index === -1 ? undefined : QUESTIONS.find(q => q.id === shown.question?.id)?.reply[index]
+  const move = moveById('kiss-bicep')
+  if (reply === undefined || move === undefined) await clearBand($)
+  else await replaceBand($, showOffBand(line(reply, { day: await today($) }), move))
 }
 
 async function offerStill($: EngineInterface) {

@@ -141,7 +141,6 @@ test('lines fit: Swolomon’s and band rows within 80 columns, his band lines wi
     'prep-peak',
     'prep-halfway',
     'prep-ready',
-    'answer-noted',
     'stood-logged',
     'target-hit',
     'greet-missed',
