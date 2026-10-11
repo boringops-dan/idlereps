@@ -1,6 +1,5 @@
 {
   "name": "idlereps",
-  "version": "1.0.0",
   "description": "A workout plan and tracker: builds a plan around your equipment, hands you one set at a time while your agent works, and logs your progress",
   "author": {
     "name": "Orange Specs Mobile Labs"
