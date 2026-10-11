@@ -3,7 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import type { HistoryEntry, Plan } from '../types'
 import { START } from '../hooks/plan'
 import { todayOf } from '../hooks/status'
-import { drawnRows, NOON, OPTIONS, ownStore, SESSION, STATUS, tallyOf, TODAY, workout, world } from './world'
+import { drawnRows, footerLabelOf, NOON, OPTIONS, ownStore, SESSION, STATUS, tallyOf, TODAY, workout, world } from './world'
 
 /**
  * The tally is today's, and every open session's (owner, 2026-10-11: "the app seems to have no idea when the
@@ -135,4 +135,15 @@ test('one set left of today’s: “1 set”, never “1 sets”', OPTIONS, asyn
   const pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...STATUS })
   expect(drawnRows(await pane.drawn())).toContain('0 of 1 set today · 4 done Thu')
   await pane.unmount()
+})
+
+test('Later in another session: this session’s “ready” becomes the new countdown', OPTIONS, async ($, on) => {
+  const store = ownStore(on, { startedOn: TODAY, nextCueAt: NOON })
+  const { clock } = world(on, FIVE, 'own-store')
+  await $.session.start(SESSION)
+  expect(await footerLabelOf($)).toMatch(/💪 0\/5 · ready$/)
+  // Later there: the next set fifteen minutes on.
+  store.set('nextCueAt', NOON + 15 * MINUTE)
+  await clock.advance(5 * MINUTE)
+  expect(await footerLabelOf($)).toBe('💪 0/5 · 10m')
 })

@@ -339,6 +339,8 @@ const coach: {
   /** The session's next look at the store and the clock (keepCurrent), and the day it last saw. */
   currentTimer: Timer | null
   currentDay: number | undefined
+  /** What the footer was last drawn from, as keepCurrent compares it (footerInputs). */
+  currentInputs: string | undefined
   isTurnRunning: boolean
   turnStartedAt: number
   /** When the last turn ended (his footer eyes blink a while after it: hooks/footer.ts). */
@@ -458,6 +460,7 @@ const coach: {
   idleTimer: null,
   currentTimer: null,
   currentDay: undefined,
+  currentInputs: undefined,
   isTurnRunning: false,
   turnStartedAt: 0,
   turnEndedAt: undefined,
@@ -2811,13 +2814,32 @@ const CURRENT_IDLE_MS = 5 * 60_000
  * few minutes once nobody is, and never later than the next midnight. A new day is a rollover: the tally
  * moves on and the idle reminder is armed for it.
  */
+/** Everything the footer (tally and countdown) is drawn from that another session can change, as one string. */
+async function footerInputs($: EngineInterface): Promise<string> {
+  const history = await load<HistoryEntry[]>($, 'history', [])
+  return JSON.stringify([
+    (await planFile($)).isMissing ? null : coach.planCache?.key,
+    await load($, 'mode', null),
+    await load($, 'progress', null),
+    history.length,
+    history.at(-1)?.t,
+    await load($, 'declinedOn', null),
+    await load($, 'paused', null),
+    await load($, 'nextCueAt', null),
+  ])
+}
+
 async function keepCurrent($: EngineInterface) {
   coach.currentTimer?.cancel()
   const at = await now($)
   const day = dayNumberOf(at)
   const isNewDay = coach.currentDay !== undefined && day !== coach.currentDay
   coach.currentDay = day
-  await refreshStatus($)
+  // A look that finds nothing new is a few reads; the whole of the facts only when the footer could change,
+  // or the pane is open (its facts are all of them).
+  const inputs = await footerInputs($)
+  if (isNewDay || coach.isStatusOpen || inputs !== coach.currentInputs) await refreshStatus($)
+  coach.currentInputs = inputs
   if (isNewDay) await armIdle($)
   const midnight = new Date(at)
   midnight.setHours(24, 0, 0, 0)
