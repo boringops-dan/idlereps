@@ -52,6 +52,7 @@ test('/workout plan when the model cannot be reached changes nothing', OPTIONS, 
 test('the status pane on a training day: Swolomon, the workout as a table, the buttons, then the rest', OPTIONS, async ($, on) => {
   world(on, generateProgram(STARTER_ANSWERS), {
     progress: { ...START, done: 1 },
+    history: [{ kind: 'set', t: NOON, d: TODAY, w: 0, exercise: 'Desk push-ups', set: 1, target: '10 reps', result: 'done', count: 10 }],
     totalDoneSets: 112,
     lastByExercise: { Squats: { best: { any: 14 } } },
   })
@@ -67,15 +68,17 @@ test('the status pane on a training day: Swolomon, the workout as a table, the b
     '  Squats         ○○  12 reps   best 14 reps',
     '  Wall angels    ○○  8 reps',
     '',
-    '1: Start a set now   4: Change plan   0: Close',
+    '1: Start a set now   3: Share week   4: Change plan   0: Close',
     '',
-    // The plan started today (no earlier log): the days before it are not missed training days.
-    'Mon ·  Tue ·  Wed ·  Thu ·  Fri ○  Sat ·  Sun ·',
-    'Streak 0 · 0 sets this week · 112 total',
+    'Moved 1 min this week while your agent worked · 1 min since day 1',
+    // The plan started today (the log's first set): the days before it are not missed training days.
+    'Mon ·  Tue ·  Wed ·  Thu ·  Fri ◐  Sat ·  Sun ·',
+    'Showed up 1 day this month · 1 set this week · 112 total',
     'Rank: Rack Regular  ━━━━━━━━━━  112/250 to Iron Disciple',
     `Moves ${MOVES.length} of ${MOVES.length}  ━━━━━━━━━━  all of them`,
     'Bests  Squats 14 reps',
     '',
+    'Last set: Desk push-ups 10/10',
     'Beginner general fitness · 3x/week · 4 weeks',
     'Built for: no gear, no floor, standing and desk moves. Want floor work or gear? Change plan.',
     'Feedback: /workout feedback · Ideas and plans: github.com/boringops-dan/idlereps/discussions',

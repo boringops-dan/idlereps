@@ -336,7 +336,9 @@ const coach: {
   timers: Record<Owner, Timer[]>
   cueTimer: Timer | null
   idleTimer: Timer | null
-  midnightTimer: Timer | null
+  /** The session's next look at the store and the clock (keepCurrent), and the day it last saw. */
+  currentTimer: Timer | null
+  currentDay: number | undefined
   isTurnRunning: boolean
   turnStartedAt: number
   /** When the last turn ended (his footer eyes blink a while after it: hooks/footer.ts). */
@@ -454,7 +456,8 @@ const coach: {
   timers: { band: [], turn: [], session: [], pane: [], footer: [], eyes: [], moves: [] },
   cueTimer: null,
   idleTimer: null,
-  midnightTimer: null,
+  currentTimer: null,
+  currentDay: undefined,
   isTurnRunning: false,
   turnStartedAt: 0,
   turnEndedAt: undefined,
@@ -2768,7 +2771,7 @@ const gymWord = (word: string) => GYM_WORDS[[...word].reduce((n, c) => (n * 31 +
 
 
 // ---------------------------------------------------------------------------------------------------------
-// Session-wide one-shots: the idle reminder and the midnight rollover (§4.3 item 3).
+// Session-wide: the idle reminder (a one-shot), and keeping the tally current (§4.3 item 3).
 
 async function armIdle($: EngineInterface) {
   coach.idleTimer?.cancel()
@@ -2797,18 +2800,29 @@ async function remindIdle($: EngineInterface) {
   await armIdle($)
 }
 
-async function armMidnight($: EngineInterface) {
-  coach.midnightTimer?.cancel()
+/** How often a session looks again at the store and the clock (keepCurrent): while his eyes are awake, and after. */
+const CURRENT_AWAKE_MS = 60_000
+const CURRENT_IDLE_MS = 5 * 60_000
+
+/**
+ * Keeps the tally current while the session is open. Other sessions log sets, start a workout or say Not
+ * today in the shared store and nothing tells this one, and a timer set for midnight runs late after the
+ * machine sleeps; so the session looks again, every minute while the agent works (and a while after), every
+ * few minutes once nobody is, and never later than the next midnight. A new day is a rollover: the tally
+ * moves on and the idle reminder is armed for it.
+ */
+async function keepCurrent($: EngineInterface) {
+  coach.currentTimer?.cancel()
   const at = await now($)
+  const day = dayNumberOf(at)
+  const isNewDay = coach.currentDay !== undefined && day !== coach.currentDay
+  coach.currentDay = day
+  await refreshStatus($)
+  if (isNewDay) await armIdle($)
   const midnight = new Date(at)
   midnight.setHours(24, 0, 0, 0)
-  coach.midnightTimer = timer($, 'session', midnight.getTime() - at, () => void rollOver($))
-}
-
-async function rollOver($: EngineInterface) {
-  await refreshStatus($)
-  await armIdle($)
-  await armMidnight($)
+  const every = isAwake({ isTurnRunning: coach.isTurnRunning, turnEndedAt: coach.turnEndedAt, now: at }) ? CURRENT_AWAKE_MS : CURRENT_IDLE_MS
+  coach.currentTimer = timer($, 'session', Math.min(every, midnight.getTime() - at), () => void keepCurrent($))
 }
 
 /** After an update, the release's For you lines, once (§1.12 item 8); never on a first install. */
@@ -4010,9 +4024,8 @@ export const register: Register = (on, options) => {
     }
     // Back from a competition he went to since the last session.
     if (isTraining && e.isInteractive) await backFromCompeting($)
-    await refreshStatus($)
+    await keepCurrent($)
     await armIdle($)
-    await armMidnight($)
     return next(e)
   })
 
@@ -4060,7 +4073,8 @@ export const register: Register = (on, options) => {
     if ((coach.turnCanCue || coach.turnCanStretch || coach.turnCanNudge || coach.turnCanRemind || coach.turnCanStill) && (showing === null || showing.kind === 'logged')) {
       scheduleCue($, cueDelayMs(turnWaitMs(isBig), await load<number | undefined>($, 'nextCueAt', undefined), coach.turnStartedAt))
     }
-    await refreshFooter($)
+    // They are looking at this session: the tally as the store has it now, whatever other sessions did.
+    await refreshStatus($)
     return next(e)
   })
 

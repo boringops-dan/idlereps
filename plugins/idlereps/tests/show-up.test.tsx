@@ -50,7 +50,8 @@ test('every line with {n} reads right at n = 1', () => {
 })
 
 test('the pane with one set left says “1 set to go”', OPTIONS, async ($, on) => {
-  world(on, TINY, { progress: { ...START, done: 1 }, startedOn: TODAY })
+  const history: HistoryEntry[] = [{ kind: 'set', t: NOON, d: TODAY, w: 0, exercise: 'Push-ups', set: 1, target: '10 reps', result: 'done', count: 10 }]
+  world(on, TINY, { progress: { ...START, done: 1 }, startedOn: TODAY, history })
   await $.session.start(SESSION)
   await $.command.run(workout(''))
   const pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...STATUS })
