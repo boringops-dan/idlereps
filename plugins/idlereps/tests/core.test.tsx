@@ -537,9 +537,11 @@ test('the turn ending takes its timers with it, and leaves the session’s', OPT
   const clock = liveClock(on)
   world(on, TINY, {}, { ownClock: true })
   await $.session.start(SESSION)
+  // The session's look at the store (keepCurrent) goes from every five minutes to every minute at a prompt.
   const sessionTimers = clock.live().sort((a, b) => a - b)
+  expect(sessionTimers).toContain(300_000)
   await $.turn.start({ text: 'go', turnId: 't1' })
   expect(clock.live()).toContain(30_000)
   await $.turn.complete({ turnId: 't1', answer: '', reason: 'end_turn' } as never)
-  expect(clock.live().sort((a, b) => a - b)).toEqual(sessionTimers)
+  expect(clock.live().sort((a, b) => a - b)).toEqual(sessionTimers.map(ms => (ms === 300_000 ? 60_000 : ms)).sort((a, b) => a - b))
 })

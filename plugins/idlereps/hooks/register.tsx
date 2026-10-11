@@ -341,6 +341,8 @@ const coach: {
   currentDay: number | undefined
   /** What the footer was last drawn from, as keepCurrent compares it (footerInputs). */
   currentInputs: string | undefined
+  /** When this session started (keepCurrent: how long nobody has used it). */
+  sessionStartedAt: number
   isTurnRunning: boolean
   turnStartedAt: number
   /** When the last turn ended (his footer eyes blink a while after it: hooks/footer.ts). */
@@ -461,6 +463,7 @@ const coach: {
   currentTimer: null,
   currentDay: undefined,
   currentInputs: undefined,
+  sessionStartedAt: 0,
   isTurnRunning: false,
   turnStartedAt: 0,
   turnEndedAt: undefined,
@@ -2803,16 +2806,21 @@ async function remindIdle($: EngineInterface) {
   await armIdle($)
 }
 
-/** How often a session looks again at the store and the clock (keepCurrent): while his eyes are awake, and after. */
+/**
+ * How often a session looks again at the store and the clock (keepCurrent): while his eyes are awake; then
+ * for the first hour nobody uses it; then until someone does.
+ */
 const CURRENT_AWAKE_MS = 60_000
 const CURRENT_IDLE_MS = 5 * 60_000
+const CURRENT_IDLE_FOR_MS = 60 * 60_000
+const CURRENT_AWAY_MS = 30 * 60_000
 
 /**
  * Keeps the tally current while the session is open. Other sessions log sets, start a workout or say Not
  * today in the shared store and nothing tells this one, and a timer set for midnight runs late after the
- * machine sleeps; so the session looks again, every minute while the agent works (and a while after), every
- * few minutes once nobody is, and never later than the next midnight. A new day is a rollover: the tally
- * moves on and the idle reminder is armed for it.
+ * machine sleeps; so the session looks again: every minute while the agent works (and a while after), every
+ * five minutes for the first hour nobody uses it, every half hour after that, never later than the next
+ * midnight, and at every prompt. A new day is a rollover: the tally moves on and the idle reminder is armed.
  */
 /** Everything the footer (tally and countdown) is drawn from that another session can change, as one string. */
 async function footerInputs($: EngineInterface): Promise<string> {
@@ -2843,7 +2851,12 @@ async function keepCurrent($: EngineInterface) {
   if (isNewDay) await armIdle($)
   const midnight = new Date(at)
   midnight.setHours(24, 0, 0, 0)
-  const every = isAwake({ isTurnRunning: coach.isTurnRunning, turnEndedAt: coach.turnEndedAt, now: at }) ? CURRENT_AWAKE_MS : CURRENT_IDLE_MS
+  const usedAt = Math.max(coach.turnEndedAt ?? 0, coach.sessionStartedAt)
+  const every = isAwake({ isTurnRunning: coach.isTurnRunning, turnEndedAt: coach.turnEndedAt, now: at })
+    ? CURRENT_AWAKE_MS
+    : at - usedAt < CURRENT_IDLE_FOR_MS
+      ? CURRENT_IDLE_MS
+      : CURRENT_AWAY_MS
   coach.currentTimer = timer($, 'session', Math.min(every, midnight.getTime() - at), () => void keepCurrent($))
 }
 
@@ -4046,6 +4059,7 @@ export const register: Register = (on, options) => {
     }
     // Back from a competition he went to since the last session.
     if (isTraining && e.isInteractive) await backFromCompeting($)
+    coach.sessionStartedAt = await now($)
     await keepCurrent($)
     await armIdle($)
     return next(e)
@@ -4095,8 +4109,10 @@ export const register: Register = (on, options) => {
     if ((coach.turnCanCue || coach.turnCanStretch || coach.turnCanNudge || coach.turnCanRemind || coach.turnCanStill) && (showing === null || showing.kind === 'logged')) {
       scheduleCue($, cueDelayMs(turnWaitMs(isBig), await load<number | undefined>($, 'nextCueAt', undefined), coach.turnStartedAt))
     }
-    // They are looking at this session: the tally as the store has it now, whatever other sessions did.
-    await refreshStatus($)
+    // They are looking at this session: the tally as the store has it now, whatever other sessions did, and
+    // looked at again every minute while the agent works.
+    await keepCurrent($)
+    await refreshFooter($)
     return next(e)
   })
 
