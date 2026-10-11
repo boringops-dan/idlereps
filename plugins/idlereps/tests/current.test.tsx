@@ -1,14 +1,13 @@
 import { expect, test } from 'claude-code/testing'
 
 import type { HistoryEntry, Plan } from '../types'
-import { START } from '../hooks/plan'
-import { todayOf } from '../hooks/status'
+import { closeUnfinished, START } from '../hooks/plan'
 import { drawnRows, footerLabelOf, NOON, OPTIONS, ownStore, SESSION, STATUS, tallyOf, TODAY, workout, world } from './world'
 
 /**
  * The tally is today's, and every open session's (owner, 2026-10-11: "the app seems to have no idea when the
  * day rolls over, I did my workouts 2 days ago and the bottom of the screen says 7/9. Also I notice that not
- * all sessions get updated with the current workout status").
+ * all sessions get updated with the current workout status"; then: "workouts dont carry over days").
  */
 
 const DAY_MS = 86_400_000
@@ -38,40 +37,72 @@ const setOn = (day: number, n: number, w = 0): HistoryEntry => ({
   count: 10,
 })
 
-/** Three of the five sets done two days ago (a Wednesday), none today. */
-const CARRIED = { progress: { ...START, done: 3 }, history: [setOn(TODAY - 2, 1), setOn(TODAY - 2, 2), setOn(TODAY - 2, 3)] }
+/** Three of the five sets done two days ago (a Wednesday), the workout left there. */
+const LEFT = { progress: { ...START, done: 3 }, history: [setOn(TODAY - 2, 1), setOn(TODAY - 2, 2), setOn(TODAY - 2, 3)] }
 
-test('a workout left unfinished on an earlier day: the tally counts today, out of what was left', OPTIONS, async ($, on) => {
-  world(on, FIVE, CARRIED)
+/** The partial completion a workout left part way gets, for the day it was done. */
+const closedOn = (day: number, n: number): HistoryEntry => ({ kind: 'workout-complete', t: setOn(day, n).t, d: day, w: 0, partial: true })
+
+test('workouts never carry over: one left part way on an earlier day counts for that day, and today is the next workout', OPTIONS, async ($, on) => {
+  const store = ownStore(on, LEFT)
+  world(on, FIVE, 'own-store')
   await $.session.start(SESSION)
-  expect(await tallyOf($)).toBe('💪 0/2')
-  await $.command.run(workout('start'))
-  await $.command.run(workout('done'))
-  expect(await tallyOf($)).toBe('💪 1/2')
-  await $.command.run(workout('start'))
-  await $.command.run(workout('done'))
-  expect(await tallyOf($)).toBe('💪 done')
+  expect(await tallyOf($)).toBe('💪 0/1')
+  expect(store.get('progress')).toEqual({ ...START, workout: 1, lastCompletedOn: TODAY - 2 })
+  expect((store.get('history') as HistoryEntry[]).at(-1)).toEqual(closedOn(TODAY - 2, 3))
 })
 
-test('the pane says the same of today, and when the rest was done', OPTIONS, async ($, on) => {
-  world(on, FIVE, CARRIED)
+test('a session open past midnight: the day’s unfinished workout closes at midnight', OPTIONS, async ($, on) => {
+  const store = ownStore(on, { progress: { ...START, done: 3 }, history: [1, 2, 3].map(n => setOn(TODAY, n)) })
+  const { clock } = world(on, FIVE, 'own-store')
   await $.session.start(SESSION)
+  expect(await tallyOf($)).toBe('💪 3/5')
+  // The next local day (NOON is noon UTC, whatever the zone the tests run in).
+  await clock.advance(DAY_MS)
+  expect(await tallyOf($)).toBe('💪 0/1')
+  expect(store.get('progress')).toEqual({ ...START, workout: 1, lastCompletedOn: TODAY })
+})
+
+test('a closed workout moves no targets and asks no rating; the week counts the day', OPTIONS, async ($, on) => {
+  const targets = { 'Push-ups': { reps: 10 } }
+  const store = ownStore(on, { ...LEFT, targets })
+  world(on, FIVE, 'own-store')
+  await $.session.start(SESSION)
+  expect(store.get('targets')).toEqual(targets)
   await $.command.run(workout(''))
   const pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...STATUS })
-  expect(drawnRows(await pane.drawn())).toContain('0 of 2 sets today · 3 done Wed')
+  const rows = drawnRows(await pane.drawn())
+  expect(rows).toContain('0 of 1 set today')
+  expect(rows.find(row => row.startsWith('Mon '))).toContain('Wed ●')
   await pane.unmount()
 })
 
-test('today’s sets and the carried ones are told apart, a reset never counts its old sets, and no log says “before”', () => {
-  const both = { plan: FIVE, today: TODAY, progress: { ...START, done: 3 }, history: [setOn(TODAY - 1, 1), setOn(TODAY - 1, 2), setOn(TODAY, 3)] }
-  expect(todayOf(both)).toEqual({ done: 1, total: 3, carried: 2, carriedOn: TODAY - 1 })
-  // `/workout reset` after three sets today, then one more: the one counts, the three are not carried.
-  const reset = { plan: FIVE, today: TODAY, progress: { ...START, done: 1 }, history: [1, 2, 3, 1].map(n => setOn(TODAY, n)) }
-  expect(todayOf(reset)).toEqual({ done: 1, total: 5, carried: 0, carriedOn: undefined })
-  // Progress with no log behind it (a hand-edited store): all of it is from before today.
-  expect(todayOf({ plan: FIVE, today: TODAY, progress: { ...START, done: 2 }, history: [] })).toEqual({ done: 0, total: 3, carried: 2, carriedOn: undefined })
-  // Another workout's sets today are not this one's.
-  expect(todayOf({ plan: FIVE, today: TODAY, progress: START, history: [setOn(TODAY, 1, 1)] })).toEqual({ done: 0, total: 5, carried: 0, carriedOn: undefined })
+test('closing: nothing done, done today, or no log to date it leaves the workout as it is; half is dropped', () => {
+  const half = { ...START, done: 2, half: true as const }
+  expect(closeUnfinished(FIVE, START, [], TODAY)).toBeNull()
+  expect(closeUnfinished(FIVE, { ...START, done: 2 }, [setOn(TODAY - 1, 1), setOn(TODAY, 2)], TODAY)).toBeNull()
+  expect(closeUnfinished(FIVE, { ...START, done: 2 }, [], TODAY)).toBeNull()
+  expect(closeUnfinished(FIVE, half, [setOn(TODAY - 1, 1), setOn(TODAY - 1, 2)], TODAY)?.progress).toEqual({ ...START, workout: 1, lastCompletedOn: TODAY - 1 })
+  // Another workout's sets do not date this one.
+  expect(closeUnfinished(FIVE, { ...START, done: 1 }, [setOn(TODAY - 1, 1, 1)], TODAY)).toBeNull()
+})
+
+test('the last workout of the plan left part way: the program is complete', OPTIONS, async ($, on) => {
+  const store = ownStore(on, { progress: { ...START, workout: 1, done: 0 }, history: [] })
+  store.set('progress', { ...START, workout: 1, done: 1 })
+  store.set('history', [{ ...setOn(TODAY - 1, 1, 1), exercise: 'Squats' }])
+  world(on, { ...FIVE, workouts: [FIVE.workouts[0]!, { name: 'B', exercises: [{ name: 'Squats', reps: '20 reps', sets: 2 }] }] }, 'own-store')
+  await $.session.start(SESSION)
+  expect((store.get('progress') as { workout: number }).workout).toBe(2)
+  expect(JSON.stringify(await $.command.run(workout('status')))).toMatch(/program complete/)
+})
+
+test('two sessions see midnight together: the log gets the completion once', OPTIONS, async ($, on) => {
+  // The other session closed it already, and this one read the progress before that.
+  const store = ownStore(on, { ...LEFT, history: [...LEFT.history, closedOn(TODAY - 2, 3)] })
+  world(on, FIVE, 'own-store')
+  await $.session.start(SESSION)
+  expect((store.get('history') as HistoryEntry[]).filter(e => e.kind === 'workout-complete')).toHaveLength(1)
 })
 
 test('while the agent works, a set logged in another session reaches this session’s tally within a minute', OPTIONS, async ($, on) => {
@@ -116,23 +147,6 @@ test('a prompt in a session shows the tally as the store has it, without waiting
   store.set('history', [setOn(TODAY, 1), setOn(TODAY, 2)])
   await $.turn.start({ text: 'go', turnId: 't1' })
   expect(await tallyOf($)).toBe('💪 2/5')
-})
-
-test('the next day, an unfinished workout from yesterday: the tally starts over at what is left', OPTIONS, async ($, on) => {
-  const { clock } = world(on, FIVE, { progress: { ...START, done: 3 }, history: [1, 2, 3].map(n => setOn(TODAY, n)) })
-  await $.session.start(SESSION)
-  expect(await tallyOf($)).toBe('💪 3/5')
-  await clock.advance(DAY_MS)
-  expect(await tallyOf($)).toBe('💪 0/2')
-})
-
-test('one set left of today’s: “1 set”, never “1 sets”', OPTIONS, async ($, on) => {
-  world(on, FIVE, { progress: { ...START, done: 4 }, history: [1, 2, 3, 4].map(n => setOn(TODAY - 1, n)) })
-  await $.session.start(SESSION)
-  await $.command.run(workout(''))
-  const pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...STATUS })
-  expect(drawnRows(await pane.drawn())).toContain('0 of 1 set today · 4 done Thu')
-  await pane.unmount()
 })
 
 test('Later in another session: this session’s “ready” becomes the new countdown', OPTIONS, async ($, on) => {

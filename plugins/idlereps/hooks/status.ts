@@ -56,26 +56,6 @@ function dayOf(facts: StatusFacts): Day {
   return 'training'
 }
 
-/**
- * Today's share of the workout. An unfinished workout continues on a later day with its done sets kept (D4),
- * so today counts only the sets logged today, out of those left when the day began; `carried` are the ones
- * done on an earlier day, `carriedOn` the last of those days (undefined when the log does not say).
- */
-export function todayOf(facts: Pick<StatusFacts, 'plan' | 'progress' | 'history' | 'today'>): {
-  done: number
-  total: number
-  carried: number
-  carriedOn: number | undefined
-} {
-  const { plan, progress, history, today } = facts
-  const workout = plan.workouts[progress.workout]
-  const steps = workout === undefined ? 0 : stepsFor(workout, progress).length
-  const sets = history.filter((entry): entry is Extract<HistoryEntry, { kind: 'set' }> => entry.kind === 'set' && entry.w === progress.workout)
-  const done = Math.min(progress.done, sets.filter(entry => entry.d === today).length)
-  const carried = progress.done - done
-  return { done, total: Math.max(done, steps - carried), carried, carriedOn: carried > 0 ? sets.findLast(entry => entry.d < today)?.d : undefined }
-}
-
 const nextDayText = (facts: StatusFacts): string => {
   const next = nextTrainingDay(facts.plan, facts.progress, facts.today)
   return next === null ? 'soon' : shortDayName(next)
@@ -269,10 +249,8 @@ export function statusViewOf(facts: StatusFacts): StatusView {
     ])
   }
   if (day === 'training') {
-    const sets = todayOf(facts)
     head.push([
-      { text: `${sets.done} of ${plural(sets.total, 'set')} today`, ...(sets.done > 0 ? { bold: true as const } : {}) },
-      ...(sets.carried === 0 ? [] : [{ text: ` · ${sets.carried} done ${sets.carriedOn === undefined ? 'before' : shortDayName(sets.carriedOn)}`, tone: 'muted' as const }]),
+      { text: `${progress.done} of ${plural(steps.length, 'set')} today`, ...(progress.done > 0 ? { bold: true as const } : {}) },
     ])
   } else {
     head.push(
@@ -407,16 +385,13 @@ function rankBar(totalSets: number): BandPart[] {
   ]
 }
 
-/**
- * The status line (§1.4): `💪 3/9`, sets done today of today's (a workout carried over from an earlier day
- * counts only what was left of it), `💪 done` once finished today, else nothing.
- */
+/** The status line (§1.4): `💪 3/9` with sets left today, `💪 done` once finished today, else nothing. */
 export function statusLineOf(facts: StatusFacts): string | undefined {
   const day = dayOf(facts)
   if (day === 'done') return '💪 done'
   if (day !== 'training') return undefined
-  const sets = todayOf(facts)
-  return `💪 ${sets.done}/${sets.total}`
+  const workout = facts.plan.workouts[facts.progress.workout]
+  return workout === undefined ? undefined : `💪 ${facts.progress.done}/${stepsFor(workout, facts.progress).length}`
 }
 
 /** Today's workout has sets still to come (a training day, not paused): the footer counts down to the next. */

@@ -84,7 +84,11 @@ export type HistoryEntry =
       /** Band level used; band exercises only. */
       band?: string
     }
-  | { kind: 'workout-complete'; t: number; d: number; w: number; half?: true }
+  /**
+   * A workout finished; `half` the half version; `partial` one stopped part way, closed when its day ended
+   * (workouts never carry over to another day). Neither moves targets; both count as showing up.
+   */
+  | { kind: 'workout-complete'; t: number; d: number; w: number; half?: true; partial?: true }
   | { kind: 'rating'; t: number; d: number; w: number; rating: Rating }
   /** A rest-day stretch: counts toward time moved, never toward sets, ranks or progression. */
   | { kind: 'stretch'; t: number; d: number; exercise: string; seconds: number }

@@ -3,7 +3,7 @@
  * advancing past it. Pure.
  */
 
-import type { Answers, Cue, Equipment, Exercise, Plan, Progress, Schedule, Target, Targets, Weekday, Workout } from '../types'
+import type { Answers, Cue, Equipment, Exercise, HistoryEntry, Plan, Progress, Schedule, Target, Targets, Weekday, Workout } from '../types'
 
 export const START: Progress = { workout: 0, done: 0, lastCompletedOn: null, extraDay: null }
 
@@ -342,6 +342,23 @@ export function advance(plan: Plan, progress: Progress, today: number): Advanced
   const { half: _, ...rest } = progress
   const next: Progress = { ...rest, workout: progress.workout + 1, done: 0, lastCompletedOn: today }
   return { progress: next, finished: next.workout >= plan.workouts.length ? 'plan' : 'workout' }
+}
+
+/**
+ * A workout stopped part way on an earlier day, closed: workouts never carry over to another day. It counts
+ * for the day it was done (a completion on that day, marked partial; no targets move, as with half), and
+ * the plan moves on to the next workout. Null when there is nothing to close: no sets done, or done today.
+ */
+export function closeUnfinished(plan: Plan, progress: Progress, history: readonly HistoryEntry[], today: number): { progress: Progress; entry: Extract<HistoryEntry, { kind: 'workout-complete' }> } | null {
+  if (progress.done === 0 || plan.workouts[progress.workout] === undefined) return null
+  const last = history.findLast((entry): entry is Extract<HistoryEntry, { kind: 'set' }> => entry.kind === 'set' && entry.w === progress.workout)
+  // With no set in the log (a store edited by hand), the day it was done is unknown: left as it is.
+  if (last === undefined || last.d >= today) return null
+  const { half: _, ...rest } = progress
+  return {
+    progress: { ...rest, workout: progress.workout + 1, done: 0, lastCompletedOn: last.d },
+    entry: { kind: 'workout-complete', t: last.t, d: last.d, w: progress.workout, partial: true },
+  }
 }
 
 /** "10 reps @ 12 kg", "12 reps @ medium band", "30 s": an amount in the exercise's own words. */

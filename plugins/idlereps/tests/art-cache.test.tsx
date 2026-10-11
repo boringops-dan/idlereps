@@ -17,7 +17,7 @@ const DEMOS_PLAN: Plan = {
   schedule: { everyNDays: 2 },
   workouts: [
     { name: 'A', exercises: [{ name: 'Goblet squats', reps: '10 reps', sets: 4 }] },
-    { name: 'B', exercises: [{ name: 'Hindu push-ups', reps: '8 reps', sets: 1 }] },
+    { name: 'B', exercises: [{ name: 'Goblet squats', reps: '10 reps', sets: 4 }] },
   ],
 }
 
@@ -60,7 +60,8 @@ test('animated: a move drawn plain stays plain only until the costume goes on, t
   const blits = blitLog(on)
   const seen = await secondSetDrawn($, clock, blits)
   expect(ONLY_PLAIN.some(cells => seen.has(cells))).toBe(true)
-  // Two days on (the plan's next training day) it is Halloween: a new session, the same move, now in costume.
+  // Two days on (the plan's next training day) it is Halloween: a new session, the next workout's same move,
+  // now in costume.
   await $.command.run(workout('later'))
   await clock.advance(48 * 3_600_000)
   const after = await secondSetDrawn($, clock, blits)

@@ -99,6 +99,7 @@ import {
   stripFence,
   targetOf,
   weekProgress,
+  closeUnfinished,
 } from './plan'
 import { drawMicro, MICRO_HEIGHT, MICRO_WIDTH } from './figure'
 import { misreadOf, saysOf } from './misreads'
@@ -1856,6 +1857,8 @@ async function recordSet($: EngineInterface, outcome: { result: 'done' | 'skip';
   const cue = shown?.cue
   const plan = await loadPlan($)
   if (cue === undefined || plan === null || !['set', 'edit', 'timer', 'time'].includes(shown?.kind ?? '')) return 'none'
+  // A set band left up past midnight: yesterday's workout is closed first, so the band is stale, not today's.
+  await closeYesterday($)
   const day = await today($)
   const at = await now($)
   const result = record(
@@ -2837,12 +2840,30 @@ async function footerInputs($: EngineInterface): Promise<string> {
   ])
 }
 
+/**
+ * Workouts never carry over to another day: one stopped part way on an earlier day is closed for that day
+ * (plan.ts closeUnfinished), in whichever session sees the new day first.
+ */
+async function closeYesterday($: EngineInterface) {
+  const plan = await loadPlan($)
+  if (plan === null) return
+  const closed = closeUnfinished(plan, await load($, 'progress', START), await load<HistoryEntry[]>($, 'history', []), await today($))
+  if (closed === null) return
+  await save($, 'progress', closed.progress)
+  // Sessions see midnight together: the log gets the completion once, whichever wrote it.
+  const history = await load<HistoryEntry[]>($, 'history', [])
+  const { entry } = closed
+  if (!history.some(e => e.kind === 'workout-complete' && e.w === entry.w && e.d === entry.d)) await save($, 'history', appendHistory(history, entry))
+}
+
 async function keepCurrent($: EngineInterface) {
   coach.currentTimer?.cancel()
   const at = await now($)
   const day = dayNumberOf(at)
   const isNewDay = coach.currentDay !== undefined && day !== coach.currentDay
   coach.currentDay = day
+  // Session start closes what an earlier day left; after that only a new day can leave anything.
+  if (isNewDay) await closeYesterday($)
   // A look that finds nothing new is a few reads; the whole of the facts only when the footer could change,
   // or the pane is open (its facts are all of them).
   const inputs = await footerInputs($)
@@ -4017,6 +4038,8 @@ export const register: Register = (on, options) => {
       $.ui.toast(line('newer-store', { day }))
       return next(e)
     }
+    // Before anything reads where the plan stands: a workout left part way on an earlier day is closed.
+    await closeYesterday($)
     // D3: the prototype's plan file becomes the first plan.
     if (!(await $.fs.exists(planPath()))) {
       const legacy = legacyPathOf(coach.home)
