@@ -23,30 +23,33 @@ export type Visit = { session: string | null; until: number; left?: string }
 /** Sessions whose agent is working, by id: when each last said so. */
 export type Working = Record<string, number>
 
+/** The session they prompted in last: where they are. */
+export type LastPrompt = { session: string }
+
 export const NO_VISIT: Visit = { session: null, until: 0 }
+
+/** Whether a session that said it was working at `at` still counts as working. */
+const isFreshAt = (at: number, now: number): boolean => now - at < WORKING_FRESH_MS
+
+/** Whether he is visiting a session now. */
+const isVisiting = (visit: Visit, now: number): boolean => visit.session !== null && visit.until > now
 
 /** Whether another session's agent is working now. */
 export const othersWorking = (working: Working, session: string, now: number): boolean =>
-  Object.entries(working).some(([id, at]) => id !== session && now - at < WORKING_FRESH_MS)
+  Object.entries(working).some(([id, at]) => id !== session && isFreshAt(at, now))
 
 /**
  * Whether he may show up in `session` now: he is here already, or nowhere, and not just gone looking elsewhere.
  * He goes where they prompted last first, while its agent works; only once he left it unanswered (or it is
  * idle) does another session get him.
  */
-export function mayVisit(visit: Visit, session: string, now: number, working: Working, lastPrompt?: { session: string }): boolean {
+export function mayVisit(visit: Visit, session: string, now: number, working: Working, lastPrompt: LastPrompt | undefined): boolean {
   if (visit.session === session) return true
-  if (visit.session !== null && visit.until > now) return false
+  if (isVisiting(visit, now)) return false
   if (visit.left === session && visit.until > now && othersWorking(working, session, now)) return false
   const where = lastPrompt?.session
-  const isWhereTheyAre = where === undefined || where === session || visit.left === where || !isFresh(working, where, now)
-  return isWhereTheyAre
-}
-
-/** Whether `session`'s agent is working now. */
-const isFresh = (working: Working, session: string, now: number): boolean => {
-  const at = working[session]
-  return at !== undefined && now - at < WORKING_FRESH_MS
+  const at = where === undefined ? undefined : working[where]
+  return where === undefined || where === session || visit.left === where || at === undefined || !isFreshAt(at, now)
 }
 
 /**
@@ -54,8 +57,8 @@ const isFresh = (working: Working, session: string, now: number): boolean => {
  * (none prompted yet). Only there does he show in the footer (owner, 2026-10-12: "I still see mutliple
  * swolomons?").
  */
-export function isHisSession(visit: Visit, lastPrompt: { session: string } | undefined, session: string, now: number): boolean {
-  if (visit.session !== null && visit.until > now) return visit.session === session
+export function isHisSession(visit: Visit, lastPrompt: LastPrompt | undefined, session: string, now: number): boolean {
+  if (isVisiting(visit, now)) return visit.session === session
   return lastPrompt === undefined || lastPrompt.session === session
 }
 
@@ -67,7 +70,7 @@ export const leave = (session: string, now: number): Visit => ({ session: null, 
 
 /** The working list with `session` working now (or not any more), stale and surplus sessions dropped. */
 export function withWorking(working: Working, session: string, now: number, isWorking: boolean): Working {
-  const fresh = Object.entries(working).filter(([id, at]) => id !== session && now - at < WORKING_FRESH_MS)
+  const fresh = Object.entries(working).filter(([id, at]) => id !== session && isFreshAt(at, now))
   const kept = fresh.sort((a, b) => b[1] - a[1]).slice(0, WORKING_CAP - 1)
   return Object.fromEntries(isWorking ? [[session, now], ...kept] : kept)
 }

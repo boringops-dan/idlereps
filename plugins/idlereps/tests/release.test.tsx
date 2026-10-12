@@ -89,7 +89,7 @@ test('the store, filled to every cap, stays under half its limit; Undo under 4 K
     declines: Array.from({ length: 60 }, (_, i) => TODAY - i),
     laterStreak: { day: TODAY, n: 2 },
     laterUntil: NOON,
-    lastPrompt: { session: crypto.randomUUID(), at: NOON },
+    lastPrompt: { session: crypto.randomUUID() },
     visit: { session: crypto.randomUUID(), until: NOON, left: crypto.randomUUID() },
     working: Object.fromEntries(Array.from({ length: 20 }, () => [crypto.randomUUID(), NOON])),
     easyDay: TODAY,

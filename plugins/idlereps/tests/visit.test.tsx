@@ -26,15 +26,15 @@ async function keys($: Engine): Promise<string[]> {
 
 test('the visit: here already or nowhere; never where he is now; just left, the others look first', () => {
   const working = { other: NOON }
-  expect(mayVisit(NO_VISIT, 'me', NOON, working)).toBe(true)
-  expect(mayVisit(arrive('me', NOON), 'me', NOON, working)).toBe(true)
-  expect(mayVisit(arrive('other', NOON), 'me', NOON + 30_000, working)).toBe(false)
+  expect(mayVisit(NO_VISIT, 'me', NOON, working, undefined)).toBe(true)
+  expect(mayVisit(arrive('me', NOON), 'me', NOON, working, undefined)).toBe(true)
+  expect(mayVisit(arrive('other', NOON), 'me', NOON + 30_000, working, undefined)).toBe(false)
   // The other session vanished mid-visit: free once its minute is up.
-  expect(mayVisit(arrive('other', NOON), 'me', NOON + VISIT_MS, working)).toBe(true)
-  expect(mayVisit(leave('me', NOON), 'me', NOON + 30_000, working)).toBe(false)
-  expect(mayVisit(leave('me', NOON), 'other', NOON + 30_000, working)).toBe(true)
+  expect(mayVisit(arrive('other', NOON), 'me', NOON + VISIT_MS, working, undefined)).toBe(true)
+  expect(mayVisit(leave('me', NOON), 'me', NOON + 30_000, working, undefined)).toBe(false)
+  expect(mayVisit(leave('me', NOON), 'other', NOON + 30_000, working, undefined)).toBe(true)
   // Nobody else working: he comes back to where he was.
-  expect(mayVisit(leave('me', NOON), 'me', NOON + 30_000, {})).toBe(true)
+  expect(mayVisit(leave('me', NOON), 'me', NOON + 30_000, {}, undefined)).toBe(true)
 })
 
 test('the working list: fresh sessions only, the newest kept up to its cap', () => {
@@ -148,7 +148,7 @@ test('the footer: his face only in the session he is in; the others keep the tal
   await $.turn.complete({ turnId: 't1', answer: '', reason: 'answer', durationMs: 1_000, isAborted: false } as never)
   expect(await footerLabelOf($)).toBe('👀 💪 0/5 · ready')
   // They prompted in another window: he is there.
-  store.set('lastPrompt', { session: 'there', at: NOON + 1_000 })
+  store.set('lastPrompt', { session: 'there' })
   await clock.advance(MIN)
   expect(await footerLabelOf($)).toBe('💪 0/5 · ready')
   // A prompt here brings him back.

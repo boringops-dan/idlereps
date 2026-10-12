@@ -70,7 +70,7 @@ import { isShinyAt, SHINY_COLOURS } from './shiny'
 import { afterSet, compete, competitionOf, isPosing } from './prep'
 import type { Prep } from './prep'
 import { arrive, isHisSession, leave, mayVisit, NO_VISIT, othersWorking, VISIT_MS, withWorking } from './visit'
-import type { Visit, Working } from './visit'
+import type { LastPrompt, Visit, Working } from './visit'
 import { ANSWER_IDS, nextQuestion, QUESTIONS, recallFor } from './questions'
 import type { About } from './questions'
 import { ASIDE_GAP, ASIDE_MS, ASIDES, asideSpot, asideText, hasAsides } from './asides'
@@ -605,11 +605,12 @@ async function refreshFooter($: EngineInterface) {
   const at = await now($)
   const reaction = coach.footerReaction ?? undefined
   // Only a workout under way (refreshStatus) has a next set to count down to.
-  const nextCueAt = coach.isUnderWay ? await load<number | undefined>($, 'nextCueAt', undefined) : undefined
-  coach.footerSeen = coach.isUnderWay ? await footerSeenOf($) : undefined
+  const seen = coach.isUnderWay ? await footerSeenOf($, at) : undefined
+  const nextCueAt = seen?.nextCueAt ?? undefined
+  coach.footerSeen = seen?.key
   const next = footerOf({ isUnderWay: coach.isUnderWay, nextCueAt, now: at, ...(reaction === undefined ? {} : { reaction }) })
   // His eyes: approved art only, never in Quiet, and only in the one session he is in (visit.ts).
-  const isNear = next.isNear && art.sprite.approved && coach.options.coachChat !== 'quiet' && (await isHere($))
+  const isNear = next.isNear && art.sprite.approved && coach.options.coachChat !== 'quiet' && seen?.isHere === true
   if (next.when !== coach.footer.when || isNear !== coach.footer.isNear) {
     if (!isNear) stopBlinking()
     coach.footer = { when: next.when, isNear }
@@ -628,22 +629,27 @@ async function refreshFooter($: EngineInterface) {
   }
 }
 
-/** Whether he is in this session (hooks/visit.ts isHisSession). */
-async function isHere($: EngineInterface): Promise<boolean> {
-  return isHisSession(await load<Visit>($, 'visit', NO_VISIT), await load<{ session: string; at: number } | undefined>($, 'lastPrompt', undefined), coach.sessionId, await now($))
+/** Where he is: the session he visits, and where they prompted last (hooks/visit.ts). */
+async function whereHeIs($: EngineInterface): Promise<[Visit, LastPrompt | undefined]> {
+  return Promise.all([load<Visit>($, 'visit', NO_VISIT), load<LastPrompt | undefined>($, 'lastPrompt', undefined)])
 }
 
 /** How often a footer with a set to come looks for another session's answer. */
 const FOOTER_LOOK_MS = 60_000
 
-/** What another session changes first: the next set's time, Not today, or whether he is here. */
-async function footerSeenOf($: EngineInterface): Promise<string> {
-  return JSON.stringify([await load($, 'nextCueAt', null), await load($, 'declinedOn', null), await isHere($)])
+/**
+ * What another session changes first: the next set's time, Not today, or whether he is here (`key`, compared
+ * at the footer's look), and the parts the footer draws from.
+ */
+async function footerSeenOf($: EngineInterface, at: number): Promise<{ key: string; nextCueAt: number | null; isHere: boolean }> {
+  const [nextCueAt, declinedOn, [visit, lastPrompt]] = await Promise.all([load<number | null>($, 'nextCueAt', null), load($, 'declinedOn', null), whereHeIs($)])
+  const isHere = isHisSession(visit, lastPrompt, coach.sessionId, at)
+  return { key: JSON.stringify([nextCueAt, declinedOn, isHere]), nextCueAt, isHere }
 }
 
 /** The footer's own look: another session answered (the whole session catches up), else the next minute. */
 async function footerTick($: EngineInterface) {
-  if ((await footerSeenOf($)) !== coach.footerSeen) await keepCurrent($)
+  if ((await footerSeenOf($, await now($))).key !== coach.footerSeen) await keepCurrent($)
   await refreshFooter($)
 }
 
@@ -1406,7 +1412,8 @@ const isRoaming = (spec: BandSpec): boolean => UNPROMPTED.has(spec.kind) || (spe
 
 /** Whether he may show up in this session now (hooks/visit.ts), without taking the visit. */
 async function mayVisitHere($: EngineInterface): Promise<boolean> {
-  return mayVisit(await load<Visit>($, 'visit', NO_VISIT), coach.sessionId, await now($), await load<Working>($, 'working', {}), await load<{ session: string } | undefined>($, 'lastPrompt', undefined))
+  const [[visit, lastPrompt], working, at] = await Promise.all([whereHeIs($), load<Working>($, 'working', {}), now($)])
+  return mayVisit(visit, coach.sessionId, at, working, lastPrompt)
 }
 
 /** Takes the visit for this session when it may; whether it did. */
@@ -3086,8 +3093,7 @@ async function footerInputs($: EngineInterface): Promise<string> {
     // Not drawn, but what a band here may wait on: today started, or Later said, in another session.
     await load($, 'startedOn', null),
     await load($, 'laterUntil', null),
-    (await load<Visit>($, 'visit', NO_VISIT)).session,
-    (await load<{ session: string } | undefined>($, 'lastPrompt', undefined))?.session,
+    ...(await whereHeIs($)).map(where => where?.session),
   ])
 }
 
@@ -4365,7 +4371,7 @@ export const register: Register = (on, options) => {
     coach.turnStartedAt = await now($)
     await markWorking($, true)
     // They are here: he comes to the session they prompt in.
-    await save($, 'lastPrompt', { session: coach.sessionId, at: coach.turnStartedAt })
+    if ((await load<LastPrompt | undefined>($, 'lastPrompt', undefined))?.session !== coach.sessionId) await save($, 'lastPrompt', { session: coach.sessionId })
     coach.turnReactions = new Set()
     // A session left open past midnight wears the new day's outfit.
     await dressForToday($)
