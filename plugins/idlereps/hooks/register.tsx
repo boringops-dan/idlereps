@@ -68,6 +68,8 @@ import type { PunchCard } from './punch'
 import { isShinyAt, SHINY_COLOURS } from './shiny'
 import { afterSet, compete, competitionOf, isPosing } from './prep'
 import type { Prep } from './prep'
+import { arrive, leave, mayVisit, NO_VISIT, othersWorking, VISIT_MS, withWorking } from './visit'
+import type { Visit, Working } from './visit'
 import { ANSWER_IDS, nextQuestion, QUESTIONS, recallFor } from './questions'
 import type { About } from './questions'
 import { ASIDE_GAP, ASIDE_MS, ASIDES, asideSpot, asideText, hasAsides } from './asides'
@@ -346,6 +348,10 @@ const coach: {
   currentInputs: string | undefined
   /** The next set's time and Not today, as the footer last read them: its minute look compares them. */
   footerSeen: string | undefined
+  /** This session, among the open ones (hooks/visit.ts). */
+  sessionId: string
+  /** He is visiting this session: the band he raised unasked is up here. */
+  isVisiting: boolean
   /** When this session started (keepCurrent: how long nobody has used it). */
   sessionStartedAt: number
   isTurnRunning: boolean
@@ -469,6 +475,8 @@ const coach: {
   currentDay: undefined,
   currentInputs: undefined,
   footerSeen: undefined,
+  sessionId: crypto.randomUUID(),
+  isVisiting: false,
   sessionStartedAt: 0,
   isTurnRunning: false,
   turnStartedAt: 0,
@@ -835,6 +843,7 @@ async function syncBandPane($: EngineInterface) {
 /** Empties the slot; the highest waiting band that passes the gate takes it. */
 async function clearBand($: EngineInterface) {
   await settleUnprompted($)
+  await releaseVisit($)
   cancelTimers('band')
   await stopTalk($)
   await update($, band, () => null)
@@ -1309,13 +1318,79 @@ async function expireBand($: EngineInterface, spec: BandSpec) {
 async function offerBand($: EngineInterface, spec: BandSpec, cause: Message['cause']) {
   // Later, said in any session, is nothing unasked until the gap ends: no question, no stand-up, no ask.
   if (cause === 'timer' && UNPROMPTED.has(spec.kind) && (await isHushed($))) return
+  const roams = cause === 'timer' && isRoaming(spec)
+  // One of him: shown unasked in one session at a time; this one tries again once he is free.
+  if (roams && !(await claimVisit($))) {
+    if (coach.isTurnRunning) scheduleCue($, Math.max(1_000, (await load<Visit>($, 'visit', NO_VISIT)).until - (await now($)) + 1_000))
+    return
+  }
   const decision = await decide($, { channel: 'band', cause })
   if (decision === 'show') {
     await placeBand($, spec)
     // Raised unasked: whether it is answered tells him how much to say (hooks/attention.ts).
     const shown = await read($, band)
     if (cause === 'timer' && UNPROMPTED.has(spec.kind) && shown?.kind === spec.kind) coach.unprompted = shown
-  } else if (decision === 'defer') coach.deferred = spec
+    if (roams && shown !== null && shown.kind === spec.kind) {
+      coach.isVisiting = true
+      timer($, 'band', VISIT_MS, () => void lookElsewhere($, shown))
+    }
+  } else {
+    // Not shown here after all: he is free for the others.
+    if (roams) await releaseVisit($, true)
+    if (decision === 'defer') coach.deferred = spec
+  }
+}
+
+/** Still the same unanswered ask (his talking redraws the band, so not the same object): kind, set, question. */
+const isSameAsk = (shown: BandSpec, spec: BandSpec): boolean =>
+  shown.kind === spec.kind &&
+  shown.isStarted !== true &&
+  shown.cue?.step === spec.cue?.step &&
+  shown.cue?.slot === spec.cue?.slot &&
+  shown.question?.id === spec.question?.id
+
+/** What he raises unasked that waits on an answer: his asks, and a set not started. */
+const isRoaming = (spec: BandSpec): boolean => UNPROMPTED.has(spec.kind) || (spec.kind === 'set' && spec.isStarted !== true)
+
+/** Whether he may show up in this session now (hooks/visit.ts), without taking the visit. */
+async function mayVisitHere($: EngineInterface): Promise<boolean> {
+  return mayVisit(await load<Visit>($, 'visit', NO_VISIT), coach.sessionId, await now($), await load<Working>($, 'working', {}))
+}
+
+/** Takes the visit for this session when it may; whether it did. */
+async function claimVisit($: EngineInterface): Promise<boolean> {
+  if (!(await mayVisitHere($))) return false
+  await save($, 'visit', arrive(coach.sessionId, await now($)))
+  return true
+}
+
+/** He is done here (answered, or gone): the visit is free, if it was this session's. */
+async function releaseVisit($: EngineInterface, force = false) {
+  if (!coach.isVisiting && !force) return
+  coach.isVisiting = false
+  if ((await load<Visit>($, 'visit', NO_VISIT)).session === coach.sessionId) await save($, 'visit', NO_VISIT)
+}
+
+/**
+ * A minute up and unanswered: with another session's agent working, he goes looking for them there (a set
+ * or ask is put away here, to come back at the next cue point); with none, he stays another minute.
+ */
+async function lookElsewhere($: EngineInterface, spec: BandSpec) {
+  const shown = await read($, band)
+  if (shown === null || !isSameAsk(shown, spec)) {
+    await releaseVisit($)
+    return
+  }
+  const at = await now($)
+  if (!othersWorking(await load<Working>($, 'working', {}), coach.sessionId, at)) {
+    await save($, 'visit', arrive(coach.sessionId, at))
+    timer($, 'band', VISIT_MS, () => void lookElsewhere($, spec))
+    return
+  }
+  if (shown.kind === 'set' || shown.kind === 'ask') await update($, parked, () => shown)
+  await clearBand($)
+  await save($, 'visit', leave(coach.sessionId, at))
+  if (coach.isTurnRunning) scheduleCue($, VISIT_MS + 1_000)
 }
 
 /** The bands he raises unasked that ask for an answer. */
@@ -1681,7 +1756,7 @@ async function quietMoment($: EngineInterface): Promise<'spotme' | 'question' | 
 }
 
 async function offerQuietMoment($: EngineInterface) {
-  if (!coach.isTurnRunning || (await read($, band)) !== null || (await isHushed($))) return
+  if (!coach.isTurnRunning || (await read($, band)) !== null || (await isHushed($)) || !(await mayVisitHere($))) return
   const moment = await quietMoment($)
   const day = await today($)
   if (moment === null || !(await mayExtra($, true))) return
@@ -2959,9 +3034,16 @@ async function closeYesterday($: EngineInterface) {
   if (!history.some(e => e.kind === 'workout-complete' && e.w === entry.w && e.d === entry.d)) await save($, 'history', appendHistory(history, entry))
 }
 
+/** This session's agent working, or not any more, in the list every session reads (hooks/visit.ts). */
+async function markWorking($: EngineInterface, isWorking: boolean) {
+  await save($, 'working', withWorking(await load<Working>($, 'working', {}), coach.sessionId, await now($), isWorking))
+}
+
 async function keepCurrent($: EngineInterface) {
   coach.currentTimer?.cancel()
   const at = await now($)
+  // Still working: said again, so the others keep counting this session in.
+  if (coach.isTurnRunning) await markWorking($, true)
   const day = dayNumberOf(at)
   const isNewDay = coach.currentDay !== undefined && day !== coach.currentDay
   coach.currentDay = day
@@ -4204,6 +4286,7 @@ export const register: Register = (on, options) => {
   on('turn.start', async ($, e, next) => {
     coach.isTurnRunning = true
     coach.turnStartedAt = await now($)
+    await markWorking($, true)
     coach.turnReactions = new Set()
     // A session left open past midnight wears the new day's outfit.
     await dressForToday($)
@@ -4310,6 +4393,7 @@ export const register: Register = (on, options) => {
     coach.turnSets = 0
     coach.turnOutcome = undefined
     if (e.agentId === undefined) {
+      await markWorking($, false)
       await recordWorkTime($)
       await save($, 'turnLengths', keptTurns(await load<number[]>($, 'turnLengths', []), e.durationMs))
     }
