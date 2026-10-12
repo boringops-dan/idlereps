@@ -330,8 +330,8 @@ export async function movesRows($: Engine, bodyColumns: number = PANE_PROPS.body
 /** The tally the plugin puts in the prompt footer (`💪 1/2`), or undefined when it shows none. */
 export async function tallyOf($: Engine): Promise<string | undefined> {
   const label = await footerLabelOf($)
-  // The tally alone: his eyes before it, and the time (or a reaction) after it, set aside.
-  return label?.replace(/^(👀|😌) /, '').replace(/ · .*$/, '')
+  // The tally alone: his face before it, and the time (or a reaction) after it, set aside.
+  return label?.replace(/^\S+ (?=💪)/u, '').replace(/ · .*$/, '')
 }
 
 /** The whole footer label: his eyes when the set is near, the tally, and the time to the next set. */

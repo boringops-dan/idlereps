@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
-import { EYES_AWAKE_MS, EYES_BLINK_MS, EYES_NEAR_MS, EYES_OPEN_MS, footerLabel, footerOf, isAwake } from '../hooks/footer'
+import { ANTICS, anticOf, EYES_AWAKE_MS, EYES_NEAR_MS, footerLabel, footerOf, isAwake } from '../hooks/footer'
 import { START } from '../hooks/plan'
 import { isRemindUnderWayOf } from '../hooks/status'
 import { ANIMATED, BAND, footerLabelOf, NOON, OPTIONS, SESSION, TINY, TODAY, turnEnded, workout, world } from './world'
@@ -60,9 +60,23 @@ test('his eyes blink while the agent works and a while after; then they rest ope
   expect(isAwake({ isTurnRunning: false, turnEndedAt: undefined, now: NOON })).toBe(false)
   expect(isAwake({ isTurnRunning: false, turnEndedAt: NOON - EYES_AWAKE_MS + 1, now: NOON })).toBe(true)
   expect(isAwake({ isTurnRunning: false, turnEndedAt: NOON - EYES_AWAKE_MS, now: NOON })).toBe(false)
-  expect(EYES_BLINK_MS).toBeGreaterThanOrEqual(1_000)
-  expect(EYES_OPEN_MS).toBeGreaterThanOrEqual(1_000)
 })
+
+test('his antics: looking around while the set comes, bouncing once it is ready; each face a second or more, his eyes first', () => {
+  for (const stage of ['near', 'ready'] as const) {
+    const frames = ANTICS[stage]
+    expect(frames[0]?.[0]).toBe('👀')
+    expect(new Set(frames.map(([face]) => face)).size).toBeGreaterThanOrEqual(5)
+    for (const [, ms] of frames) expect(ms).toBeGreaterThanOrEqual(1_000)
+    expect(anticOf(stage, frames.length)).toEqual(frames[0]!)
+  }
+  expect(ANTICS.ready.map(([face]) => face)).toEqual(expect.arrayContaining(['🙋', '🤸']))
+  expect(ANTICS.near.map(([face]) => face)).toEqual(expect.arrayContaining(['🧐', '🤨']))
+})
+
+/** One pass through a stage's faces. */
+const LOOP = (stage: 'near' | 'ready') => ANTICS[stage].reduce((sum, [, ms]) => sum + ms, 0)
+const faces = (stage: 'near' | 'ready') => new Set(ANTICS[stage].map(([face]) => face))
 
 test('live: 20 minutes out it says so, without his eyes; the minute ticks; under two minutes they come', OPTIONS, async ($, on) => {
   const { clock } = world(on, TINY, { nextCueAt: NOON + 20 * MIN })
@@ -86,23 +100,23 @@ test('live: no peek band is drawn for his eyes; the band slot stays empty', OPTI
   expect(await footerLabelOf($)).toBe('👀 💪 0/2 · ready')
 })
 
-test('live: animated, the eyes alternate during a turn, never quicker than a second, and rest open once it is long over', ANIMATED, async ($, on) => {
+test('live: animated, ready, he bounces through his faces during a turn, never quicker than a second, and rests on his eyes once it is long over', ANIMATED, async ($, on) => {
   const { clock } = world(on, TINY, { nextCueAt: NOON })
   await $.session.start(SESSION)
   await $.turn.start({ text: 'go', turnId: 't1' })
   const seen: string[] = []
-  for (let ms = 0; ms < 3 * (EYES_OPEN_MS + EYES_BLINK_MS); ms += 500) {
+  for (let ms = 0; ms < 2 * LOOP('ready'); ms += 500) {
     seen.push((await footerLabelOf($)) ?? '')
     await clock.advance(500)
   }
-  const eyes = seen.map(label => label.split(' ')[0])
-  expect(eyes).toContain('👀')
-  expect(eyes).toContain('😌')
-  // Each look or blink lasts at least a second (two samples).
-  const runs = eyes.join(',').split(/(?<=👀),(?=😌)|(?<=😌),(?=👀)/)
-  for (const run of runs.slice(1, -1)) expect(run.split(',').length).toBeGreaterThanOrEqual(2)
+  const shown = seen.map(label => [...label][0] === '👀' ? '👀' : label.split(' ')[0])
+  expect(new Set(shown)).toEqual(faces('ready'))
+  // Each face lasts at least a second (two samples), except where a run is cut by the sampling's ends.
+  const runs: number[] = []
+  for (const [i, face] of shown.entries()) (i > 0 && shown[i - 1] === face ? runs.push((runs.pop() ?? 0) + 1) : runs.push(1))
+  for (const run of runs.slice(1, -1)) expect(run).toBeGreaterThanOrEqual(2)
   await $.turn.complete(turnEnded('t1', 10_000))
-  await clock.advance(EYES_AWAKE_MS + EYES_OPEN_MS + EYES_BLINK_MS)
+  await clock.advance(EYES_AWAKE_MS + LOOP('ready'))
   const resting = new Set<string>()
   for (let i = 0; i < 20; i += 1) {
     resting.add((await footerLabelOf($)) ?? '')
@@ -131,14 +145,22 @@ async function eyesOver($: Engine, clock: { advance: (ms: number) => Promise<voi
   return seen
 }
 
-const CYCLE = 2 * (EYES_OPEN_MS + EYES_BLINK_MS)
+const CYCLE = 2 * LOOP('near')
 
 test('live: animated, after the turn ends they keep blinking within the awake window', ANIMATED, async ($, on) => {
   const { clock } = world(on, TINY, { nextCueAt: NOON })
   await $.session.start(SESSION)
   await $.turn.start({ text: 'go', turnId: 't1' })
   await $.turn.complete(turnEnded('t1', 10_000))
-  expect(await eyesOver($, clock, CYCLE)).toEqual(new Set(['👀', '😌']))
+  expect(await eyesOver($, clock, 2 * LOOP('ready'))).toEqual(faces('ready'))
+})
+
+test('live: animated, under two minutes out he looks around: his eyes, a blink, a squint, a raised brow', ANIMATED, async ($, on) => {
+  const { clock } = world(on, TINY, { nextCueAt: NOON + 10 * MIN })
+  await $.session.start(SESSION)
+  await clock.advance(9 * MIN)
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  expect(await eyesOver($, clock, LOOP('near') + 1_000)).toEqual(faces('near'))
 })
 
 test('live: animated, a new turn wakes resting eyes', ANIMATED, async ($, on) => {
@@ -147,7 +169,7 @@ test('live: animated, a new turn wakes resting eyes', ANIMATED, async ($, on) =>
   await clock.advance(EYES_AWAKE_MS)
   expect(await eyesOver($, clock, CYCLE)).toEqual(new Set(['👀']))
   await $.turn.start({ text: 'go', turnId: 't1' })
-  expect(await eyesOver($, clock, CYCLE)).toEqual(new Set(['👀', '😌']))
+  expect(await eyesOver($, clock, 2 * LOOP('ready'))).toEqual(faces('ready'))
 })
 
 test('live: animated, two days of an idle terminal pass without a timer storm', ANIMATED, async ($, on) => {

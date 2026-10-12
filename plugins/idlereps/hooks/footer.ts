@@ -8,9 +8,6 @@
 /** Under this long to the next set, or once it is ready, his eyes join the footer. */
 export const EYES_NEAR_MS = 2 * 60_000
 
-/** His eyes: open this long, then a blink this long (never quicker than a second). */
-export const EYES_OPEN_MS = 5_000
-export const EYES_BLINK_MS = 1_000
 
 /**
  * His eyes blink while the agent works and this long after its turn ends; past that the person has stepped
@@ -24,8 +21,42 @@ export function isAwake(opts: { isTurnRunning: boolean; turnEndedAt: number | un
   return opts.isTurnRunning || (opts.turnEndedAt !== undefined && opts.now - opts.turnEndedAt < EYES_AWAKE_MS)
 }
 
-/** Looking, and blinking. */
-export const EYES = { open: '👀', blink: '😌' } as const
+/** Where he is in the footer: the set coming (under EYES_NEAR_MS), or ready. */
+export type FooterStage = 'near' | 'ready'
+
+/**
+ * What he gets up to there (owner, 2026-10-12: "He starts looking around when it gets close, bouncing around,
+ * uses more emojis"): looking around while the set comes, bouncing once it is ready. Each face for its ms,
+ * never quicker than a second, in turn; the first, his eyes, is where he rests.
+ */
+export const ANTICS: Readonly<Record<FooterStage, readonly (readonly [face: string, ms: number])[]>> = {
+  near: [
+    ['👀', 2500],
+    ['😌', 1000],
+    ['👀', 1500],
+    ['🧐', 1500],
+    ['👀', 2000],
+    ['🤨', 1200],
+    ['😌', 1000],
+    ['😏', 1200],
+  ],
+  ready: [
+    ['👀', 1500],
+    ['🙋', 1000],
+    ['🤸', 1000],
+    ['🙆', 1000],
+    ['🏋️', 1200],
+    ['📣', 1000],
+    ['🙌', 1000],
+    ['😤', 1000],
+  ],
+}
+
+/** His face at frame `frame` of a stage, and how long it holds. */
+export const anticOf = (stage: FooterStage, frame: number): readonly [face: string, ms: number] => {
+  const frames = ANTICS[stage]
+  return frames[frame % frames.length]!
+}
 
 /**
  * What the footer says after the tally, whether his eyes show, and in how many ms that next changes (null:

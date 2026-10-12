@@ -142,7 +142,7 @@ import {
 import { bandFilmSvg, moveFilmSvg, stillSvg } from './film'
 import { callKind, expectedMs, learn } from './durations'
 import type { CallKind, CallTimes } from './durations'
-import { EYES, EYES_BLINK_MS, EYES_OPEN_MS, footerLabel, footerOf, isAwake } from './footer'
+import { anticOf, footerLabel, footerOf, isAwake } from './footer'
 import type { Cameo, Fit, IdleStep, Pose, PortraitSize, Timeline, Walk } from './portrait'
 import { backupOf, BACKUP_KEYS, backupPathOf, csvPathOf, historyCsv, parseBackup } from './data'
 import { PUSH_NAMES, STARTER_ANSWERS, generateProgram, stretchFor } from './programs'
@@ -424,7 +424,8 @@ const coach: {
   isPaneBreathIn: boolean
   /** The footer beside the tally (hooks/footer.ts): what follows it, whether his eyes show, and if they are open. */
   footer: { when: string | undefined; isNear: boolean }
-  isEyesOpen: boolean
+  /** His face in the footer: the frame of his antics (footer.ts ANTICS); 0, his eyes, at rest. */
+  anticFrame: number
   /** A timer band waiting for the prompt to empty (the gate's clause (c)). */
   deferred: BandSpec | null
   /** The first-run band was put off for this session (Not now). */
@@ -520,7 +521,7 @@ const coach: {
   isBreathIn: false,
   isPaneBreathIn: false,
   footer: { when: undefined, isNear: false },
-  isEyesOpen: true,
+  anticFrame: 0,
   deferred: null,
   isIntroDismissed: false,
   isStatusOpen: false,
@@ -607,7 +608,7 @@ async function refreshFooter($: EngineInterface) {
   if (next.when !== coach.footer.when || isNear !== coach.footer.isNear) {
     if (!isNear) stopBlinking()
     coach.footer = { when: next.when, isNear }
-    coach.isEyesOpen = true
+    coach.anticFrame = 0
     $.ui.invalidate('ui.render')
   }
   // Another session moves the next set (a set logged, Later, Not today there): while one is to come and the
@@ -618,7 +619,7 @@ async function refreshFooter($: EngineInterface) {
   if (changeIn !== null) timer($, 'footer', changeIn, () => void footerTick($))
   if (isNear && coach.options.coachAnimation && !coach.isBlinking) {
     coach.isBlinking = true
-    blink($, true)
+    blink($)
   }
 }
 
@@ -636,20 +637,28 @@ async function footerTick($: EngineInterface) {
   await refreshFooter($)
 }
 
-/** His eyes in the footer, alive while they show: open a while, then a blink, never quicker than a second. */
-function blink($: EngineInterface, isOpen: boolean) {
-  timer($, 'eyes', isOpen ? EYES_OPEN_MS : EYES_BLINK_MS, () => void blinkStep($, isOpen))
+/** He is ready (the set is due), or looking around while it comes. */
+const footerStage = () => (coach.footer.when === 'ready' ? 'ready' : 'near')
+
+/** His antics in the footer, alive while they show: each face for its time, then the next (footer.ts). */
+function blink($: EngineInterface) {
+  timer($, 'eyes', anticOf(footerStage(), coach.anticFrame)[1], () => void blinkStep($))
 }
 
-async function blinkStep($: EngineInterface, wasOpen: boolean) {
-  // The person stepped away: the eyes rest open until the next turn (turn.start refreshes the footer).
-  if (!coach.footer.isNear || (wasOpen && !isAwake({ isTurnRunning: coach.isTurnRunning, turnEndedAt: coach.turnEndedAt, now: await now($) }))) {
+async function blinkStep($: EngineInterface) {
+  // The person stepped away: he rests on his eyes until the next turn (turn.start refreshes the footer).
+  const isAway = !isAwake({ isTurnRunning: coach.isTurnRunning, turnEndedAt: coach.turnEndedAt, now: await now($) })
+  if (!coach.footer.isNear || isAway) {
+    if (coach.anticFrame !== 0) {
+      coach.anticFrame = 0
+      $.ui.invalidate('ui.render')
+    }
     coach.isBlinking = false
     return
   }
-  coach.isEyesOpen = !wasOpen
+  coach.anticFrame += 1
   $.ui.invalidate('ui.render')
-  blink($, !wasOpen)
+  blink($)
 }
 
 function stopBlinking() {
@@ -4464,7 +4473,7 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
     const tally = coach.tally
     if (tally === undefined) return next(e)
-    const eyes = coach.footer.isNear ? (coach.isEyesOpen ? EYES.open : EYES.blink) : undefined
+    const eyes = coach.footer.isNear ? anticOf(footerStage(), coach.anticFrame)[0] : undefined
     return next({ ...e, props: { ...e.props, modes: [...e.props.modes, footerLabel(tally, { when: coach.footer.when, eyes })] } })
   })
 
