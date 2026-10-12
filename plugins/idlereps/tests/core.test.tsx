@@ -546,5 +546,6 @@ test('the turn ending takes its timers with it, and leaves the session’s', OPT
   await $.turn.start({ text: 'go', turnId: 't1' })
   expect(clock.live()).toContain(30_000)
   await $.turn.complete({ turnId: 't1', answer: '', reason: 'end_turn' } as never)
-  expect(clock.live().sort((a, b) => a - b)).toEqual(sessionTimers.map(ms => (ms === 300_000 ? 60_000 : ms)).sort((a, b) => a - b))
+  // In use now: the footer's minute look for another session's answer (the set is ready) joins them.
+  expect(clock.live().sort((a, b) => a - b)).toEqual([...sessionTimers.map(ms => (ms === 300_000 ? 60_000 : ms)), 60_000].sort((a, b) => a - b))
 })

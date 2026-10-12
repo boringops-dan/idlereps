@@ -130,13 +130,23 @@ test('a session nobody is using catches up within five minutes, and never redraw
   expect(await tallyOf($)).toBe('💪 1/5')
 })
 
-test('Not today said in another session takes the tally away here too', OPTIONS, async ($, on) => {
+test('Not today said in another session takes the tally away here too: within a minute in use, five idle', OPTIONS, async ($, on) => {
   const store = ownStore(on, {})
   const { clock } = world(on, FIVE, 'own-store')
   await $.session.start(SESSION)
+  await $.turn.start({ text: 'go', turnId: 't1' })
   expect(await tallyOf($)).toBe('💪 0/5')
   store.set('declinedOn', TODAY)
   await clock.advance(MINUTE)
+  expect(await tallyOf($)).toBeUndefined()
+})
+
+test('a session nobody is using: Not today there reaches it at its next look', OPTIONS, async ($, on) => {
+  const store = ownStore(on, {})
+  const { clock } = world(on, FIVE, 'own-store')
+  await $.session.start(SESSION)
+  store.set('declinedOn', TODAY)
+  await clock.advance(5 * MINUTE)
   expect(await tallyOf($)).toBeUndefined()
 })
 
@@ -154,6 +164,9 @@ test('Later in another session: this session’s “ready” becomes the same co
   const store = ownStore(on, { startedOn: TODAY, nextCueAt: NOON })
   const { clock } = world(on, FIVE, 'own-store')
   await $.session.start(SESSION)
+  // In use: its turn just ended.
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  await $.turn.complete({ turnId: 't1', answer: '', reason: 'end_turn', durationMs: 1_000, isAborted: false } as never)
   expect(await footerLabelOf($)).toMatch(/💪 0\/5 · ready$/)
   // Later there: the next set fifteen minutes on.
   store.set('nextCueAt', NOON + 15 * MINUTE)

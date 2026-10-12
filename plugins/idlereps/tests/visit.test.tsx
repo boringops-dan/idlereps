@@ -105,3 +105,18 @@ test('a turn running counts this session as working; its end takes it off the li
   await $.turn.complete({ turnId: 't1', answer: '', reason: 'answer', durationMs: 60_000, isAborted: false } as never)
   expect(store.get('working')).toEqual({})
 })
+
+test('a band left up here after the turn: once he shows up in another session, it goes from here', OPTIONS, async ($, on) => {
+  const store = ownStore(on, DUE)
+  const { clock } = world(on, PLAN, 'own-store')
+  await $.session.start(SESSION)
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  await clock.advance(31_000)
+  await $.turn.complete({ turnId: 't1', answer: '', reason: 'answer', durationMs: 31_000, isAborted: false } as never)
+  expect(await keys($)).toContain('start')
+  // His visit here lapsed; another session's agent started and he went there.
+  await clock.advance(VISIT_MS)
+  store.set('visit', arrive('other', NOON + 2 * MIN))
+  await clock.advance(MIN)
+  expect(await keys($)).toEqual([])
+})

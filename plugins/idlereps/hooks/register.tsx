@@ -610,9 +610,11 @@ async function refreshFooter($: EngineInterface) {
     coach.isEyesOpen = true
     $.ui.invalidate('ui.render')
   }
-  // Another session moves the next set (a set logged, Later, Not today there): while one is to come, the
-  // footer looks every minute, "ready" too, so every window counts down to the same time.
-  const changeIn = next.changeIn ?? (coach.isUnderWay ? FOOTER_LOOK_MS : null)
+  // Another session moves the next set (a set logged, Later, Not today there): while one is to come and the
+  // session is in use, the footer looks every minute, "ready" too, so every window counts down to the same
+  // time. A session nobody is using catches up at its own looks (keepCurrent), or its next prompt.
+  const isInUse = isAwake({ isTurnRunning: coach.isTurnRunning, turnEndedAt: coach.turnEndedAt, now: at })
+  const changeIn = next.changeIn ?? (coach.isUnderWay && isInUse ? FOOTER_LOOK_MS : null)
   if (changeIn !== null) timer($, 'footer', changeIn, () => void footerTick($))
   if (isNear && coach.options.coachAnimation && !coach.isBlinking) {
     coach.isBlinking = true
@@ -1383,6 +1385,9 @@ async function lookElsewhere($: EngineInterface, spec: BandSpec) {
   }
   const at = await now($)
   if (!othersWorking(await load<Working>($, 'working', {}), coach.sessionId, at)) {
+    // Alone, he stays: looking again each minute while the agent here works; after that his visit lapses,
+    // and he leaves this band only if another session takes him (dropAnsweredElsewhere).
+    if (!coach.isTurnRunning) return
     await save($, 'visit', arrive(coach.sessionId, at))
     timer($, 'band', VISIT_MS, () => void lookElsewhere($, spec))
     return
@@ -1418,6 +1423,14 @@ async function dropAnsweredElsewhere($: EngineInterface) {
   const plan = await loadPlan($)
   const cue = plan === null ? null : cueFor(plan, await load($, 'progress', START), await load<Targets>($, 'targets', {}))
   const isMoved = shown.cue !== undefined && (cue === null || cue.workout !== shown.cue.workout || cue.step !== shown.cue.step || cue.slot !== shown.cue.slot)
+  // He went to another session while this band waited here: it goes, a set or ask put away for later.
+  const visit = await load<Visit>($, 'visit', NO_VISIT)
+  if (isRoaming(shown) && visit.session !== null && visit.session !== coach.sessionId && visit.until > (await now($))) {
+    if (shown.kind === 'set' || shown.kind === 'ask') await update($, parked, () => shown)
+    coach.isVisiting = false
+    await clearBand($)
+    return
+  }
   const isAnswered =
     (UNPROMPTED.has(shown.kind) && (isOff || isHushedNow)) ||
     (shown.kind === 'ask' && ((await load<number | undefined>($, 'startedOn', undefined)) === day || isMoved)) ||
@@ -3015,6 +3028,7 @@ async function footerInputs($: EngineInterface): Promise<string> {
     // Not drawn, but what a band here may wait on: today started, or Later said, in another session.
     await load($, 'startedOn', null),
     await load($, 'laterUntil', null),
+    (await load<Visit>($, 'visit', NO_VISIT)).session,
   ])
 }
 
