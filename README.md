@@ -153,7 +153,7 @@ What each band's numbers do:
 | Logged | `1` High five (or his celebration of the set) · `0` Undo |
 | How did it feel? | `1` Easy · `2` Good · `3` Tough · `0` Undo |
 | Rank up | `1` Let's go · `0` Undo |
-| Swolomon's introduction, or a flex | `1` Let's go, or `1` Nice |
+| Swolomon's introduction, or a flex | `1` Let's go, or `0` Later, bro |
 | How's IdleReps going? (once) | `1` Love it · `2` It's fine · `3` Not for me · `4` Tell us more |
 
 - **Start** begins the set: Swolomon does it with you, and a timed set starts its countdown.

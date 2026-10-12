@@ -15,7 +15,7 @@ async function bandOf($: Engine) {
   return { keys, text: rows.join('\n') }
 }
 
-test('/workout hug: he brings it in; Nice puts it away', OPTIONS, async ($, on) => {
+test('/workout hug: he brings it in; Later, bro puts it away', OPTIONS, async ($, on) => {
   world(on, TINY)
   await $.session.start(SESSION)
   expect((await $.command.run(workout('hug'))).text).toBeUndefined()

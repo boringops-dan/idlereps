@@ -1051,13 +1051,14 @@ test('a button’s command with nothing showing says so; an unknown word gets th
   expect((await $.command.run(workout('jump'))).text).toBe(line('reply-usage', { day: TODAY }))
 })
 
-test('/workout flex: the portrait flexes; Nice or the next prompt puts it away', OPTIONS, async ($, on) => {
+test('/workout flex: the portrait flexes; 0: Later, bro (a way out) or the next prompt puts it away', OPTIONS, async ($, on) => {
   world(on, TINY)
   await $.session.start(SESSION)
   await $.command.run(workout('flex'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   expect(await ui.find({ type: 'Text', text: line('flex', { day: TODAY }) })).toBeDefined()
   expect(await ui.find({ key: 'swolomon' })).toBeDefined()
+  expect(drawnRows(await ui.drawn())).toContain('0: Later, bro')
   await ui.press({ key: 'nice' })
   expect(await ui.find({ key: 'nice' })).toBeUndefined()
   await $.command.run(workout('flex'))

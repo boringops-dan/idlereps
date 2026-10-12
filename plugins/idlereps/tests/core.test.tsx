@@ -181,7 +181,7 @@ test('ACTIONS is D11 for the bands and panes Phase A draws (with Replay: 1 Let\'
     "pulse 2 It's fine",
     'pulse 3 Not for me',
     'pulse 4 Tell us more',
-    'flex 1 Nice',
+    'flex 0 Later, bro',
     'status 1 Start a set now',
     'status 2 Train today anyway',
     'status 3 Share week',

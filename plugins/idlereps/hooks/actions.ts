@@ -16,7 +16,7 @@ export type Action = {
 }
 
 // The way out of a band, where it has one, is always 0 (owner, 2026-10-07: interactions nimble): Not now,
-// Not today, Later, Skip, Got it, Close; on the logged line and Give me a plan, 0 is Undo and Back.
+// Not today, Later, Skip, Got it, Close, Later bro; on the logged line and Give me a plan, 0 is Undo and Back.
 export const ACTIONS: readonly Action[] = [
   // The way in: Quick start is one key from the first set; a plan already there is kept.
   { kind: 'intro', id: 'quickstart', hotkey: '1', label: 'Quick start', isPrimary: true },
@@ -145,7 +145,9 @@ export const ACTIONS: readonly Action[] = [
   { kind: 'pulse', id: 'notforme', hotkey: '3', label: 'Not for me' },
   { kind: 'pulse', id: 'tellmore', hotkey: '4', label: 'Tell us more' },
 
-  { kind: 'flex', id: 'nice', hotkey: '1', label: 'Nice', isPrimary: true },
+  // Its one button is the way out (owner, 2026-10-12: "instead of 0:Nice is should be like 0: Later Bro or
+  // somethig to show its a dismiss").
+  { kind: 'flex', id: 'nice', hotkey: '0', label: 'Later, bro', isPrimary: true },
 
   { kind: 'status', id: 'now', hotkey: '1', label: 'Start a set now', isPrimary: true },
   { kind: 'status', id: 'today', hotkey: '2', label: 'Train today anyway' },
