@@ -310,7 +310,7 @@ export type IdleStep =
  * the gym to do his workouts"): a walk frame or a move's pose, drawn at `scale`, its left edge at `x` and its
  * feet on row `feet` (further back, higher up).
  */
-export type Far = { src: { stride: 0 | 1 } | { move: string; pose: number }; facing: 'left' | 'right'; scale: number; x: number; feet: number }
+export type Far = { src: { stride: 0 | 1 } | { approach: 0 | 1 } | { move: string; pose: number }; facing: 'left' | 'right'; scale: number; x: number; feet: number }
 
 /** One idle beat: a wait, then its steps in turn, then back to rest (idle, or the flex on a win). */
 export type IdleBeat = { wait: number; steps: readonly IdleStep[]; rest: Pose }
@@ -371,6 +371,36 @@ function backWalk(from: number, to: number): IdleStep[] {
     steps.push({ far: { src: { stride: Math.floor(i / 2) % 2 === 0 ? 0 : 1 }, facing, scale: BACK.scale, x, feet: BACK.feet }, ms: BACK.stepMs })
   }
   return steps
+}
+
+/** Walking straight at you, front on: his march's two steps (moves.ts), by step. */
+export const APPROACH_STEPS = { move: 'march', poses: [0, 1] } as const
+
+/** The walk up to you: how big he is and where his feet are, a step at a time, back of the gym to up close. */
+const TO_YOU: readonly { scale: number; feet: number }[] = [
+  { scale: 0.5, feet: 12 },
+  { scale: 0.56, feet: 12 },
+  { scale: 0.62, feet: 13 },
+  { scale: 0.7, feet: 13 },
+  { scale: 0.78, feet: 14 },
+  { scale: 0.86, feet: 14 },
+  { scale: 0.94, feet: 15 },
+  { scale: 1, feet: 15 },
+]
+
+/**
+ * Up to the camera (owner, 2026-10-12: "he can also be small and walk up to the camera"): he walks out of his
+ * square, comes in small at the back, turns to you and walks straight up, bigger every step, till he is up
+ * close again, looking at you.
+ */
+export function upToYou(side: 'left' | 'right'): IdleStep[] {
+  const out = side === 'left' ? -16 : 16
+  const edge = side === 'left' ? -8 : 16
+  const toward: IdleStep[] = TO_YOU.map((at, i) => {
+    const size = Math.round(16 * at.scale)
+    return { far: { src: { approach: i % 2 === 0 ? 0 : 1 }, facing: 'right', scale: at.scale, x: Math.floor((16 - size) / 2), feet: at.feet }, ms: 260 }
+  })
+  return [turned(side, 300), ...walking(side, 0, out), ...backWalk(edge, BACK.x), ...toward, { pose: 'lookYou', ms: 900 }, { pose: 'wink', ms: 400 }]
 }
 
 /** At the back, how many reps of an exercise he does: a few, not the full set he does up close. */
@@ -461,6 +491,9 @@ const BEATS: readonly BeatDef[] = [
   { weight: 6, isFullOnly: true, isIdle: true },
   // Off to the back of the gym for one of his moves (or idle animations), and back.
   { weight: 2, isFullOnly: true, isBack: true },
+  // Off to the back, and straight up to you from there.
+  { weight: 1.5, steps: upToYou('left'), isFullOnly: true },
+  { weight: 1.5, steps: upToYou('right'), isFullOnly: true },
   // Now and then a regular walks past behind him (a few minutes apart, on average).
   ...REGULARS.map((regular, i) => ({ weight: 0.4, steps: cameo(regular, i % 2 === 0 ? 'left' : 'right'), isFullOnly: true as const })),
 ]

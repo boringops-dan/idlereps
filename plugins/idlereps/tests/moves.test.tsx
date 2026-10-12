@@ -7,7 +7,7 @@ import { drawMove, idleReps, moveById, moveForExercise, moveMs, MOVES, poseAt } 
 import { collected, STARTER_MOVES, UNLOCK_ORDER } from '../hooks/collection'
 import { drawMicro, MICRO_HEIGHT, MICRO_WIDTH } from '../hooks/figure'
 import { IDLES } from '../hooks/idles'
-import { breathedIn, encodeCells, encodeMove, encodeSprite, idleBeat, walkGrid } from '../hooks/portrait'
+import { APPROACH_STEPS, BACK_STRIDES, breathedIn, decodeRows, encodeCells, encodeMove, encodeSprite, farGrid, idleBeat, walkGrid } from '../hooks/portrait'
 import { DESK_STRETCHES, generateProgram, LIBRARY } from '../hooks/programs'
 import { SPRITE } from '../hooks/swolomon-sprite'
 import { ANIMATED, BAND, blitLog, cellsOf, drawnRows, microOf, OPTIONS, SESSION, STATUS, TINY, TODAY, workout, world } from './world'
@@ -208,7 +208,19 @@ test('the status pane: a moment after it opens, he demonstrates the next set’s
   expect(idling.length).toBeGreaterThan(0)
   const walks = Array.from({ length: 400 }, (_, n) => idleBeat(n, 'full')).flatMap(beat => beat.steps.flatMap(step => ('walk' in step ? [encodeCells(walkGrid(SPRITE, step.walk))] : [])))
   const moves = [...MOVES.filter(move => move.family !== 'flex'), ...IDLES].flatMap(move => cellsOf(move.id))
-  const own = new Set([...Object.values(FRAMES), ...walks, ...moves, breathedIn(FRAMES.idle, SPRITE.width)])
+  // Him at the back of the gym, or walking up from it: those steps drawn as the pane draws them.
+  // The pane's moves: all of them, as the test world has them collected, the flexes aside.
+  const pool = collected([...UNLOCK_ORDER]).filter(m => m.family !== 'flex').map(m => m.id)
+  // A minute of beats is a dozen or two: the first 40 cover it.
+  const fars = Array.from({ length: 40 }, (_, n) => idleBeat(n, 'full', false, pool)).flatMap(beat =>
+    beat.steps.flatMap(step => {
+      if (!('far' in step)) return []
+      const { src } = step.far
+      const [id, pose] = 'stride' in src ? [BACK_STRIDES.move, BACK_STRIDES.poses[src.stride]] : 'approach' in src ? [APPROACH_STEPS.move, APPROACH_STEPS.poses[src.approach]] : [src.move, src.pose]
+      return [encodeCells(farGrid(decodeRows(SPRITE, drawMove(moveById(id)!)[pose]!, id, 16, 16), step.far))]
+    }),
+  )
+  const own = new Set([...Object.values(FRAMES), ...walks, ...moves, ...fars, breathedIn(FRAMES.idle, SPRITE.width)])
   expect(idling.every(c => own.has(c))).toBe(true)
   expect(idling.some(c => !Object.values(FRAMES).includes(c))).toBe(true)
   await pane.press({ key: 'close' })

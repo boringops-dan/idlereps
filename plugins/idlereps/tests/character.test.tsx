@@ -172,12 +172,15 @@ test('walkGrid: in profile where the walk has him, mirrored facing left, nothing
   expect(walkGrid(SPRITE, { frame: 'walkA', facing: 'left', x: -16, y: 0 }).flat().every(px => px === null)).toBe(true)
 })
 
-test('his walks: out one side and back, two pixels a step, home at the end facing us again', () => {
+test('his walks: out one side and back (or up to you from the back of the gym), two pixels a step, home at the end facing us again', () => {
   const walking = fullBeats().filter(beat => walksOf(beat.steps).some(walk => walk.x !== 0))
   expect(walking.length).toBeGreaterThan(0)
   for (const beat of walking) {
     const walks = walksOf(beat.steps)
-    expect(walks.at(-1)?.x).toBe(0)
+    // Home: walked back in up close, or walked up to the camera till he is full size again.
+    const lastFar = beat.steps.flatMap(step => ('far' in step ? [step.far] : [])).at(-1)
+    const isHome = walks.at(-1)?.x === 0 || (lastFar !== undefined && 'approach' in lastFar.src && lastFar.scale === 1)
+    expect(isHome).toBe(true)
     expect(walks.every(walk => Math.abs(walk.x) <= SPRITE.width && (walk.y === 0 || walk.y === -1))).toBe(true)
     for (let i = 1; i < walks.length; i += 1) expect(Math.abs((walks[i]?.x ?? 0) - (walks[i - 1]?.x ?? 0))).toBeLessThanOrEqual(2)
     // The way he faces is the way he goes.

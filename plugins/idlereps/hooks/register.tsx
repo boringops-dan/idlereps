@@ -135,6 +135,7 @@ import {
   TICK_MS,
   timelineOf,
   walkGrid,
+  APPROACH_STEPS,
   BACK_STRIDES,
   farGrid,
   decodeRows,
@@ -1275,8 +1276,8 @@ function farCellsOf(far: Far): string | undefined {
   const kept = FAR_CELLS.get(key)
   if (kept !== undefined) return kept
   const { src } = far
-  const id = 'stride' in src ? BACK_STRIDES.move : src.move
-  const pose = 'stride' in src ? BACK_STRIDES.poses[src.stride] : src.pose
+  const id = 'stride' in src ? BACK_STRIDES.move : 'approach' in src ? APPROACH_STEPS.move : src.move
+  const pose = 'stride' in src ? BACK_STRIDES.poses[src.stride] : 'approach' in src ? APPROACH_STEPS.poses[src.approach] : src.pose
   const move = moveById(id)
   const rows = move === undefined ? undefined : drawMove(move, art.sprite.outfit)[pose]
   if (rows === undefined) return undefined

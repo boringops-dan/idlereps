@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { drawMove, moveById } from '../hooks/moves'
-import { backOfGym, BACK_STRIDES, decodeRows, farGrid, shrunk } from '../hooks/portrait'
+import { APPROACH_STEPS, backOfGym, BACK_STRIDES, decodeRows, farGrid, idleBeat, shrunk, upToYou } from '../hooks/portrait'
 import type { Far, Grid } from '../hooks/portrait'
 import { SPRITE } from '../hooks/swolomon-sprite'
 
@@ -43,4 +43,23 @@ test('a trip to the back: out of his square, in small, the move there, out, and 
   expect(steps.reduce((ms, s) => ms + s.ms, 0)).toBeLessThan(20_000)
   expect(backOfGym('no-such-move', 'left')).toEqual([])
   expect(moveById(BACK_STRIDES.move)?.poses.length).toBeGreaterThan(Math.max(...BACK_STRIDES.poses))
+})
+
+test('up to the camera: from the back, front on, bigger and lower every step, till he is up close looking at you', () => {
+  const steps = upToYou('left')
+  const toward = steps.flatMap(s => ('far' in s && 'approach' in s.far.src ? [s.far] : []))
+  expect(toward.length).toBeGreaterThanOrEqual(6)
+  for (const [i, far] of toward.entries()) {
+    if (i === 0) continue
+    expect(far.scale).toBeGreaterThan(toward[i - 1]!.scale)
+    expect(far.feet).toBeGreaterThanOrEqual(toward[i - 1]!.feet)
+  }
+  expect(toward.at(-1)?.scale).toBe(1)
+  expect(steps.at(-2)).toEqual({ pose: 'lookYou', ms: 900 })
+  // He started up close and left his square first: the close-up walk starts where he stood.
+  expect(steps.flatMap(s => ('walk' in s ? [s.walk.x] : []))[0]).toBe(0)
+  expect(moveById(APPROACH_STEPS.move)?.poses.length).toBeGreaterThan(Math.max(...APPROACH_STEPS.poses))
+  // It is one of his beats between lines.
+  const seen = Array.from({ length: 400 }, (_, n) => idleBeat(n, 'full', false, [])).some(beat => beat.steps.some(s => 'far' in s && 'approach' in s.far.src))
+  expect(seen).toBe(true)
 })
