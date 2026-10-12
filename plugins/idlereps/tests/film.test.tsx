@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { bandFilm, bandFilmSvg, FILM_MAX_CHARS, filmSvg } from '../hooks/film'
-import { IDLE_SET_REPS, moveById, moveMs } from '../hooks/moves'
+import { ENCOURAGEMENT, IDLE_SET_REPS, moveById, moveMs } from '../hooks/moves'
 import { drawFigure } from '../hooks/figure'
 import { decodeFrame, decodeRows } from '../hooks/portrait'
 import { SPRITE } from '../hooks/swolomon-sprite'
@@ -35,10 +35,10 @@ test('the mini head: no act, no moves; blinks and glances only', () => {
 
 test('on a set, the set’s move turns up in the loop', () => {
   const squat = moveById('squat')!
-  const { loop } = bandFilm({ ...base, setMove: 'squat', moves: [] })
+  const { loop } = bandFilm({ ...base, setMoves: ['squat'], moves: [] })
   const ms = loop.reduce((sum, shot) => sum + shot.ms, 0)
   expect(ms).toBeGreaterThan(moveMs(squat))
-  expect(bandFilmSvg({ ...base, setMove: 'squat', moves: [] })).toContain('repeatCount="indefinite"')
+  expect(bandFilmSvg({ ...base, setMoves: ['squat'], moves: [] })).toContain('repeatCount="indefinite"')
 })
 
 test('the SVG: every frame once, hidden until its animation shows it; the act once, the loop forever', () => {
@@ -67,7 +67,9 @@ test('under the engine’s bound for every act, with every move he has', () => {
 
 test('a film with sets of 20 in it fits the bound at full length, never trimmed', () => {
   const all = ['squat', 'push-up', 'curl', 'press', 'row', 'deadlift', 'burpee', 'stretch', 'plank', 'wall-sit']
-  for (const setMove of ['burpee', 'stretch', 'plank']) expect([setMove, filmSvg(bandFilm({ ...base, setMove, moves: [] }), 16, 16).length <= FILM_MAX_CHARS]).toEqual([setMove, true])
+  for (const setMove of ['burpee', 'stretch', 'plank']) expect([setMove, filmSvg(bandFilm({ ...base, setMoves: [setMove], moves: [] }), 16, 16).length <= FILM_MAX_CHARS]).toEqual([setMove, true])
+  // A set he has no move for: his cheering, in turn.
+  expect(filmSvg(bandFilm({ ...base, setMoves: ENCOURAGEMENT, moves: [] }), 16, 16).length).toBeLessThanOrEqual(FILM_MAX_CHARS)
   expect(filmSvg(bandFilm({ ...base, act: 'fireworks', moves: all }), 16, 16).length).toBeLessThanOrEqual(FILM_MAX_CHARS)
 })
 

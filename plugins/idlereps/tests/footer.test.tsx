@@ -67,7 +67,8 @@ test('his antics: looking around while the set comes, bouncing once it is ready;
     const frames = ANTICS[stage]
     expect(frames[0]?.[0]).toBe('👀')
     expect(new Set(frames.map(([face]) => face)).size).toBeGreaterThanOrEqual(5)
-    for (const [, ms] of frames) expect(ms).toBeGreaterThanOrEqual(1_000)
+    // Long enough to read as him, not a flash: a blink over a second, any other face two or more.
+    for (const [face, ms] of frames) expect(ms).toBeGreaterThanOrEqual(face === '😌' ? 1_000 : 2_000)
     expect(anticOf(stage, frames.length)).toEqual(frames[0]!)
   }
   expect(ANTICS.ready.map(([face]) => face)).toEqual(expect.arrayContaining(['🙋', '🤸']))

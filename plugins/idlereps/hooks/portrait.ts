@@ -388,8 +388,8 @@ const SET_BEATS: readonly BeatDef[] = [
   { weight: 4, steps: [{ pose: 'lookYou', ms: 1600 }], isFullOnly: true },
   { weight: 3, steps: [{ pose: 'lookYou', ms: 900 }, { pose: 'smirk', ms: 900 }], isFullOnly: true },
   { weight: 2, steps: [{ pose: 'lookYou', ms: 1000 }, { pose: 'wink', ms: 350 }], isFullOnly: true },
-  // Doing it with you, or flexing at you.
-  { weight: 6, isFullOnly: true },
+  // Doing it with you (or, with no move for it, cheering you on): most beats.
+  { weight: 14, isFullOnly: true },
 ]
 
 /** The shortest and longest wait before a beat. */

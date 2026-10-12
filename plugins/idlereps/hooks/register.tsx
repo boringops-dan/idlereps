@@ -109,7 +109,7 @@ import {
 import { drawMicro, MICRO_HEIGHT, MICRO_WIDTH } from './figure'
 import { misreadOf, saysOf } from './misreads'
 import type { Misread } from './misreads'
-import { drawMove, moveById, moveForExercise, moveMs, movePlay, poseAt } from './moves'
+import { doingFor, drawMove, moveById, moveForExercise, moveMs, movePlay, poseAt } from './moves'
 import type { Move } from './moves'
 import {
   decodeCells,
@@ -406,7 +406,8 @@ const coach: {
   /** A where-am-I toast on its way, so a burst of redraws sends one. */
   isLookingForRoom: boolean
   /** The set band's own move, for his set beats; undefined on any other band. */
-  setMove: string | undefined
+  /** On a set or stretch band: what he does through it (moves.ts doingFor). */
+  setMoves: readonly string[] | undefined
   /** The project (its folder's name) commands are timed in; the calls running and when each should end. */
   project: string
   callSeq: number
@@ -509,7 +510,7 @@ const coach: {
   isAnswering: false,
   isShiny: false,
   isLookingForRoom: false,
-  setMove: undefined,
+  setMoves: undefined,
   project: '',
   callSeq: 0,
   callsRunning: new Map(),
@@ -874,7 +875,7 @@ async function startTalk($: EngineInterface, spec: BandSpec): Promise<BandSpec> 
   coach.isShiny = spec.isShiny === true
   coach.isBreathIn = false
   coach.portraitCells = null
-  coach.setMove = spec.kind === 'set' ? spec.act : undefined
+  coach.setMoves = doingOf(spec)
   if (coach.isShiny) await sawShiny($)
   coach.talkTimeline = null
   coach.pose = 'idle'
@@ -1157,7 +1158,7 @@ function idleWhileShowing($: EngineInterface, key: number, isWin: boolean) {
       coach.moveFrame = size === 'full' ? cells : null
       void blitPortrait($, cells)
     },
-    ...(coach.setMove === undefined ? {} : { setMove: coach.setMove }),
+    ...(coach.setMoves === undefined ? {} : { setMoves: coach.setMoves }),
     // A regular passing: he names them, as an aside (not Quiet).
     onAside: id => {
       if (coach.options.coachChat === 'quiet') return
@@ -1169,6 +1170,13 @@ function idleWhileShowing($: EngineInterface, key: number, isWin: boolean) {
   })
 }
 
+/** The bands of a set under way: the set, its hold timer, between sides, Time!, its steppers. */
+const SET_KINDS: ReadonlySet<BandKind> = new Set<BandKind>(['set', 'timer', 'switch', 'time', 'edit'])
+
+/** What he does through a band he suggested a move on: a set's (all its bands), or a stretch's (moves.ts doingFor). */
+const doingOf = (spec: BandSpec): readonly string[] | undefined =>
+  SET_KINDS.has(spec.kind) && spec.cue !== undefined ? doingFor(spec.cue.exercise.name) : spec.kind === 'stretch' && spec.stretch !== undefined ? doingFor(spec.stretch.exercise) : undefined
+
 /**
  * How an idle loop reads its portrait: its size as drawn now (none while a redraw has no room for it), whether
  * it is still wanted, and how to blit to it.
@@ -1178,8 +1186,8 @@ type IdleOptions = {
   isWin: boolean
   alive: () => boolean
   blit: (cells: string, size: PortraitSize) => void
-  /** On a set band: the set's own move, which he does with you between watching you (set beats). */
-  setMove?: string
+  /** On a set or stretch band: its own move (or his cheering), which he does with you between watching you. */
+  setMoves?: readonly string[]
   /** His word in a beat (a regular passing): where the loop's portrait has his lines to say it beside. */
   onAside?: (id: LineId) => void
 }
@@ -1206,10 +1214,10 @@ function idleLoop($: EngineInterface, owner: 'band' | 'pane', opts: IdleOptions)
         }
         if (moves === undefined) {
           const have = opts.isWin || size !== 'full' ? [] : collected(await load<string[]>($, 'moves', []))
-          // On a set: the set's move twice as often as a flex he has; else his moves, the flexes aside.
-          moves = opts.setMove !== undefined ? [opts.setMove, opts.setMove, ...have.filter(m => m.family === 'flex').map(m => m.id)] : await betweenMoves($, have)
+          // On a set: only what he does with you; else his moves, the flexes aside.
+          moves = opts.setMoves !== undefined ? [...opts.setMoves] : await betweenMoves($, have)
         }
-        const { steps, rest } = idleBeat(n, size, opts.isWin, size === 'full' ? moves : [], opts.setMove === undefined ? 'band' : 'set')
+        const { steps, rest } = idleBeat(n, size, opts.isWin, size === 'full' ? moves : [], opts.setMoves === undefined ? 'band' : 'set')
         const cellsOf = (pose: Pose) => art.frames[frameFor(size, pose)]
         const frames: IdleFrame[] = steps.flatMap(step => idleFrames(step, size))
         let at = 0
@@ -1281,11 +1289,11 @@ async function lookForRoom($: EngineInterface) {
 const FILMS = new Map<string, string>()
 
 /** His film for the desktop (hooks/film.ts): the act once, then idling with the moves he has; made once. */
-async function filmFor($: EngineInterface, opts: { size: PortraitSize; isWin: boolean; act?: string; setMove?: string }): Promise<string> {
+async function filmFor($: EngineInterface, opts: { size: PortraitSize; isWin: boolean; act?: string; setMoves?: readonly string[] }): Promise<string> {
   const have = opts.isWin || opts.size !== 'full' ? [] : collected(await load<string[]>($, 'moves', []))
-  // On a set, the set's move and his flexes; else his moves, the flexes aside (as the terminal's idling).
-  const moves = opts.setMove !== undefined ? have.filter(move => move.family === 'flex').map(move => move.id) : await betweenMoves($, have)
-  const key = JSON.stringify([art.sprite.outfit?.id, opts.size, opts.isWin, opts.act, opts.setMove, moves])
+  // On a set, only what he does with you; else his moves, the flexes aside (as the terminal's idling).
+  const moves = opts.setMoves !== undefined ? [] : await betweenMoves($, have)
+  const key = JSON.stringify([art.sprite.outfit?.id, opts.size, opts.isWin, opts.act, opts.setMoves, moves])
   const made = FILMS.get(key) ?? bandFilmSvg({ sprite: art.sprite, ...opts, moves })
   if (FILMS.size > 32) FILMS.clear()
   FILMS.set(key, made)
@@ -1526,9 +1534,10 @@ async function setBandFor($: EngineInterface, cue: Cue, coachText: string | unde
     hint: line(opts.isStarted === true ? 'hint' : 'hint-start', { day }),
     ...(opts.isStarted === true ? { isStarted: true } : {}),
   })
-  // Once his line is out, he shows the set's exercise in the full portrait, then lives in it.
-  const demo = moveForExercise(cue.exercise.name)
-  return said === undefined || demo === null ? spec : { ...spec, act: demo }
+  // Once his line is out, he shows the set's exercise in the full portrait (or, with no move for it, cheers
+  // you on), then does it with you.
+  const doing = doingFor(cue.exercise.name)
+  return said === undefined ? spec : { ...spec, act: doing[cue.step % doing.length]! }
 }
 
 /** Something he remembers about this set (hooks/callbacks.ts), each kind once a day; undefined: nothing today. */
@@ -1703,7 +1712,9 @@ async function offerStretch($: EngineInterface) {
   if ((await read($, band)) !== null || !(await isDue($, 'stretch', 'day'))) return
   const day = await today($)
   await markSeen($, 'stretch')
-  await offerBand($, stretchBand(await coachLine($, 'stretch-ask', { day }), stretchFor(day), day), 'timer')
+  const stretch = stretchFor(day)
+  // He shows the stretch, then does it with you.
+  await offerBand($, { ...stretchBand(await coachLine($, 'stretch-ask', { day }), stretch, day), act: doingFor(stretch.name)[0]! }, 'timer')
 }
 
 /** Done on the stretch: it goes in the history (and the minutes moved), and Swolomon's thanks is a toast. */
@@ -4101,7 +4112,7 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
     const isLineOut = !isTalking || (spec.coach ?? []).every((text, i) => (said.shown[i] ?? Infinity) >= plainOf(text).length)
     const film =
       coach.options.coachAnimation && isLineOut
-        ? await filmFor($, { size: svgSize, isWin: spec.isWin === true, ...(spec.act === undefined ? {} : { act: spec.act }), ...(spec.kind === 'set' && spec.act !== undefined ? { setMove: spec.act } : {}) })
+        ? await filmFor($, { size: svgSize, isWin: spec.isWin === true, ...(spec.act === undefined ? {} : { act: spec.act }), ...(doingOf(spec) === undefined ? {} : { setMoves: doingOf(spec) }) })
         : null
     return (
       <Box flexDirection="row" alignItems={svgSize === 'full' ? 'center' : 'flex-start'}>

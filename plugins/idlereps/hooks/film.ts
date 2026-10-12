@@ -47,17 +47,18 @@ export function bandFilm(opts: {
   size: PortraitSize
   isWin: boolean
   act?: string
-  setMove?: string
+  /** On a set: what he does with you (moves.ts doingFor), in place of his other moves. */
+  setMoves?: readonly string[]
   moves: readonly string[]
   beats?: number
 }): { intro: Shot[]; loop: Shot[] } {
   const { sprite, size, isWin } = opts
   const pose = (p: Pose) => decodeFrame(sprite, frameFor(size, p))
   const intro = opts.act !== undefined && size === 'full' ? moveShots(sprite, opts.act) : []
-  const moves = size === 'full' ? (opts.setMove !== undefined ? [opts.setMove, opts.setMove, ...opts.moves] : opts.moves) : []
+  const moves = size === 'full' ? (opts.setMoves ?? opts.moves) : []
   const loop: Shot[] = []
   for (let n = 0, taken = 0; taken < (opts.beats ?? FILM_BEATS) && n < 200; n += 1) {
-    const picked = idleBeat(n, size, isWin, moves, opts.setMove === undefined ? 'band' : 'set')
+    const picked = idleBeat(n, size, isWin, moves, opts.setMoves === undefined ? 'band' : 'set')
     if (picked.steps.some(step => 'walk' in step || 'cameo' in step)) continue
     const isMoveDue = moves.length > 0 && taken % FILM_MOVE_EVERY === FILM_MOVE_EVERY - 1 && !picked.steps.some(step => 'move' in step)
     const beat = isMoveDue ? { ...picked, steps: [idleMoveStep(moves[Math.floor(taken / FILM_MOVE_EVERY) % moves.length] ?? '')] } : picked

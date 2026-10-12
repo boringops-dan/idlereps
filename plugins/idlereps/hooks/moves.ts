@@ -1120,6 +1120,21 @@ export function moveForExercise(name: string): MoveId | null {
   return [...EXISTING_DEMO_BY_NAME, ...NEW_A_DEMO_BY_NAME, ...NEW_B_DEMO_BY_NAME, ...BY_NAME].find(([pattern]) => pattern.test(name))?.[1] ?? null
 }
 
+/**
+ * Cheering you on (owner, 2026-10-12: "if we dont bc the user chose something we dont know, give him an
+ * encouragement cycle"): what he does through a set he has no move for, in turn.
+ */
+export const ENCOURAGEMENT: readonly MoveId[] = ['fist-pump', 'thumbs-up', 'hype-clap', 'double-fist-pump', 'chest-pound', 'slow-clap', 'raise-roof', 'golf-clap']
+
+/**
+ * What he does through a set or stretch he suggested (owner, 2026-10-12: "Swolomon should be doing the move he
+ * suggests"): its own move, or, when nothing matches the name, cheering you on.
+ */
+export function doingFor(name: string): readonly MoveId[] {
+  const move = moveForExercise(name)
+  return move === null ? ENCOURAGEMENT : [move]
+}
+
 /** Between his lines an exercise is a full set (owner, 2026-10-07: "sets of 20 every time"); anything else plays as drawn. */
 export const IDLE_SET_REPS = 20
 

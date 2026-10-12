@@ -30,25 +30,27 @@ export type FooterStage = 'near' | 'ready'
  * never quicker than a second, in turn; the first, his eyes, is where he rests.
  */
 export const ANTICS: Readonly<Record<FooterStage, readonly (readonly [face: string, ms: number])[]>> = {
+  // Each face held long enough to read as him doing something (owner, 2026-10-12: "it sorta flashes instead
+  // of acting like him"); only a blink is quick.
   near: [
-    ['👀', 2500],
-    ['😌', 1000],
-    ['👀', 1500],
-    ['🧐', 1500],
-    ['👀', 2000],
-    ['🤨', 1200],
-    ['😌', 1000],
-    ['😏', 1200],
+    ['👀', 4000],
+    ['😌', 1200],
+    ['👀', 3000],
+    ['🧐', 3000],
+    ['👀', 3000],
+    ['🤨', 2500],
+    ['😌', 1200],
+    ['😏', 3000],
   ],
   ready: [
-    ['👀', 1500],
-    ['🙋', 1000],
-    ['🤸', 1000],
-    ['🙆', 1000],
-    ['🏋️', 1200],
-    ['📣', 1000],
-    ['🙌', 1000],
-    ['😤', 1000],
+    ['👀', 3000],
+    ['🙋', 2500],
+    ['🤸', 2500],
+    ['🙆', 2500],
+    ['🏋️', 3000],
+    ['📣', 2500],
+    ['🙌', 2500],
+    ['😤', 2500],
   ],
 }
 
