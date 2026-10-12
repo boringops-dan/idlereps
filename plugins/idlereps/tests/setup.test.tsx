@@ -206,7 +206,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await pane.press({ key: 'choice-2' }) // Mon, Wed, Fri, Sat
     await pane.press({ key: 'choice-3' }) // long
     await pane.press({ key: 'choice-2' }) // 8 weeks
-    await pane.press({ key: 'choice-3' }) // every 30 minutes
+    await pane.press({ key: 'choice-5' }) // every 30 minutes
     await pane.press({ key: 'choice-3' }) // no idle reminder
     expect(await pane.find({ type: 'Text', text: 'Intermediate strength · 4x/week · 8 weeks' })).toBeDefined()
     await pane.press({ key: 'start-plan' })

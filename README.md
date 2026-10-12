@@ -53,7 +53,7 @@ Update: `claude plugin marketplace update idlereps` (or `/plugin marketplace upd
    it's away: "Your agent's back in about 5 min."
 3. Say yes and you get one set: `Squats: 12 reps (1/2)` (a workout's first set comes after a one-minute warm-up,
    unless you turn that off). Do it, press `1`, and get back to work.
-4. The next set comes after a gap (15 minutes by default), never more often, and never while you're typing.
+4. The next set comes after your rest between sets (3 minutes by default; Later waits at least 15), never more often, and never while you're typing.
    In Just remind me the ideas fit the wait: a quick one when your turns usually run short, a set for a
    few minutes, a walk when a long build or a helper agent is under way ("Ideas for about 8 min: a lap of
    the block · …").

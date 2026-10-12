@@ -12,9 +12,11 @@
     "cueEvery": {
       "type": "string",
       "title": "Minutes between sets",
-      "description": "After you answer a set, IdleReps stays quiet for this long before offering the next one.",
-      "default": "15",
+      "description": "After you answer a set, IdleReps stays quiet for this long before offering the next one: your rest between sets. Later always waits at least 15 minutes.",
+      "default": "3",
       "options": [
+        "3",
+        "5",
         "10",
         "15",
         "30",

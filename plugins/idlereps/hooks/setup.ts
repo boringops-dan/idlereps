@@ -122,6 +122,8 @@ export type Screen = {
 }
 
 const CUE_EVERY = [
+  ['3', 'Every 3 minutes'],
+  ['5', 'Every 5 minutes'],
   ['10', 'Every 10 minutes'],
   ['15', 'Every 15 minutes'],
   ['30', 'Every 30 minutes'],

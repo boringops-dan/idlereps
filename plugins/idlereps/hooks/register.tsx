@@ -217,7 +217,7 @@ type Options = {
 }
 
 const readOptions = (options: PluginOptions): Options => ({
-  cueEvery: typeof options.cueEvery === 'string' ? options.cueEvery : '15',
+  cueEvery: typeof options.cueEvery === 'string' ? options.cueEvery : '3',
   cueAfter: typeof options.cueAfter === 'string' ? options.cueAfter : '60',
   idleReminder: typeof options.idleReminder === 'string' ? options.idleReminder : '60',
   quietHours: typeof options.quietHours === 'string' ? options.quietHours : 'off',
@@ -672,6 +672,18 @@ async function today($: EngineInterface) {
 async function gapMs($: EngineInterface): Promise<number> {
   const base = Number(coach.options.cueEvery) * 60_000
   return (await load<number | undefined>($, 'easyDay', undefined)) === (await today($)) ? base * 2 : base
+}
+
+/**
+ * Later never brings the set back sooner than this, whatever the rest between sets: a few minutes' rest is
+ * right after a set (owner, 2026-10-12: "the cooldown between SETS should be 2-3 min no?"), not after "not now".
+ */
+const LATER_MIN_MS = 15 * 60_000
+
+/** How long Later hides the set for: the gap, at least LATER_MIN_MS (twice that on a busy day). */
+async function laterMs($: EngineInterface): Promise<number> {
+  const isBusy = (await load<number | undefined>($, 'easyDay', undefined)) === (await today($))
+  return Math.max(await gapMs($), isBusy ? LATER_MIN_MS * 2 : LATER_MIN_MS)
 }
 const turnWaitMs = (isBig: boolean) => (isBig ? BIG_ASK_WAIT_MS : Number(coach.options.cueAfter) * 1000)
 
@@ -1876,10 +1888,10 @@ async function countLater($: EngineInterface) {
   }
   await save($, 'laterStreak', undefined)
   await save($, 'easyDay', day)
-  await toast($, await coachLine($, 'busy-day', { day, n: Math.round((await gapMs($)) / 60_000) }), 'keypress')
+  await toast($, await coachLine($, 'busy-day', { day, n: Math.round((await laterMs($)) / 60_000) }), 'keypress')
 }
 
-/** Later: hides the set or the question for one gap, recording nothing. */
+/** Later: hides the set or the question for one gap (at least LATER_MIN_MS), recording nothing. */
 async function snooze($: EngineInterface) {
   stopCue()
   const showing = await read($, band)
@@ -1887,10 +1899,11 @@ async function snooze($: EngineInterface) {
   if (['ask', 'set', 'edit', 'timer', 'switch', 'time', 'remind', 'still'].includes(showing?.kind ?? '')) await clearBand($)
   await countLater($)
   const at = await now($)
-  await save($, 'nextCueAt', at + (await gapMs($)))
-  await save($, 'laterUntil', at + (await gapMs($)))
+  const until = at + (await laterMs($))
+  await save($, 'nextCueAt', until)
+  await save($, 'laterUntil', until)
   await refreshFooter($)
-  if (coach.isTurnRunning) scheduleCue($, cueDelayMs(turnWaitMs(false), at + (await gapMs($)), at))
+  if (coach.isTurnRunning) scheduleCue($, cueDelayMs(turnWaitMs(false), until, at))
 }
 
 async function recordStoreOf($: EngineInterface): Promise<RecordStore> {
@@ -3603,7 +3616,7 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
     }
     case 'later':
       await snooze($)
-      return line('reply-hidden', { day, n: Math.round((await gapMs($)) / 60_000) })
+      return line('reply-hidden', { day, n: Math.round((await laterMs($)) / 60_000) })
     case 'undo':
       return line((await undoLast($, undefined)) ? 'reply-undone' : 'reply-nothing-to-undo', { day })
     case 'easy':
