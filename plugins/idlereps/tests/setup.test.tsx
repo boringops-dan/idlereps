@@ -136,11 +136,11 @@ test('equipment toggles flip their tick; Continue with none ticked is bodyweight
   expect((await pane.find({ key: 'toggle-dumbbells' }))?.props.label).toBe('  Dumbbells')
   await pane.press({ key: 'toggle-dumbbells' })
   expect((await pane.find({ key: 'toggle-dumbbells' }))?.props.label).toBe('✓ Dumbbells')
-  expect(await pane.find({ key: 'unit-lb' })).toBeDefined()
   await pane.press({ key: 'toggle-dumbbells' })
   expect((await pane.find({ key: 'toggle-dumbbells' }))?.props.label).toBe('  Dumbbells')
-  expect(await pane.find({ key: 'unit-lb' })).toBeUndefined()
+  // No dumbbells: no kg or lb to ask.
   await pane.press({ key: 'continue' })
+  expect(await pane.find({ type: 'Text', text: 'Your weights: kg or lb?' })).toBeUndefined()
   for (let i = 0; i < 8; i += 1) await pane.press({ key: 'choice-1' })
   expect(await pane.find({ type: 'Text', text: 'Built for: bodyweight only (no equipment)' })).toBeDefined()
   await pane.press({ key: 'start-plan' })
@@ -198,8 +198,8 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await pane.press({ key: 'choice-2' }) // designed
     await pane.press({ key: 'choice-1' }) // get stronger
     await pane.press({ key: 'toggle-dumbbells' })
-    await pane.press({ key: 'unit-lb' })
     await pane.press({ key: 'continue' })
+    await pane.press({ key: 'choice-2' }) // lb
     await pane.press({ key: 'choice-2' }) // office
     await pane.press({ key: 'choice-2' }) // some experience
     await pane.press({ key: 'choice-3' }) // 4 days

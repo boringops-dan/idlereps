@@ -17,7 +17,7 @@ import { PUSH_NAMES } from './programs'
 import { weekdayName } from './schedule'
 
 /** Which band keeps the slot when two want it (§4.3 item 4). A logged line gives way to anything. */
-export const BAND_PRIORITY: Record<BandKind, number> = { spotme: 1, prep: 5, question: 1, still: 2, unlock: 6, program: 1, byoplan: 1, remind: 2, pulse: 0, rankup: 7, rating: 6, bonus: 5, programEnd: 5, restore: 8, erase: 8, warmup: 3, logged: 4, edit: 3, set: 3, ask: 2, ready: 2, stretch: 2, where: 1, reschedule: 2, timer: 3, switch: 3, time: 3, safety: 1, intro: 1, replay: 1, flex: 1 }
+export const BAND_PRIORITY: Record<BandKind, number> = { spotme: 1, prep: 5, question: 1, still: 2, unlock: 6, program: 1, byoplan: 1, remind: 2, pulse: 0, rankup: 7, rating: 6, bonus: 5, programEnd: 5, restore: 8, erase: 8, warmup: 3, logged: 4, edit: 3, set: 3, ask: 2, ready: 2, stretch: 2, where: 1, unit: 1, reschedule: 2, timer: 3, switch: 3, time: 3, safety: 1, intro: 1, replay: 1, flex: 1 }
 
 export const LOGGED_MS = 120_000
 
@@ -214,6 +214,17 @@ export function whereBand(day: number): BandSpec {
     portrait: 'mini',
     body: [[{ text: line('where-detail', { day }), tone: 'muted' }]],
     actions: actionIdsOf('where'),
+  }
+}
+
+/** Quick start with weights: kg or lb, before the plan is built. */
+export function unitBand(day: number): BandSpec {
+  return {
+    kind: 'unit',
+    coach: [line('unit-ask', { day })],
+    portrait: 'mini',
+    body: [[{ text: line('unit-detail', { day }), tone: 'muted' }]],
+    actions: actionIdsOf('unit'),
   }
 }
 

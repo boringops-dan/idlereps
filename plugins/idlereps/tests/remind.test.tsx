@@ -173,14 +173,20 @@ test('I have my own: how to paste it, or where the file is; Back, and Back again
   expect((await bandOf($)).keys).toEqual(['quickstart', 'remind', 'program', 'notnow'])
 })
 
-test('Quick start with weights: the starter plan built for dumbbells, a bar and bands', OPTIONS, async ($, on) => {
+test('Quick start with weights: kg or lb asked, then the starter plan built for dumbbells, a bar and bands, in it', OPTIONS, async ($, on) => {
   const { w } = world(on, null)
   await $.session.start(SESSION)
   await $.command.run(workout('quickstart'))
   expect((await bandOf($)).keys).toEqual(['desk', 'home', 'gym'])
   await $.command.run(workout('gym'))
+  expect((await bandOf($)).keys).toEqual(['kg', 'lb'])
+  expect(w.writes.some(x => x.path.endsWith('plan.json'))).toBe(false)
+  await $.command.run(workout('lb'))
   const plan = JSON.parse(w.writes.filter(x => x.path.endsWith('plan.json')).at(-1)?.text ?? '{}') as Plan
   expect(plan.builtFor).toEqual({ dumbbells: true, bar: true, bands: true })
+  const weighted = plan.workouts.flatMap(x => x.exercises).filter(e => e.weight !== undefined)
+  expect(weighted.length).toBeGreaterThan(0)
+  expect(weighted.every(e => e.weight?.unit === 'lb' && e.weight.step === 5)).toBe(true)
   expect(w.toasts).toContain(line('quick-start-gym', { day: TODAY }))
 })
 

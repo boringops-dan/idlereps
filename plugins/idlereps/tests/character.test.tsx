@@ -27,6 +27,7 @@ import {
 } from '../hooks/portrait'
 import type { IdleStep } from '../hooks/portrait'
 import { IDLE_SET_REPS } from '../hooks/moves'
+import { IDLES } from '../hooks/idles'
 import { generateProgram, STARTER_ANSWERS } from '../hooks/programs'
 import { record } from '../hooks/record'
 import type { RecordStore } from '../hooks/record'
@@ -195,9 +196,10 @@ test('he turns his head both ways, on the full portrait only', () => {
   expect(mini.every(beat => beat.steps.every(step => 'pose' in step))).toBe(true)
 })
 
-test('move beats: only the moves given, and none without any', () => {
-  expect(fullBeats().some(beat => beat.steps.some(step => 'move' in step))).toBe(false)
-  const done = new Set(fullBeats(['squat', 'push-up']).flatMap(beat => beat.steps.flatMap(step => ('move' in step ? [step.move] : []))))
+test('move beats: only the moves given, or his idle animations (from the first day)', () => {
+  const idles = new Set(IDLES.map(m => m.id))
+  expect(fullBeats().every(beat => beat.steps.every(step => !('move' in step) || idles.has(step.move)))).toBe(true)
+  const done = new Set(fullBeats(['squat', 'push-up']).flatMap(beat => beat.steps.flatMap(step => ('move' in step && !idles.has(step.move) ? [step.move] : []))))
   expect([...done].sort()).toEqual(['push-up', 'squat'])
   expect(idleBeat(5, 'full', false, ['squat'])).toEqual(idleBeat(5, 'full', false, ['squat']))
 })

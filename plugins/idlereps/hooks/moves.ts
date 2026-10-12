@@ -15,9 +15,10 @@ import { EXISTING_DEMO_BY_NAME, EXISTING_DEMOS } from './demos-existing'
 import { NEW_A_DEMO_BY_NAME, NEW_A_DEMOS } from './demos-new-a'
 import { NEW_B_DEMO_BY_NAME, NEW_B_DEMOS } from './demos-new-b'
 import { MORE_MOVES } from './moves-more'
+import { IDLES } from './idles'
 import type { Expr, Figure, Fx, P } from './figure'
 
-export type MoveFamily = 'exercise' | 'flex' | 'gag'
+export type MoveFamily = 'exercise' | 'flex' | 'gag' | 'idle'
 
 export type Move = {
   id: string
@@ -1079,8 +1080,8 @@ export const GESTURES: readonly Move[] = [highFive, hug, struggle, posingRoutine
 
 export type MoveId = string
 
-/** Every move by id, built once: a collectible move first, then a gesture, then a demo (ids are unique anyway). */
-const BY_ID: ReadonlyMap<MoveId, Move> = new Map([...DEMOS, ...GESTURES, ...MOVES].map(move => [move.id, move]))
+/** Every move by id, built once: a collectible move first, then a gesture, a demo, an idle (ids are unique anyway). */
+const BY_ID: ReadonlyMap<MoveId, Move> = new Map([...IDLES, ...DEMOS, ...GESTURES, ...MOVES].map(move => [move.id, move]))
 
 export const moveById = (id: MoveId): Move | undefined => BY_ID.get(id)
 

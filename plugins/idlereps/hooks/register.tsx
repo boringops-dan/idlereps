@@ -31,6 +31,7 @@ import {
   questionBand,
   stillBand,
   stretchBand,
+  unitBand,
   whereBand,
   rescheduleBand,
   holdBand,
@@ -172,7 +173,6 @@ import {
   planOf,
   scheduleLabel,
   screenOf,
-  setUnit,
   toggleEquipment,
 } from './setup'
 import { BIG_ASK_WAIT_MS, factsOf, isBigAsk, outcomeOf, SLOW_STEP_MS, STRONG_SIGN_DELAY_MS, toolSign, turnOutcome, waitWords } from './signals'
@@ -2718,13 +2718,18 @@ const QUICK_START: Record<Where, { answers: Partial<Answers>; toast: 'quick-star
  * Quick start (§1.5): one question (where they train), then the starter plan and today's first set, offered
  * at once in the band where the person already is. Two presses from the introduction to a set.
  */
-async function quickStart($: EngineInterface, where?: Where) {
+async function quickStart($: EngineInterface, where?: Where, unit?: Answers['weightUnit']) {
   // One question, so the first set fits where the person is: a desk plan never asks for the floor.
   if (where === undefined) {
     await replaceBand($, whereBand(await today($)))
     return
   }
-  const plan = generateProgram({ ...STARTER_ANSWERS, ...QUICK_START[where].answers })
+  // With weights, kg or lb: asked, never assumed.
+  if (where === 'gym' && unit === undefined) {
+    await replaceBand($, unitBand(await today($)))
+    return
+  }
+  const plan = generateProgram({ ...STARTER_ANSWERS, ...QUICK_START[where].answers, ...(unit === undefined ? {} : { weightUnit: unit }) })
   await writePlan($, plan)
   trackSetup($, plan, { isQuickStart: true, cueEvery: coach.options.cueEvery, idleReminder: coach.options.idleReminder })
   await clearFirstRun($)
@@ -2744,7 +2749,7 @@ async function keepPlan($: EngineInterface) {
 /** The first run's own bands go once it has led somewhere. */
 async function clearFirstRun($: EngineInterface) {
   const kind = (await read($, band))?.kind
-  if (kind === 'intro' || kind === 'where' || kind === 'program' || kind === 'byoplan') await clearBand($)
+  if (kind === 'intro' || kind === 'where' || kind === 'unit' || kind === 'program' || kind === 'byoplan') await clearBand($)
 }
 
 /**
@@ -3405,6 +3410,10 @@ async function answerAction($: EngineInterface, kind: ActionKind, given: string,
   }
   if (kind === 'where') {
     await quickStart($, id === 'home' || id === 'gym' ? id : 'desk')
+    return
+  }
+  if (kind === 'unit') {
+    await quickStart($, 'gym', id === 'lb' ? 'lb' : 'kg')
     return
   }
   if (kind === 'logged' && id === 'highfive') {
@@ -4748,17 +4757,8 @@ export const register: Register = (on, options) => {
         label: `${have[key] ? '✓' : ' '} ${label}`,
         onPress: () => setupChange($, s => toggleEquipment(s, key)),
       }))
-      const unit = state.answers.weightUnit ?? 'kg'
       controls = [
         row(toggles),
-        ...(have.dumbbells
-          ? [
-              row([
-                { key: 'unit-kg', hotkey: 'k', label: `${unit === 'kg' ? '✓' : ' '} kg`, onPress: () => setupChange($, s => setUnit(s, 'kg')) },
-                { key: 'unit-lb', hotkey: 'l', label: `${unit === 'lb' ? '✓' : ' '} lb`, onPress: () => setupChange($, s => setUnit(s, 'lb')) },
-              ]),
-            ]
-          : []),
         row([{ key: 'continue', hotkey: 'c', label: 'Continue', isPrimary: true, onPress: () => setupChange($, continueEquipment) }, ...(hasBack ? [backButton] : [])]),
       ]
     } else if (state.screen === 'summary') {

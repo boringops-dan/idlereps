@@ -4,7 +4,7 @@
  * every button has a command by construction. Pure data.
  */
 
-export type ActionKind = 'spotme' | 'prep' | 'question' | 'still' | 'unlock' | 'remindPane' | 'remind' | 'program' | 'byoplan' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'stretch' | 'bonus' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex' | 'status' | 'safety' | 'byo' | 'moves' | 'doing'
+export type ActionKind = 'spotme' | 'prep' | 'question' | 'still' | 'unlock' | 'remindPane' | 'remind' | 'program' | 'byoplan' | 'pulse' | 'warmup' | 'programEnd' | 'restore' | 'erase' | 'intro' | 'where' | 'unit' | 'stretch' | 'bonus' | 'ready' | 'reschedule' | 'timer' | 'switch' | 'replay' | 'ask' | 'set' | 'edit' | 'logged' | 'rating' | 'rankup' | 'flex' | 'status' | 'safety' | 'byo' | 'moves' | 'doing'
 
 export type Action = {
   id: string
@@ -61,6 +61,8 @@ export const ACTIONS: readonly Action[] = [
   { kind: 'where', id: 'desk', hotkey: '1', label: 'At a desk', isPrimary: true },
   { kind: 'where', id: 'home', hotkey: '2', label: 'At home, no gear' },
   { kind: 'where', id: 'gym', hotkey: '3', label: 'With weights' },
+  { kind: 'unit', id: 'kg', hotkey: '1', label: 'kg' },
+  { kind: 'unit', id: 'lb', hotkey: '2', label: 'lb' },
 
   { kind: 'stretch', id: 'stretched', hotkey: '1', label: 'Done', isPrimary: true },
   { kind: 'stretch', id: 'notnow', hotkey: '0', label: 'Not now' },

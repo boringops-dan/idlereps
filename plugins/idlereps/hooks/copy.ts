@@ -765,6 +765,9 @@ export const LINES = [
   ...NEW_B_DEMO_LINES,
   ...MORE_CELEBRATION_LINES,
   ...MORE_MOVE_LINES,
+  // Added at the end: a line's place in this list picks its variant and address term, so earlier ones keep theirs.
+  { id: 'unit-ask', voice: 'swolomon', variants: ['Kilos or pounds, {mate}? I count plates either way.'] },
+  { id: 'unit-detail', voice: 'plain', variants: ['Each step up is 2 kg or 5 lb.'] },
 ] as const satisfies readonly LineEntry[]
 
 export type LineId = (typeof LINES)[number]['id']

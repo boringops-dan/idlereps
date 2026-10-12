@@ -124,6 +124,8 @@ test('ACTIONS is D11 for the bands and panes Phase A draws (with Replay: 1 Let\'
     'where 1 At a desk',
     'where 2 At home, no gear',
     'where 3 With weights',
+    'unit 1 kg',
+    'unit 2 lb',
     'stretch 1 Done',
     'stretch 0 Not now',
     'ready 1 Try a set now',

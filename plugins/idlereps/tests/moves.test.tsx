@@ -6,6 +6,7 @@ import { flexBand } from '../hooks/bands'
 import { drawMove, idleReps, moveById, moveForExercise, moveMs, MOVES, poseAt } from '../hooks/moves'
 import { collected, STARTER_MOVES, UNLOCK_ORDER } from '../hooks/collection'
 import { drawMicro, MICRO_HEIGHT, MICRO_WIDTH } from '../hooks/figure'
+import { IDLES } from '../hooks/idles'
 import { breathedIn, encodeCells, encodeMove, encodeSprite, idleBeat, walkGrid } from '../hooks/portrait'
 import { DESK_STRETCHES, generateProgram, LIBRARY } from '../hooks/programs'
 import { SPRITE } from '../hooks/swolomon-sprite'
@@ -199,14 +200,14 @@ test('the status pane: a moment after it opens, he demonstrates the next set’s
   expect(toPane).toContain(cells[0])
   expect(toPane).toContain(cells[1])
   expect(toPane.at(-1)).toBe(FRAMES.idle)
-  // Then he lives in his square while it is open: looks around, walks, does a move; every frame one of his
-  // own, a step of a walk, or a move that is not a flex (the wins keep those).
+  // Then he lives in his square while it is open: looks around, walks, does a move or an idle animation;
+  // every frame one of his own, a step of a walk, an idle, or a move that is not a flex (the wins keep those).
   const settled = blits.length
   await clock.advance(60_000)
   const idling = blits.slice(settled).filter(b => b.requestId === STATUS.requestId).map(b => b.cells)
   expect(idling.length).toBeGreaterThan(0)
   const walks = Array.from({ length: 400 }, (_, n) => idleBeat(n, 'full')).flatMap(beat => beat.steps.flatMap(step => ('walk' in step ? [encodeCells(walkGrid(SPRITE, step.walk))] : [])))
-  const moves = MOVES.filter(move => move.family !== 'flex').flatMap(move => cellsOf(move.id))
+  const moves = [...MOVES.filter(move => move.family !== 'flex'), ...IDLES].flatMap(move => cellsOf(move.id))
   const own = new Set([...Object.values(FRAMES), ...walks, ...moves, breathedIn(FRAMES.idle, SPRITE.width)])
   expect(idling.every(c => own.has(c))).toBe(true)
   expect(idling.some(c => !Object.values(FRAMES).includes(c))).toBe(true)

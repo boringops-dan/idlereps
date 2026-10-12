@@ -135,13 +135,21 @@ const IDLE = [
   ['off', 'No'],
 ] as const
 
-/** Every question in order; `goal` is not asked for Push / Pull / Legs, nor Q10 while telemetry is not live (D9). */
-const SCREEN_ORDER: readonly SetupScreen[] = ['start', 'goal', 'equipment', 'setting', 'level', 'days', 'schedule', 'size', 'weeks', 'cueEvery', 'idleReminder', 'telemetry', 'summary']
+/**
+ * Every question in order; `goal` is not asked for Push / Pull / Legs, `unit` only with dumbbells, nor Q10
+ * while telemetry is not live (D9).
+ */
+const SCREEN_ORDER: readonly SetupScreen[] = ['start', 'goal', 'equipment', 'unit', 'setting', 'level', 'days', 'schedule', 'size', 'weeks', 'cueEvery', 'idleReminder', 'telemetry', 'summary']
 
 /** The screen after `screen` on the way to the summary. */
 function after(screen: SetupScreen, state: SetupState): SetupScreen {
   if (screen === 'safety') return 'start'
-  const order = SCREEN_ORDER.filter(s => !(s === 'goal' && state.answers.template === 'ppl') && !(s === 'telemetry' && state.telemetry === undefined))
+  const order = SCREEN_ORDER.filter(
+    s =>
+      !(s === 'goal' && state.answers.template === 'ppl') &&
+      !(s === 'unit' && state.answers.equipment?.dumbbells !== true) &&
+      !(s === 'telemetry' && state.telemetry === undefined),
+  )
   return order[order.indexOf(screen) + 1] ?? 'summary'
 }
 
@@ -224,6 +232,18 @@ export function screenOf(state: SetupState, planPath: string): Screen {
     }
     case 'equipment':
       return { title: 'What equipment do you have?', copy: [EQUIPMENT_COPY] }
+    // Asked, never assumed (owner, 2026-10-12: "we have to ask the user LBS or KG in onboarding").
+    case 'unit': {
+      const units = [
+        ['kg', 'kg (steps of 2 kg)'],
+        ['lb', 'lb (steps of 5 lb)'],
+      ] as const
+      return {
+        title: 'Your weights: kg or lb?',
+        choices: units.map(([weightUnit, label]) => ({ label, apply: s => forward(answer({ weightUnit })(s)) })),
+        primary: indexOr(units, units.findIndex(([weightUnit]) => weightUnit === state.answers.weightUnit)),
+      }
+    }
     case 'setting': {
       const settings = [
         ['home', 'Home (floor exercises are fine)'],
@@ -383,11 +403,6 @@ export const toggleEquipment = (state: SetupState, key: keyof Equipment): SetupS
   const equipment = state.answers.equipment ?? { dumbbells: false, bar: false, bands: false }
   return { ...state, answers: { ...state.answers, equipment: { ...equipment, [key]: !equipment[key] } } }
 }
-
-export const setUnit = (state: SetupState, weightUnit: Answers['weightUnit']): SetupState => ({
-  ...state,
-  answers: { ...state.answers, weightUnit },
-})
 
 /** Continue on the equipment screen: nothing ticked means bodyweight only. */
 export const continueEquipment = (state: SetupState): SetupState =>

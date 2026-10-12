@@ -95,6 +95,8 @@ async function designed(
   await pane.press({ key: `choice-${a.goal}` })
   for (const kit of a.equipment) await pane.press({ key: `toggle-${kit}` })
   await pane.press({ key: 'continue' })
+  // With dumbbells, kg or lb: kg.
+  if (a.equipment.includes('dumbbells')) await pane.press({ key: 'choice-1' })
   for (const n of [a.setting, a.level, a.days, 1, a.size, a.weeks, 1, 1]) await pane.press({ key: `choice-${n}` })
   await pane.press({ key: 'start-plan' })
   await pane.unmount()
@@ -139,7 +141,7 @@ test('site: medium is about 9 sets a workout', OPTIONS, async ($, on) => {
 })
 
 // ---------------------------------------------------------------------------------------------------------
-// "In a hurry? Quick start asks only where you train, and your first set is right there."
+// "In a hurry? Quick start asks only where you train (and kg or lb, if you have weights), and your first set is right there."
 
 test('site: Quick start asks only where you train, then the first set is right there', OPTIONS, async ($, on) => {
   const { w } = world(on, null, {}, { fresh: true })

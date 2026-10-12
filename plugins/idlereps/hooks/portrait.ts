@@ -4,6 +4,7 @@
  */
 
 import type { LineId } from './copy'
+import { IDLES } from './idles'
 import { idleReps, moveById } from './moves'
 import { regularById, REGULARS, regularWalk } from './regulars'
 import type { Regular } from './regulars'
@@ -346,7 +347,7 @@ function cameo(regular: Regular, from: Walk['facing']): IdleStep[] {
 const eyesOn = (x: number): Pose => (x < 0 ? 'glanceL' : 'glanceR')
 
 /** A beat's steps; none for a move beat, its move picked per beat from the moves given. */
-type BeatDef = { weight: number; steps?: readonly IdleStep[]; isFullOnly?: true }
+type BeatDef = { weight: number; steps?: readonly IdleStep[]; isFullOnly?: true; isIdle?: true }
 
 const BEATS: readonly BeatDef[] = [
   { weight: 5, steps: [{ pose: 'blink', ms: BLINK_MS }] },
@@ -368,6 +369,8 @@ const BEATS: readonly BeatDef[] = [
   { weight: 2, steps: stroll('right'), isFullOnly: true },
   // A few reps of something, right there: one of his moves.
   { weight: 3, isFullOnly: true },
+  // Something of his own, from the first day: one of his idle animations (idles.ts).
+  { weight: 6, isFullOnly: true, isIdle: true },
   // Now and then a regular walks past behind him (a few minutes apart, on average).
   ...REGULARS.map((regular, i) => ({ weight: 0.4, steps: cameo(regular, i % 2 === 0 ? 'left' : 'right'), isFullOnly: true as const })),
 ]
@@ -412,11 +415,15 @@ export function idleMoveStep(id: string): IdleStep {
 export function idleBeat(n: number, size: PortraitSize, isWin = false, moves: readonly string[] = [], mode: 'band' | 'set' = 'band'): IdleBeat {
   const wait = mode === 'set' ? Math.round(idleWait(n) * 0.6) : idleWait(n, isWin)
   if (isWin) return { wait, steps: TWINKLE, rest: 'flex' }
-  const pool = (mode === 'set' ? SET_BEATS : BEATS).filter(beat => (size === 'full' || beat.isFullOnly !== true) && (beat.steps !== undefined || moves.length > 0))
+  const pool = (mode === 'set' ? SET_BEATS : BEATS).filter(
+    beat => (size === 'full' || beat.isFullOnly !== true) && (beat.steps !== undefined || (beat.isIdle === true ? IDLES.length > 0 : moves.length > 0)),
+  )
   const total = pool.reduce((sum, beat) => sum + beat.weight, 0)
   let pick = hashUnit(n * 2) * total
   const beat = pool.find(b => (pick -= b.weight) < 0) ?? pool[0]!
-  return { wait, steps: beat.steps ?? [idleMoveStep(moves[Math.floor(hashUnit(n * 3 + 7) * moves.length)]!)], rest: 'idle' }
+  if (beat.steps !== undefined) return { wait, steps: beat.steps, rest: 'idle' }
+  const from = beat.isIdle === true ? IDLES.map(move => move.id) : moves
+  return { wait, steps: [idleMoveStep(from[Math.floor(hashUnit(n * 3 + 7) * from.length)]!)], rest: 'idle' }
 }
 
 /**
