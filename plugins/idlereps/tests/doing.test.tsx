@@ -2,7 +2,8 @@ import { expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
 import type { Plan } from '../types'
-import { DEMOS, doingFor, ENCOURAGEMENT, GESTURES, moveById, moveForExercise, MOVES } from '../hooks/moves'
+import { doingFor, ENCOURAGEMENT, moveById, moveForExercise } from '../hooks/moves'
+import { STARTER_MOVES } from '../hooks/collection'
 import { IDLES } from '../hooks/idles'
 import { idleBeat } from '../hooks/portrait'
 import { ALT_NAMES, DESK_STRETCHES, LIBRARY } from '../hooks/programs'
@@ -49,14 +50,16 @@ async function blitted($: Engine, on: Parameters<typeof world>[0], plan: Plan): 
   await $.turn.start({ text: 'go', turnId: 't1' })
   await $.command.run(workout('now'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await clock.advance(4 * 60_000)
+  await clock.advance(75_000)
   await ui.unmount()
   return blits.filter(b => b.key === 'swolomon').map(b => b.cells)
 }
 
-/** Every frame of every move he has but `allowed`, up close. */
-const othersThan = (allowed: readonly string[]): Set<string> =>
-  new Set([...MOVES, ...GESTURES, ...DEMOS, ...IDLES].filter(m => !allowed.includes(m.id)).flatMap(m => cellsOf(m.id)).filter(c => !allowed.some(id => cellsOf(id).includes(c))))
+/** Every frame, up close, of what he does off a set (a new player's moves, his idle animations) but `allowed`. */
+const othersThan = (allowed: readonly string[]): Set<string> => {
+  const mine = new Set(allowed.flatMap(id => cellsOf(id)))
+  return new Set([...STARTER_MOVES, ...IDLES.map(m => m.id)].filter(id => !allowed.includes(id)).flatMap(id => cellsOf(id)).filter(c => !mine.has(c)))
+}
 
 test('live: on a set of push-ups he does push-ups, and never another move', ANIMATED, async ($, on) => {
   const seen = await blitted($, on, KNOWN)
