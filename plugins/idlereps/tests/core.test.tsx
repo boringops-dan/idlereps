@@ -9,7 +9,7 @@ import { cueFor, dayNumberOf, START } from '../hooks/plan'
 import { applyInverse, applyPatch, record, RECORD_KEYS } from '../hooks/record'
 import type { RecordAction, RecordStore } from '../hooks/record'
 import { gate } from '../hooks/schedule'
-import { setShown, answerSet, BAND, NOON, OPTIONS, SESSION, TINY, TODAY, editPrompt, liveClock, typing, WEIGHTED, workout, world, ONBOARDED } from './world'
+import { setShown, answerSet, BAND, NOON, OPTIONS, SESSION, TINY, TODAY, editPrompt, liveClock, typing, WEIGHTED, workout, world, ONBOARDED, SQUAT_WEIGHT } from './world'
 
 /** The core mechanisms (plan §4.3, Task 22). */
 
@@ -140,9 +140,11 @@ test('ACTIONS is D11 for the bands and panes Phase A draws (with Replay: 1 Let\'
     'set 1 Start',
     'set 2 Later',
     'set 0 Not today',
+    'set 3 Swap move',
     'doing 1 All',
     'doing 2 Fewer',
     "doing 3 Couldn't do it",
+    'doing 4 Swap move',
     'timer 1 Done',
     'timer 2 Stop timer',
     'switch 1 Start side 2',
@@ -152,6 +154,7 @@ test('ACTIONS is D11 for the bands and panes Phase A draws (with Replay: 1 Let\'
     'edit 3 reps >',
     'edit 4 < weight',
     'edit 5 weight >',
+    'edit 6 Swap move',
     'logged 1 High five',
     'logged 0 Undo',
     'rating 1 Easy',
@@ -231,7 +234,7 @@ function setAction(store: RecordStore, plan: Plan, result: 'done' | 'skip', coun
   const cue = cueFor(plan, store.progress, store.targets)
   return {
     type: 'set',
-    showing: { workout: cue?.workout ?? 0, step: cue?.step ?? 1 },
+    showing: { workout: cue?.workout ?? 0, step: cue?.step ?? 1, slot: cue?.slot ?? 0 },
     result,
     ...(count === undefined ? {} : { count }),
     ...(weight === undefined ? {} : { weight }),
@@ -267,7 +270,7 @@ test('record then Undo leaves an identical store, for every action', () => {
 
 test('a stale band records nothing', () => {
   const store = storeOf(TINY)
-  const result = record(store, { type: 'set', showing: { workout: 0, step: 2 }, result: 'done', count: 10 }, ctxOf(TINY))
+  const result = record(store, { type: 'set', showing: { workout: 0, step: 2, slot: 0 }, result: 'done', count: 10 }, ctxOf(TINY))
   expect(result.effects.isStale).toBe(true)
   expect(result.patch).toEqual({ set: {}, append: [] })
 })
@@ -276,7 +279,7 @@ test('a stale band records nothing', () => {
 // The store registry and the plan cache.
 
 test('every store key the plugin reads or writes is registered', OPTIONS, async ($, on) => {
-  const store = new Map<string, unknown>([['seen', ONBOARDED]])
+  const store = new Map<string, unknown>([['seen', ONBOARDED], ['targets', SQUAT_WEIGHT.targets]])
   const unregistered: string[] = []
   const registered = new Set<string>(STORE_KEYS.map(k => k.key))
   // The prototype's keys are read once, by the migration step that retires them.
@@ -494,7 +497,7 @@ test('a band’s Undo for a record another session replaced records nothing', OP
 })
 
 test('Edit replaces the set band, and Save from it logs and offers Undo', OPTIONS, async ($, on) => {
-  world(on, WEIGHTED)
+  world(on, WEIGHTED, SQUAT_WEIGHT)
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })

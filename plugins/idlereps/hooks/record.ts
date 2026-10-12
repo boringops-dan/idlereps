@@ -73,7 +73,7 @@ export type RecordAction =
   | {
       type: 'set'
       /** The set the band showed. */
-      showing: { workout: number; step: number }
+      showing: { workout: number; step: number; slot: number }
       result: 'done' | 'skip'
       count?: number
       weight?: number
@@ -115,7 +115,7 @@ function inverseOf(store: RecordStore, patch: Patch, id: number, cue: Cue | null
 
 function recordSet(store: RecordStore, action: Extract<RecordAction, { type: 'set' }>, ctx: RecordContext): RecordResult {
   const current = cueFor(ctx.plan, store.progress, store.targets)
-  if (current === null || current.workout !== action.showing.workout || current.step !== action.showing.step) {
+  if (current === null || current.workout !== action.showing.workout || current.step !== action.showing.step || current.slot !== action.showing.slot) {
     return { patch: NOTHING, inverse: inverseOf(store, NOTHING, ctx.now, null), effects: { isStale: true } }
   }
   const { exercise, planExercise } = current

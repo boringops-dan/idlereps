@@ -103,6 +103,9 @@ export const WEIGHTED: Plan = {
   ],
 }
 
+/** A weight of theirs for WEIGHTED's goblet squats, at its start: sets past the first, whose weight was asked. */
+export const SQUAT_WEIGHT = { targets: { 'Goblet squats': { reps: 0, weight: 8, belowStreak: 0, toughStreak: 0 } } }
+
 export type World = {
   /** The plan file's text, changeable mid-test; null when there is no file. */
   file: { text: string | null; mtimeMs: number }

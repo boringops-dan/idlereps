@@ -17,7 +17,7 @@ import type { Prep } from './prep'
 import { dailyTarget, lastMovedText, movedOn, movedThisWeek, movesOn, remindWeekMarks } from './remind'
 import { collected, setsToNext, STARTER_MOVES, UNLOCK_ORDER } from './collection'
 import { mondayOf } from './ledger'
-import { describeAmount, effectiveExercise, minutesWords, shortWorkoutName, setsOf, stepsFor, targetFor, targetOf, weekProgress } from './plan'
+import { describeAmount, doneByOf, effectiveExercise, nextSlot, minutesWords, shortWorkoutName, setsOf, stepsFor, targetFor, targetOf, weekProgress } from './plan'
 import { isTrainingDay, longDayName, nextTrainingDay, shortDayName } from './schedule'
 
 export const PLUGIN_VERSION = '1.0.0'
@@ -132,7 +132,7 @@ export function bestText(exercise: Exercise, memory: LastByExercise): string | n
  * A workout as a table, one exercise a row: its sets as dots (done, this one, still to come), the amount,
  * and the best on record. `done` is how many of the workout's sets are done; `current` marks the one up next.
  */
-function workoutTable(workout: Workout, facts: StatusFacts, done: number, isCurrent: boolean): BandLine[] {
+function workoutTable(workout: Workout, facts: StatusFacts, isCurrent: boolean): BandLine[] {
   const exercises = workout.exercises.map(planned => {
     const target = targetFor(planned, facts.targets)
     const shown = effectiveExercise(planned, target)
@@ -143,19 +143,19 @@ function workoutTable(workout: Workout, facts: StatusFacts, done: number, isCurr
   // The half version of today's workout draws its halved sets.
   const half = isCurrent && facts.progress.half === true
   const setsWidth = Math.max(...workout.exercises.map(e => setsOf(e, half)))
-  let step = 0
-  return exercises.map(({ planned, shown, amount }) => {
+  // Sets go in turn, and Swap move can change which is next: each exercise's own sets done, and the next one's.
+  const doneBy = isCurrent ? doneByOf(workout, facts.progress) : workout.exercises.map(() => 0)
+  const next = isCurrent ? nextSlot(workout, facts.progress) : -1
+  return exercises.map(({ planned, shown, amount }, slot) => {
     const sets = setsOf(planned, half)
-    const first = step
-    step += sets
-    const isNext = isCurrent && done >= first && done < step
+    const done = doneBy[slot] ?? 0
+    const isNext = slot === next
     const best = bestText(shown, facts.memory)
     // The line going up is the point: a sparkline once there are three days to draw.
     const trend = trendOf(facts.history, shown.name)
     const dots: BandPart[] = Array.from({ length: sets }, (_, i): BandPart => {
-      const at = first + i
-      if (at < done) return { text: '●', tone: 'good' }
-      if (isCurrent && at === done) return { text: '●', tone: 'accent' }
+      if (i < done) return { text: '●', tone: 'good' }
+      if (isNext && i === done) return { text: '●', tone: 'accent' }
       return { text: '○', tone: 'muted' }
     })
     return [
@@ -264,7 +264,7 @@ export function statusViewOf(facts: StatusFacts): StatusView {
   }
   if (workout !== undefined && day !== 'finished') {
     head.push('')
-    head.push(...workoutTable(workout, facts, day === 'training' ? progress.done : 0, day === 'training'))
+    head.push(...workoutTable(workout, facts, day === 'training'))
   }
 
   const more: BandLine[] = []

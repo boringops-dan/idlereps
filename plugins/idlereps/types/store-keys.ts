@@ -29,6 +29,7 @@ export const STORE_KEYS = [
   { key: 'agentBeat', shape: '{ day, n } (§1.13.2)', inBackup: false },
   { key: 'seen', shape: 'Seen: the once ledger', inBackup: true },
   { key: 'declines', shape: 'local day numbers Not today was said on', cap: 60, inBackup: true },
+  { key: 'laterUntil', shape: 'epoch ms: the end of the gap a Later began; nothing unasked until then', inBackup: false },
   { key: 'laterStreak', shape: '{ day, n }: Laters in a row today', inBackup: false },
   { key: 'workIntervals', shape: 'WorkIntervals: each local day\'s merged turn intervals (§1.9)', cap: 14, inBackup: false },
   { key: 'installId', shape: 'a random UUID: the anonymous id telemetry and feedback carry (D9)', inBackup: false },

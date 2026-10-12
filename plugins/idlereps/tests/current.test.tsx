@@ -1,8 +1,9 @@
 import { expect, test } from 'claude-code/testing'
+import type { Engine } from 'claude-code/testing'
 
 import type { HistoryEntry, Plan } from '../types'
 import { closeUnfinished, START } from '../hooks/plan'
-import { drawnRows, footerLabelOf, NOON, OPTIONS, ownStore, SESSION, STATUS, tallyOf, TODAY, workout, world } from './world'
+import { BAND, drawnRows, footerLabelOf, NOON, OPTIONS, ownStore, SESSION, STATUS, tallyOf, TODAY, workout, world } from './world'
 
 /**
  * The tally is today's, and every open session's (owner, 2026-10-11: "the app seems to have no idea when the
@@ -135,7 +136,7 @@ test('Not today said in another session takes the tally away here too', OPTIONS,
   await $.session.start(SESSION)
   expect(await tallyOf($)).toBe('💪 0/5')
   store.set('declinedOn', TODAY)
-  await clock.advance(5 * MINUTE)
+  await clock.advance(MINUTE)
   expect(await tallyOf($)).toBeUndefined()
 })
 
@@ -149,15 +150,15 @@ test('a prompt in a session shows the tally as the store has it, without waiting
   expect(await tallyOf($)).toBe('💪 2/5')
 })
 
-test('Later in another session: this session’s “ready” becomes the new countdown', OPTIONS, async ($, on) => {
+test('Later in another session: this session’s “ready” becomes the same countdown within a minute', OPTIONS, async ($, on) => {
   const store = ownStore(on, { startedOn: TODAY, nextCueAt: NOON })
   const { clock } = world(on, FIVE, 'own-store')
   await $.session.start(SESSION)
   expect(await footerLabelOf($)).toMatch(/💪 0\/5 · ready$/)
   // Later there: the next set fifteen minutes on.
   store.set('nextCueAt', NOON + 15 * MINUTE)
-  await clock.advance(5 * MINUTE)
-  expect(await footerLabelOf($)).toBe('💪 0/5 · 10m')
+  await clock.advance(MINUTE)
+  expect(await footerLabelOf($)).toBe('💪 0/5 · 14m')
 })
 
 test('a session left alone over an hour looks every half hour; a prompt there brings it back to every minute', OPTIONS, async ($, on) => {
@@ -176,4 +177,89 @@ test('a session left alone over an hour looks every half hour; a prompt there br
   store.set('history', [setOn(TODAY, 1), setOn(TODAY, 2)])
   await clock.advance(MINUTE)
   expect(await tallyOf($)).toBe('💪 2/5')
+})
+
+// ---------------------------------------------------------------------------------------------------------
+// Later is nothing unasked until the gap ends, in every session (owner, 2026-10-12: "If the user says 'later'
+// then dont show up to ask him questions about himself I got asked what I lift to after saying later in
+// different agent window. Also the cooldown times do not seem to be sycned between windows").
+
+async function bandKeys($: Engine): Promise<string[]> {
+  const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
+  const keys = (await ui.findAll({ type: 'Button' })).map(b => String(b.key))
+  await ui.unmount()
+  return keys
+}
+
+/** Just remind me, nothing logged yet today: the set is due, and a quiet moment is open to him. */
+const REMIND = { mode: 'remind', about: {} }
+
+test('Later on the set: no question of his for the rest of the gap, even with nothing else due', OPTIONS, async ($, on) => {
+  ownStore(on, REMIND)
+  const { clock } = world(on, null, 'own-store')
+  await $.session.start(SESSION)
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  await clock.advance(31_000)
+  expect(await bandKeys($)).toContain('later')
+  await $.command.run(workout('later'))
+  await $.turn.start({ text: 'go on', turnId: 't2' })
+  for (let i = 0; i < 12; i++) {
+    await clock.advance(MINUTE)
+    expect(await bandKeys($)).not.toContain('pass')
+  }
+})
+
+test('Later said in another session: no question here either, until the gap ends', OPTIONS, async ($, on) => {
+  ownStore(on, { ...REMIND, nextCueAt: NOON + 15 * MINUTE, laterUntil: NOON + 15 * MINUTE })
+  const { clock } = world(on, null, 'own-store')
+  await $.session.start(SESSION)
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  for (let i = 0; i < 10; i++) {
+    await clock.advance(MINUTE)
+    expect(await bandKeys($)).toEqual([])
+  }
+})
+
+test('his question showing here goes when Later is said in another session', OPTIONS, async ($, on) => {
+  const store = ownStore(on, { ...REMIND, nextCueAt: NOON + 10 * MINUTE })
+  const { clock } = world(on, null, 'own-store')
+  await $.session.start(SESSION)
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  await clock.advance(31_000)
+  expect(await bandKeys($)).toContain('pass')
+  store.set('nextCueAt', NOON + 25 * MINUTE)
+  store.set('laterUntil', NOON + 25 * MINUTE)
+  await clock.advance(MINUTE)
+  expect(await bandKeys($)).toEqual([])
+})
+
+test('a set waiting here for Start goes when another session says Later, and both count down alike', OPTIONS, async ($, on) => {
+  const store = ownStore(on, { startedOn: TODAY, nextCueAt: NOON })
+  const { clock } = world(on, FIVE, 'own-store')
+  await $.session.start(SESSION)
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  await clock.advance(31_000)
+  expect(await bandKeys($)).toContain('start')
+  store.set('nextCueAt', NOON + 20 * MINUTE)
+  store.set('laterUntil', NOON + 20 * MINUTE)
+  await clock.advance(MINUTE)
+  expect(await bandKeys($)).toEqual([])
+  expect(await footerLabelOf($)).toMatch(/💪 0\/5 · 19m$/)
+})
+
+test('a set waiting here goes once it is logged in another session; one already started stays to be answered', OPTIONS, async ($, on) => {
+  const store = ownStore(on, { startedOn: TODAY, nextCueAt: NOON })
+  const { clock } = world(on, FIVE, 'own-store')
+  await $.session.start(SESSION)
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  await clock.advance(31_000)
+  expect(await bandKeys($)).toContain('start')
+  // Started here, then logged there: how it went is still asked here (Done then finds it stale).
+  await $.command.run(workout('start'))
+  store.set('progress', { ...START, done: 1, doneBy: [1, 0], cursor: 0 })
+  store.set('history', [setOn(TODAY, 1)])
+  store.set('nextCueAt', NOON + 16 * MINUTE)
+  await clock.advance(MINUTE)
+  expect(await bandKeys($)).toContain('all')
+  expect(await tallyOf($)).toBe('💪 1/5')
 })

@@ -4,12 +4,13 @@ import { BUSY_TOOL_CALLS, isBigAsk, toolSign } from '../hooks/signals'
 
 const toolSignal = (tool: string, command: string | undefined, calls: number) =>
   toolSign({ tool, ...(command === undefined ? {} : { command }) }, calls)?.reason ?? null
+import { setBand } from '../hooks/bands'
 import { line } from '../hooks/copy'
 import { advance, cueFor, parseLegacyPlan, parsePlan, START, stepCount, stepsOf, stepWeight, targetOf } from '../hooks/plan'
 import { generateProgram, STARTER_ANSWERS } from '../hooks/programs'
 import { isTrainingDay } from '../hooks/schedule'
 import type { Plan } from '../types'
-import { setShown, answerSet, BAND, OPTIONS, SESSION, TINY, TODAY, WEIGHTED, workout, world } from './world'
+import { setShown, answerSet, BAND, OPTIONS, SESSION, TINY, TODAY, WEIGHTED, workout, world, SQUAT_WEIGHT } from './world'
 
 /** The prototype's tests, on the v1 plan shape (plan §6 Task 2: fixtures, setup and copy changed; behaviour kept). */
 
@@ -25,7 +26,7 @@ test('the starter plan is 12 workouts that parse back to themselves', () => {
 test('sets advance within a workout, then it closes and the rest day applies', () => {
   expect(stepsOf(TINY.workouts[0]!).length).toBe(2)
   const first = advance(TINY, START, TODAY)
-  expect(first).toEqual({ progress: { ...START, done: 1 }, finished: 'set' })
+  expect(first).toEqual({ progress: { ...START, done: 1, doneBy: [1], cursor: 0 }, finished: 'set' })
   const second = advance(TINY, first.progress, TODAY)
   expect(second.finished).toBe('workout')
   expect(isTrainingDay(TINY, second.progress, TODAY)).toBe(false)
@@ -523,12 +524,18 @@ test('a stale band (set already recorded in another session) clears without reco
   expect(store.get('history')).toBeUndefined()
 })
 
-test('a weighted exercise adds a weight stepper starting at its start weight', OPTIONS, async ($, on) => {
+test('a weighted exercise’s first set asks its weight: “@ ? kg”, then the stepper, starting at its start weight', OPTIONS, async ($, on) => {
   world(on, WEIGHTED)
   await $.session.start(SESSION)
+  // Before Start, the set band leaves the weight to them.
+  const cue = cueFor(WEIGHTED, START, {})!
+  expect(cue.isNewLoad).toBe(true)
+  expect(JSON.stringify(setBand(cue, { showHint: false, hint: '' }).body)).toContain('10 reps @ ? kg')
+  // Started: the steppers, not All at the plan's weight.
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await answerSet(ui, 'edit')
+  expect(await ui.find({ key: 'all' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /first time: what weight/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: 'at 8 kg' })).toBeDefined()
   expect((await ui.find({ key: 'lighter' }))?.props.hotkey).toBe('4')
   expect((await ui.find({ key: 'heavier' }))?.props.hotkey).toBe('5')
@@ -581,7 +588,7 @@ test('a plan whose weight is malformed is refused with a reason', () => {
 })
 
 test('Done logs the set as prescribed in one key, weight included, and shows it with Undo', OPTIONS, async ($, on) => {
-  world(on, WEIGHTED)
+  world(on, WEIGHTED, SQUAT_WEIGHT)
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
@@ -594,7 +601,7 @@ test('Done logs the set as prescribed in one key, weight included, and shows it 
 })
 
 test('Undo puts the set back exactly: progress, log, weight memory and cooldown', OPTIONS, async ($, on) => {
-  const { clock } = world(on, WEIGHTED)
+  const { clock } = world(on, WEIGHTED, SQUAT_WEIGHT)
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   await $.command.run(workout('done 10 12'))

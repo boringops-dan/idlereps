@@ -74,7 +74,7 @@ test('the store, filled to every cap, stays under half its limit; Undo under 4 K
   )
   const store: Record<string, unknown> = {
     schemaVersion: 1,
-    progress: { workout: 39, done: 11, lastCompletedOn: TODAY, extraDay: TODAY },
+    progress: { workout: 39, done: 11, lastCompletedOn: TODAY, extraDay: TODAY, doneBy: Array.from({ length: 12 }, () => 10), cursor: 11 },
     history,
     targets,
     lastByExercise,
@@ -88,6 +88,7 @@ test('the store, filled to every cap, stays under half its limit; Undo under 4 K
     seen,
     declines: Array.from({ length: 60 }, (_, i) => TODAY - i),
     laterStreak: { day: TODAY, n: 2 },
+    laterUntil: NOON,
     easyDay: TODAY,
     mode: 'remind',
     // The largest a setup left part way can be: every answer given, at the summary.

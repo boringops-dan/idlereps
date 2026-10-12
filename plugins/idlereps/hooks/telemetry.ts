@@ -35,6 +35,7 @@ export type TelemetryEvent =
   | { event: 'workout_rated'; properties: { rating: Rating } }
   | { event: 'ask_answered'; properties: { answer: 'start' | 'half' | 'no' | 'later' } }
   | { event: 'cue_later'; properties: Record<string, never> }
+  | { event: 'set_swapped'; properties: Record<string, never> }
   | { event: 'workout_completed'; properties: { workout: number } }
   | { event: 'plan_completed'; properties: { workouts: number } }
   | { event: 'week_shared'; properties: { sets: number; hours: number } }

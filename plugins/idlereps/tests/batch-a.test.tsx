@@ -216,6 +216,8 @@ test('Done after the hold logs its full time; Done mid-hold logs the seconds hel
   await answerSet(ui, 'done')
   expect(await ui.find({ type: 'Text', text: /Logged Plank 25 s/ })).toBeDefined()
   await $.command.run(workout('now'))
+  // Sets go in turn: the side plank is next, so swap back to the plank.
+  await $.command.run(workout('swap'))
   await answerSet(ui, 'start')
   await clock.advance(41_000)
   await answerSet(ui, 'done')

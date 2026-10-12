@@ -204,11 +204,17 @@ export function parseLegacyPlan(text: string): Plan {
   return { version: 1, name: 'My plan', schedule: { everyNDays }, workouts: parseWorkouts(legacyWorkouts) }
 }
 
-/** Every set of a workout, in order. */
-export const stepsOf = (workout: Workout, opts: { half?: boolean } = {}): { exercise: Exercise; set: number }[] =>
-  workout.exercises.flatMap(exercise =>
-    Array.from({ length: setsOf(exercise, opts.half === true) }, (_, i) => ({ exercise, set: i + 1 })),
-  )
+/**
+ * Every set of a workout, in the order they come: in turn, a set of each exercise and round again (owner,
+ * 2026-10-12: "I was asked to do pushups 7 times throughout the day, shouldnt there have been more variety?").
+ * Sets hours apart rest each muscle anyway, so the day gets every move from its first sets.
+ */
+export const stepsOf = (workout: Workout, opts: { half?: boolean } = {}): { exercise: Exercise; set: number }[] => {
+  const rounds = Math.max(...workout.exercises.map(exercise => setsOf(exercise, opts.half === true)))
+  return Array.from({ length: rounds }, (_, round) =>
+    workout.exercises.filter(exercise => round < setsOf(exercise, opts.half === true)).map(exercise => ({ exercise, set: round + 1 })),
+  ).flat()
+}
 
 /** An exercise's sets: at least 1, halved (rounded up) in the half version of a workout. */
 export const setsOf = (exercise: Exercise, half: boolean): number => {
@@ -305,30 +311,76 @@ export function effectiveExercise(planExercise: Exercise, target: Target | undef
   return { ...base, reps: `${target.reps}${parsed.unit}` }
 }
 
+/**
+ * Sets done of each exercise of the workout `progress` is on. A workout under way before sets went in turn
+ * (no `doneBy`) was done exercise by exercise.
+ */
+export function doneByOf(workout: Workout, progress: Progress): number[] {
+  const { doneBy } = progress
+  if (doneBy !== undefined) return workout.exercises.map((_, i) => doneBy[i] ?? 0)
+  let left = progress.done
+  return workout.exercises.map(exercise => {
+    const n = Math.min(left, setsOf(exercise, progress.half === true))
+    left -= n
+    return n
+  })
+}
+
+/** The exercises with sets left, by index, from `from` round (each once). */
+function slotsLeft(workout: Workout, progress: Progress, from: number): number[] {
+  const doneBy = doneByOf(workout, progress)
+  const count = workout.exercises.length
+  return Array.from({ length: count }, (_, i) => (from + i) % count).filter(
+    i => doneBy[i]! < setsOf(workout.exercises[i]!, progress.half === true),
+  )
+}
+
+/** The exercise the next set is of, by index: the first with sets left from the cursor; -1 when none are. */
+export const nextSlot = (workout: Workout, progress: Progress): number => slotsLeft(workout, progress, progress.cursor ?? 0)[0] ?? -1
+
 /** The set due now in the current workout, or null when the plan is finished. */
 export function cueFor(plan: Plan, progress: Progress, targets: Targets): Cue | null {
   const workout = plan.workouts[progress.workout]
   if (workout === undefined) return null
-  const steps = stepsFor(workout, progress)
-  const step = steps[progress.done]
-  if (step === undefined) return null
-  const target = targetFor(step.exercise, targets)
-  const exercise = effectiveExercise(step.exercise, target)
+  const slot = nextSlot(workout, progress)
+  const planExercise = workout.exercises[slot]
+  if (planExercise === undefined) return null
+  const doneBy = doneByOf(workout, progress)
+  const target = targetFor(planExercise, targets)
+  const exercise = effectiveExercise(planExercise, target)
+  // The half version is open while no exercise is past its halved sets, and one of them is left.
+  const canHalve = workout.exercises.every((e, i) => doneBy[i]! <= setsOf(e, true)) && progress.done < stepsOf(workout, { half: true }).length
   return {
     workout: progress.workout,
     workoutNumber: progress.workout + 1,
     workoutCount: plan.workouts.length,
     workoutName: workout.name,
     step: progress.done + 1,
-    stepCount: steps.length,
-    set: step.set,
-    planExercise: step.exercise,
+    stepCount: stepsFor(workout, progress).length,
+    set: doneBy[slot]! + 1,
+    slot,
+    planExercise,
     exercise,
     count: targetOf(exercise.reps)?.value ?? null,
     weight: exercise.weight === undefined ? null : (target.weight ?? exercise.weight.start),
     band: exercise.band === undefined ? null : (target.band ?? exercise.band.start),
-    ...(progress.half === true ? { isHalf: true as const } : progress.done < stepsOf(workout, { half: true }).length ? { canHalve: true as const } : {}),
+    ...(progress.half === true ? { isHalf: true as const } : canHalve ? { canHalve: true as const } : {}),
+    ...(slotsLeft(workout, progress, slot + 1).some(i => i !== slot) ? { canSwap: true as const } : {}),
+    ...(exercise.weight !== undefined && targets[planExercise.name]?.weight === undefined ? { isNewLoad: true as const } : {}),
   }
+}
+
+/**
+ * Swap move (owner, 2026-10-12: "what about a 'skip move' or 'replace move' that lets ppl cycle through the
+ * ask?"): the next set is of the next exercise with sets left, in turn; this one's sets wait their turn.
+ * Nothing is recorded. Null when no other exercise has sets left.
+ */
+export function swapMove(plan: Plan, progress: Progress): Progress | null {
+  const workout = plan.workouts[progress.workout]
+  if (workout === undefined) return null
+  const slot = nextSlot(workout, progress)
+  const other = slotsLeft(workout, progress, slot + 1).find(i => i !== slot)
+  return slot === -1 || other === undefined ? null : { ...progress, doneBy: doneByOf(workout, progress), cursor: other }
 }
 
 export type Advanced = { progress: Progress; finished: 'set' | 'workout' | 'plan' }
@@ -337,9 +389,11 @@ export type Advanced = { progress: Progress; finished: 'set' | 'workout' | 'plan
 export function advance(plan: Plan, progress: Progress, today: number): Advanced {
   const workout = plan.workouts[progress.workout]
   if (workout === undefined) return { progress, finished: 'plan' }
-  const done = progress.done + 1
-  if (done < stepsFor(workout, progress).length) return { progress: { ...progress, done }, finished: 'set' }
-  const { half: _, ...rest } = progress
+  const slot = nextSlot(workout, progress)
+  const doneBy = doneByOf(workout, progress).map((n, i) => (i === slot ? n + 1 : n))
+  const after: Progress = { ...progress, done: progress.done + 1, doneBy, cursor: (slot + 1) % workout.exercises.length }
+  if (nextSlot(workout, after) !== -1) return { progress: after, finished: 'set' }
+  const { half: _, doneBy: __, cursor: ___, ...rest } = progress
   const next: Progress = { ...rest, workout: progress.workout + 1, done: 0, lastCompletedOn: today }
   return { progress: next, finished: next.workout >= plan.workouts.length ? 'plan' : 'workout' }
 }
@@ -354,7 +408,7 @@ export function closeUnfinished(plan: Plan, progress: Progress, history: readonl
   const last = history.findLast((entry): entry is Extract<HistoryEntry, { kind: 'set' }> => entry.kind === 'set' && entry.w === progress.workout)
   // With no set in the log (a store edited by hand), the day it was done is unknown: left as it is.
   if (last === undefined || last.d >= today) return null
-  const { half: _, ...rest } = progress
+  const { half: _, doneBy: __, cursor: ___, ...rest } = progress
   return {
     progress: { ...rest, workout: progress.workout + 1, done: 0, lastCompletedOn: last.d },
     entry: { kind: 'workout-complete', t: last.t, d: last.d, w: progress.workout, partial: true },

@@ -63,7 +63,7 @@ test('the pane with one set left says “1 set to go”', OPTIONS, async ($, on)
 // The half version.
 
 test('half: each exercise’s sets halved, rounded up, never below one', () => {
-  expect(stepsOf(THREE.workouts[0]!, { half: true }).map(s => `${s.exercise.name} ${s.set}`)).toEqual(['Push-ups 1', 'Push-ups 2', 'Squats 1'])
+  expect(stepsOf(THREE.workouts[0]!, { half: true }).map(s => `${s.exercise.name} ${s.set}`)).toEqual(['Push-ups 1', 'Squats 1', 'Push-ups 2'])
   expect(stepsOf({ name: 'x', exercises: [{ name: 'Plank', reps: '30 s', sets: 1 }] }, { half: true }).length).toBe(1)
   const cue = (progress: Progress) => cueFor(THREE, progress, {})
   expect(cue(START)?.canHalve).toBe(true)
@@ -252,8 +252,6 @@ test('half: an exercise halved to one set shows no set count', OPTIONS, async ($
   await $.command.run(workout('half'))
   await $.command.run(workout('done'))
   await $.command.run(workout('now'))
-  await $.command.run(workout('done'))
-  await $.command.run(workout('now'))
   expect((await halfBand($)).some(row => row.startsWith('Squats: 12 reps') && !row.includes('('))).toBe(true)
 })
 
@@ -262,6 +260,9 @@ test('half: an exercise of three sets counts to two', OPTIONS, async ($, on) => 
   await $.session.start(SESSION)
   await $.command.run(workout('half'))
   expect((await halfBand($)).some(row => row.startsWith('Push-ups: 10 reps  (1/2)'))).toBe(true)
+  // Sets go in turn: a set of squats between.
+  await $.command.run(workout('done'))
+  await $.command.run(workout('now'))
   await $.command.run(workout('done'))
   await $.command.run(workout('now'))
   expect((await halfBand($)).some(row => row.startsWith('Push-ups: 10 reps  (2/2)'))).toBe(true)

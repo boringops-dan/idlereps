@@ -27,7 +27,7 @@ import type { LineId } from '../hooks/copy'
 import { RANKS } from '../hooks/history'
 import { PORTRAIT_GAP } from '../hooks/portrait'
 import { LIBRARY } from '../hooks/programs'
-import { setShown, answerSet, BAND, NOON, OPTIONS, SESSION, SETUP, speaks, STATUS, tallyOf, TINY, TODAY, WEIGHTED, workout, world, ownStore } from './world'
+import { setShown, answerSet, BAND, NOON, OPTIONS, SESSION, SETUP, speaks, STATUS, tallyOf, TINY, TODAY, WEIGHTED, workout, world, ownStore, SQUAT_WEIGHT } from './world'
 
 /** Swolomon's voice and the line registry (plan §1.10 to §1.10c, §1.13.2, D22, Task 15). */
 
@@ -303,7 +303,7 @@ const LONG: Plan = {
 
 for (const surface of ['terminal', 'desktop'] as const) {
   test(`every band kind fits its row budget at 80 columns on ${surface}`, OPTIONS, async ($, on) => {
-    const { clock } = world(on, LONG, { lastByExercise: { 'Dumbbell overhead triceps extension': { last: { kind: 'set', t: 1, d: 1, w: 0, exercise: 'Dumbbell overhead triceps extension', set: 1, target: '15 reps', result: 'done', count: 15, weight: 14 }, best: {} } } })
+    const { clock } = world(on, LONG, { targets: { 'Dumbbell overhead triceps extension': { reps: 15, weight: 14, belowStreak: 0, toughStreak: 0 } }, lastByExercise: { 'Dumbbell overhead triceps extension': { last: { kind: 'set', t: 1, d: 1, w: 0, exercise: 'Dumbbell overhead triceps extension', set: 1, target: '15 reps', result: 'done', count: 15, weight: 14 }, best: {} } } })
     const narrow = { ...BAND, props: { ...BAND.props, bodyColumns: 80 } }
     const ui = await $.ui.mount({ plugin: 'idlereps', surface, ...narrow })
     const rows = async () => rowsOf(await ui.drawn())
@@ -474,7 +474,7 @@ test('Set up my plan, finished, takes the first-run band down', OPTIONS, async (
 
 test('the control hint shows on the first three set bands ever, across a reload', OPTIONS, async ($, on) => {
   const hint = line('hint', { day: TODAY })
-  world(on, WEIGHTED, { seen: { hint: { at: 1, n: 2 } } })
+  world(on, WEIGHTED, { ...SQUAT_WEIGHT, seen: { hint: { at: 1, n: 2 } } })
   await $.session.start(SESSION)
   await $.command.run(workout('start'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })

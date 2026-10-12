@@ -406,7 +406,10 @@ export function setBand(
   const { exercise, planExercise } = cue
   const parts: BandPart[] = [
     { text: `${exercise.name}: `, bold: true },
-    { text: describeAmount(exercise, cue.count, cue.weight, cue.band), bold: true, tone: 'accent' },
+    // No weight of theirs yet: the weight is theirs to say, after the set.
+    cue.isNewLoad === true && exercise.weight !== undefined
+      ? { text: `${describeAmount(exercise, cue.count, null, null)} @ ? ${exercise.weight.unit}`, bold: true, tone: 'accent' }
+      : { text: describeAmount(exercise, cue.count, cue.weight, cue.band), bold: true, tone: 'accent' },
   ]
   // The half version counts its own, halved sets.
   const sets = setsOf(planExercise, cue.isHalf === true)
@@ -425,12 +428,16 @@ export function setBand(
     body: [parts],
     ...(extras.length === 0 ? {} : { extras }),
     ...(opts.showHint ? { hint: opts.hint } : {}),
-    // Before Start: Start, Later, Not today; started: how it went.
-    actions: actionIdsOf(opts.isStarted === true ? 'doing' : 'set'),
+    // Before Start: Start, Later, Not today; started: how it went. Swap move while another move has sets left.
+    actions: setActionIds(cue, opts.isStarted === true),
     ...(opts.isStarted === true ? { isStarted: true as const } : {}),
     cue,
   }
 }
+
+/** A set band's buttons, before Start or started: Swap move only while another exercise has sets left. */
+export const setActionIds = (cue: Cue, isStarted: boolean): string[] =>
+  actionIdsOf(isStarted ? 'doing' : 'set').filter(id => id !== 'swap' || cue.canSwap === true)
 
 /** `0:23`, `1:05`. */
 export const clockText = (seconds: number): string => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
@@ -464,8 +471,8 @@ export function holdBand(cue: Cue, hold: NonNullable<BandSpec['hold']>, coachLin
     headerLead: true,
     progress: { done: cue.step - 1, total: cue.stepCount },
     body: [body],
-    // Time! asks how it went, as a started set does.
-    actions: actionIdsOf(kind === 'time' ? 'doing' : kind),
+    // Time! asks how it went; the set is done, so no Swap move.
+    actions: kind === 'time' ? actionIdsOf('doing').filter(id => id !== 'swap') : actionIdsOf(kind),
     cue,
     hold,
   }
@@ -485,11 +492,11 @@ function draftParts(cue: Cue, draft: Draft): BandLine {
 export function editBand(cue: Cue, draft: Draft, day: number): BandSpec {
   const hasCount = targetOf(cue.exercise.reps) !== null
   const hasLoad = cue.exercise.weight !== undefined || cue.exercise.band !== undefined
-  const actions = ['save', ...(hasCount ? ['fewer', 'more'] : []), ...(hasLoad ? ['lighter', 'heavier'] : [])]
+  const actions = ['save', ...(hasCount ? ['fewer', 'more'] : []), ...(hasLoad ? ['lighter', 'heavier'] : []), ...(cue.isNewLoad === true && cue.canSwap === true ? ['swap'] : [])]
   const values = draftParts(cue, draft)
   return {
     kind: 'edit',
-    body: [[{ text: line('edit-question', { day, exercise: cue.exercise.name }), bold: true }], ...(values.length === 0 ? [] : [values])],
+    body: [[{ text: line(cue.isNewLoad === true ? 'edit-question-load' : 'edit-question', { day, exercise: cue.exercise.name }), bold: true }], ...(values.length === 0 ? [] : [values])],
     actions,
     footer: [line(cue.exercise.weight === undefined ? 'edit-typed' : 'edit-typed-weight', { day })],
     cue,

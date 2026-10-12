@@ -612,6 +612,7 @@ export const LINES = [
   { id: 'hint-start', voice: 'plain', variants: ['Press a number with an empty prompt, or /workout start.'] },
   { id: 'edit-question', voice: 'plain', variants: ['{exercise}: how did it go?'] },
   { id: 'edit-typed', voice: 'plain', variants: ['Or type /workout done and the reps.'] },
+  { id: 'edit-question-load', voice: 'plain', variants: ['{exercise}, first time: what weight did you use, and how many?'] },
   { id: 'edit-typed-weight', voice: 'plain', variants: ['Or type /workout done and the reps and weight.'] },
 
   // Plain: toasts.
@@ -691,6 +692,8 @@ export const LINES = [
   { id: 'reply-set-done', voice: 'plain', variants: ['Set done.'] },
   { id: 'reply-set-done-amount', voice: 'plain', variants: ['Set done: {amount}.'] },
   { id: 'reply-set-skipped', voice: 'plain', variants: ['Set skipped.'] },
+  { id: 'reply-swapped', voice: 'plain', variants: ['Swapped. Next up: {exercise}.'] },
+  { id: 'reply-no-swap', voice: 'plain', variants: ['Nothing to swap to: no other move has sets left today.'] },
   { id: 'reply-done-usage', voice: 'plain', variants: ['Usage: /workout done [how many] [weight], e.g. /workout done 8 or /workout done 8 14'] },
   { id: 'reply-hidden', voice: 'plain', variants: ['Hidden for {n} minutes.'] },
   { id: 'reply-undone', voice: 'plain', variants: ['Undone. The set is back.'] },

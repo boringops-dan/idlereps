@@ -175,8 +175,9 @@ test('site: the set band: lead, workout, dots and set 1 of 6; his line; the set;
   expect(rows).toContain('Desk push-ups: 10 reps  (1/2)')
   expect(rows).toContain('↳ hands on the desk edge, body straight')
   expect(rows).toContain(line('hint', { day: TODAY }))
-  // Started by the warm-up: how it went (owner, 2026-10-07: "START and then they can say how many they did").
-  expect(rows.at(-1)).toBe("1: All 10   2: Fewer   3: Couldn't do it")
+  // Started by the warm-up: how it went (owner, 2026-10-07: "START and then they can say how many they did"),
+  // or another move first.
+  expect(rows.at(-1)).toBe("1: All 10   2: Fewer   3: Couldn't do it   4: Swap move")
   // He demonstrates the move: the portrait plays it (a Raster), not the name tag.
   expect(await ui.find({ type: 'Raster' })).toBeDefined()
   await ui.unmount()
@@ -485,6 +486,7 @@ test('site: every button carries its number as its hotkey, drawn as “N: Label�
     ['all', '1'],
     ['fewer', '2'],
     ['couldnt', '3'],
+    ['swap', '4'],
   ])
   await ui.unmount()
 })

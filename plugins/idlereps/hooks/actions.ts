@@ -87,10 +87,14 @@ export const ACTIONS: readonly Action[] = [
   { kind: 'set', id: 'start', hotkey: '1', label: 'Start', isPrimary: true },
   { kind: 'set', id: 'later', hotkey: '2', label: 'Later' },
   { kind: 'set', id: 'notoday', hotkey: '0', label: 'Not today' },
+  // Another move first (owner, 2026-10-12: "a 'skip move' or 'replace move' that lets ppl cycle through the
+  // ask"): the workout's next exercise with sets left, in turn; nothing recorded. Only while there is one.
+  { kind: 'set', id: 'swap', hotkey: '3', label: 'Swap move' },
   // Started (the set band's doing state, and a hold that ran out): how many. All's label names the target.
   { kind: 'doing', id: 'all', hotkey: '1', label: 'All', isPrimary: true },
   { kind: 'doing', id: 'fewer', hotkey: '2', label: 'Fewer' },
   { kind: 'doing', id: 'couldnt', hotkey: '3', label: "Couldn't do it" },
+  { kind: 'doing', id: 'swap', hotkey: '4', label: 'Swap move' },
 
   { kind: 'timer', id: 'done', hotkey: '1', label: 'Done', isPrimary: true },
   { kind: 'timer', id: 'stop', hotkey: '2', label: 'Stop timer' },
@@ -102,6 +106,8 @@ export const ACTIONS: readonly Action[] = [
   { kind: 'edit', id: 'more', hotkey: '3', label: 'reps >' },
   { kind: 'edit', id: 'lighter', hotkey: '4', label: '< weight' },
   { kind: 'edit', id: 'heavier', hotkey: '5', label: 'weight >' },
+  // A move's first set, its weight asked: another move first is still a key away.
+  { kind: 'edit', id: 'swap', hotkey: '6', label: 'Swap move' },
 
   { kind: 'logged', id: 'highfive', hotkey: '1', label: 'High five' },
   { kind: 'logged', id: 'undo', hotkey: '0', label: 'Undo' },

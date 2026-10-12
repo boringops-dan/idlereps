@@ -47,6 +47,7 @@ import {
   unlockBand,
   ratingBand,
   replayBand,
+  setActionIds,
   setBand,
 } from './bands'
 import { celebrationById, celebrationFor, HIGH_FIVE, isTooSlow } from './celebrate'
@@ -93,6 +94,7 @@ import {
   stepsFor,
   startOfDayMs,
   stepsOf,
+  swapMove,
   effectiveExercise,
   targetFor,
   stepWeight,
@@ -342,6 +344,8 @@ const coach: {
   currentDay: number | undefined
   /** What the footer was last drawn from, as keepCurrent compares it (footerInputs). */
   currentInputs: string | undefined
+  /** The next set's time and Not today, as the footer last read them: its minute look compares them. */
+  footerSeen: string | undefined
   /** When this session started (keepCurrent: how long nobody has used it). */
   sessionStartedAt: number
   isTurnRunning: boolean
@@ -464,6 +468,7 @@ const coach: {
   currentTimer: null,
   currentDay: undefined,
   currentInputs: undefined,
+  footerSeen: undefined,
   sessionStartedAt: 0,
   isTurnRunning: false,
   turnStartedAt: 0,
@@ -587,6 +592,7 @@ async function refreshFooter($: EngineInterface) {
   const reaction = coach.footerReaction ?? undefined
   // Only a workout under way (refreshStatus) has a next set to count down to.
   const nextCueAt = coach.isUnderWay ? await load<number | undefined>($, 'nextCueAt', undefined) : undefined
+  coach.footerSeen = coach.isUnderWay ? await footerSeenOf($) : undefined
   const next = footerOf({ isUnderWay: coach.isUnderWay, nextCueAt, now: at, ...(reaction === undefined ? {} : { reaction }) })
   // His eyes: approved art only, and never in Quiet.
   const isNear = next.isNear && art.sprite.approved && coach.options.coachChat !== 'quiet'
@@ -596,11 +602,28 @@ async function refreshFooter($: EngineInterface) {
     coach.isEyesOpen = true
     $.ui.invalidate('ui.render')
   }
-  if (next.changeIn !== null) timer($, 'footer', next.changeIn, () => void refreshFooter($))
+  // Another session moves the next set (a set logged, Later, Not today there): while one is to come, the
+  // footer looks every minute, "ready" too, so every window counts down to the same time.
+  const changeIn = next.changeIn ?? (coach.isUnderWay ? FOOTER_LOOK_MS : null)
+  if (changeIn !== null) timer($, 'footer', changeIn, () => void footerTick($))
   if (isNear && coach.options.coachAnimation && !coach.isBlinking) {
     coach.isBlinking = true
     blink($, true)
   }
+}
+
+/** How often a footer with a set to come looks for another session's answer. */
+const FOOTER_LOOK_MS = 60_000
+
+/** What another session's answer changes first: the next set's time, or Not today. */
+async function footerSeenOf($: EngineInterface): Promise<string> {
+  return JSON.stringify([await load($, 'nextCueAt', null), await load($, 'declinedOn', null)])
+}
+
+/** The footer's own look: another session answered (the whole session catches up), else the next minute. */
+async function footerTick($: EngineInterface) {
+  if ((await footerSeenOf($)) !== coach.footerSeen) await keepCurrent($)
+  await refreshFooter($)
 }
 
 /** His eyes in the footer, alive while they show: open a while, then a blink, never quicker than a second. */
@@ -1272,6 +1295,8 @@ async function expireBand($: EngineInterface, spec: BandSpec) {
 
 /** Shows a band through the gate: now, once the prompt is empty, or not at all. */
 async function offerBand($: EngineInterface, spec: BandSpec, cause: Message['cause']) {
+  // Later, said in any session, is nothing unasked until the gap ends: no question, no stand-up, no ask.
+  if (cause === 'timer' && UNPROMPTED.has(spec.kind) && (await isHushed($))) return
   const decision = await decide($, { channel: 'band', cause })
   if (decision === 'show') {
     await placeBand($, spec)
@@ -1283,6 +1308,38 @@ async function offerBand($: EngineInterface, spec: BandSpec, cause: Message['cau
 
 /** The bands he raises unasked that ask for an answer. */
 const UNPROMPTED: ReadonlySet<BandKind> = new Set<BandKind>(['ask', 'remind', 'question', 'spotme', 'still', 'stretch'])
+
+/**
+ * Inside the gap a Later began (owner, 2026-10-12: "If the user says 'later' then dont show up to ask him
+ * questions about himself"): he raises nothing unasked, in any session, until it ends.
+ */
+async function isHushed($: EngineInterface): Promise<boolean> {
+  return ((await load<number | undefined>($, 'laterUntil', undefined)) ?? 0) > (await now($))
+}
+
+/**
+ * A band another session answered goes here too (owner, 2026-10-12: "the cooldown times do not seem to be
+ * synced between windows"): his unasked ones once Later or Not today was said; the ask once today was
+ * started; a set not yet started once it was logged or swapped there, or Later put it off.
+ */
+async function dropAnsweredElsewhere($: EngineInterface) {
+  const shown = await read($, band)
+  if (shown === null) return
+  const day = await today($)
+  const isOff = (await load<number | undefined>($, 'declinedOn', undefined)) === day || (await load($, 'paused', false))
+  const isHushedNow = await isHushed($)
+  const plan = await loadPlan($)
+  const cue = plan === null ? null : cueFor(plan, await load($, 'progress', START), await load<Targets>($, 'targets', {}))
+  const isMoved = shown.cue !== undefined && (cue === null || cue.workout !== shown.cue.workout || cue.step !== shown.cue.step || cue.slot !== shown.cue.slot)
+  const isAnswered =
+    (UNPROMPTED.has(shown.kind) && (isOff || isHushedNow)) ||
+    (shown.kind === 'ask' && ((await load<number | undefined>($, 'startedOn', undefined)) === day || isMoved)) ||
+    (shown.kind === 'set' && shown.isStarted !== true && (isOff || isHushedNow || isMoved))
+  if (!isAnswered) return
+  // Answered, not ignored: what it tells him about their attention was said where they answered.
+  coach.unprompted = null
+  await clearBand($)
+}
 
 /** The band he raised unasked is going: answered if a press or a command is taking it away, else ignored. */
 async function settleUnprompted($: EngineInterface) {
@@ -1386,7 +1443,7 @@ async function takeParked($: EngineInterface): Promise<BandSpec | null> {
   if (plan === null || (await load($, 'paused', false)) || (await load<number | undefined>($, 'declinedOn', undefined)) === day) return null
   const cue = cueFor(plan, await load($, 'progress', START), await load<Targets>($, 'targets', {}))
   const isAgreed = (await load<number | undefined>($, 'startedOn', undefined)) === day
-  const isStillDue = cue !== null && waiting.cue?.step === cue.step && waiting.cue.exercise.name === cue.exercise.name && (waiting.kind === 'set' ? isAgreed : !isAgreed)
+  const isStillDue = cue !== null && waiting.cue?.step === cue.step && waiting.cue.slot === cue.slot && waiting.cue.exercise.name === cue.exercise.name && (waiting.kind === 'set' ? isAgreed : !isAgreed)
   return isStillDue ? waiting : null
 }
 
@@ -1595,7 +1652,7 @@ async function couldQuietMomentThisTurn($: EngineInterface): Promise<boolean> {
   if (inQuietHours(coach.options.quietHours, hourOf(at))) return false
   const met = (await load<Seen>($, 'seen', {})).onboarded?.at
   if (met === undefined || dayNumberOf(met) >= (await today($))) return false
-  if (!(await isDue($, 'question', 'day')) || (await quietMoment($)) === null || !(await mayExtra($, false))) return false
+  if ((await isHushed($)) || !(await isDue($, 'question', 'day')) || (await quietMoment($)) === null || !(await mayExtra($, false))) return false
   const isSetDue = (coach.turnCanCue || coach.turnCanRemind || coach.turnCanStretch) && (await load<number | undefined>($, 'nextCueAt', undefined) ?? 0) <= at
   return !isSetDue
 }
@@ -1612,7 +1669,7 @@ async function quietMoment($: EngineInterface): Promise<'spotme' | 'question' | 
 }
 
 async function offerQuietMoment($: EngineInterface) {
-  if (!coach.isTurnRunning || (await read($, band)) !== null) return
+  if (!coach.isTurnRunning || (await read($, band)) !== null || (await isHushed($))) return
   const moment = await quietMoment($)
   const day = await today($)
   if (moment === null || !(await mayExtra($, true))) return
@@ -1831,6 +1888,7 @@ async function snooze($: EngineInterface) {
   await countLater($)
   const at = await now($)
   await save($, 'nextCueAt', at + (await gapMs($)))
+  await save($, 'laterUntil', at + (await gapMs($)))
   await refreshFooter($)
   if (coach.isTurnRunning) scheduleCue($, cueDelayMs(turnWaitMs(false), at + (await gapMs($)), at))
 }
@@ -1863,7 +1921,7 @@ async function recordSet($: EngineInterface, outcome: { result: 'done' | 'skip';
   const at = await now($)
   const result = record(
     await recordStoreOf($),
-    { type: 'set', showing: { workout: cue.workout, step: cue.step }, ...outcome },
+    { type: 'set', showing: { workout: cue.workout, step: cue.step, slot: cue.slot }, ...outcome },
     { plan, today: day, now: at, gapMs: (await gapMs($)), setting: plan.answers?.setting ?? 'home' },
   )
   if (result.effects.isStale === true) {
@@ -2051,10 +2109,39 @@ async function startSet($: EngineInterface) {
     await startHold($, 1)
     return
   }
+  // A weight never said: the steppers, so the first set logs their weight, not the plan's start.
+  if (shown.cue.isNewLoad === true) {
+    const { cue } = shown
+    await replaceBand($, editBand(cue, { count: cue.count ?? 0, weight: cue.weight, band: cue.band }, await today($)))
+    return
+  }
   // The same band, its buttons now how it went; its hint, if it shows, names the command for that.
   const hint = shown.hint === undefined ? {} : { hint: line('hint', { day: await today($) }) }
-  const started: BandSpec = { ...shown, isStarted: true, actions: actionIdsOf('doing'), ...hint }
+  const started: BandSpec = { ...shown, isStarted: true, actions: setActionIds(shown.cue, true), ...hint }
   await update($, band, () => started)
+}
+
+/**
+ * Swap move: the next set is another exercise's, in turn (plan.ts swapMove), shown in place of this one (a
+ * hold under way too), started if this one was and it has no hold to run. The new next set; null when no
+ * other exercise has sets left.
+ */
+async function swapSet($: EngineInterface): Promise<Cue | null> {
+  const plan = await loadPlan($)
+  if (plan === null) return null
+  const swapped = swapMove(plan, await load($, 'progress', START))
+  if (swapped === null) return null
+  await save($, 'progress', swapped)
+  void track($, { event: 'set_swapped', properties: {} })
+  const cue = cueFor(plan, swapped, await load<Targets>($, 'targets', {}))
+  const shown = await read($, band)
+  if (cue !== null && shown !== null && ['set', 'timer', 'switch', 'edit'].includes(shown.kind)) {
+    await replaceBand($, await setBandFor($, cue, undefined))
+    const wasStarted = (shown.kind === 'set' && shown.isStarted === true) || shown.kind === 'edit'
+    if (wasStarted && targetOf(cue.exercise.reps)?.isTimed !== true) await startSet($)
+  }
+  await refreshStatus($)
+  return cue
 }
 
 /** Edit: the steppers, at the prescribed values (from a set, or a hold that just ended). */
@@ -2273,7 +2360,7 @@ async function chooseHalf($: EngineInterface): Promise<string> {
     return line('reply-done-today', { day, nextDay: next === null ? 'soon' : longDayName(next) })
   }
   const halfSets = stepsOf(workout, { half: true }).length
-  if (progress.half !== true && progress.done >= halfSets) return line('reply-past-half', { day, n: stepsOf(workout).length - progress.done })
+  if (progress.half !== true && cueFor(plan, progress, await load<Targets>($, 'targets', {}))?.canHalve !== true) return line('reply-past-half', { day, n: stepsOf(workout).length - progress.done })
   await startWorkout($, undefined, { half: true })
   return line('reply-half', { day, n: halfSets })
 }
@@ -2837,6 +2924,9 @@ async function footerInputs($: EngineInterface): Promise<string> {
     await load($, 'declinedOn', null),
     await load($, 'paused', null),
     await load($, 'nextCueAt', null),
+    // Not drawn, but what a band here may wait on: today started, or Later said, in another session.
+    await load($, 'startedOn', null),
+    await load($, 'laterUntil', null),
   ])
 }
 
@@ -2867,7 +2957,10 @@ async function keepCurrent($: EngineInterface) {
   // A look that finds nothing new is a few reads; the whole of the facts only when the footer could change,
   // or the pane is open (its facts are all of them).
   const inputs = await footerInputs($)
-  if (isNewDay || coach.isStatusOpen || inputs !== coach.currentInputs) await refreshStatus($)
+  if (isNewDay || coach.isStatusOpen || inputs !== coach.currentInputs) {
+    await refreshStatus($)
+    await dropAnsweredElsewhere($)
+  }
   coach.currentInputs = inputs
   if (isNewDay) await armIdle($)
   const midnight = new Date(at)
@@ -3292,6 +3385,9 @@ async function answerAction($: EngineInterface, kind: ActionKind, given: string,
     case 'skip':
       await recordSet($, { result: 'skip' })
       return
+    case 'swap':
+      await swapSet($)
+      return
     case 'save':
       await saveDraft($)
       return
@@ -3501,6 +3597,10 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
       return chooseHalf($)
     case 'next-block':
       return nextBlock($)
+    case 'swap': {
+      const cue = await swapSet($)
+      return cue === null ? line('reply-no-swap', { day }) : line('reply-swapped', { day, exercise: cue.exercise.name })
+    }
     case 'later':
       await snooze($)
       return line('reply-hidden', { day, n: Math.round((await gapMs($)) / 60_000) })
@@ -4030,7 +4130,7 @@ export const register: Register = (on, options) => {
     await $.command.register({
       name: 'workout',
       description: 'IdleReps: your workout, one set at a time while your agent works',
-      argumentHint: '[status | now | done [reps] [weight] | skip | later | undo | setup | plan <text> | pause | feedback <text>]',
+      argumentHint: '[status | now | done [reps] [weight] | skip | swap | later | undo | setup | plan <text> | pause | feedback <text>]',
     })
     const migrated = await migrate($)
     const day = await today($)

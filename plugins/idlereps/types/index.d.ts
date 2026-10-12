@@ -60,6 +60,13 @@ export type Progress = {
    * beats doing nothing; the workout counts, but targets do not move. Gone once the workout is done.
    */
   half?: true
+  /**
+   * Sets done of each exercise, by its index in the workout (sum: `done`). Absent before the first set of a
+   * workout, and in a workout under way before sets went in turn (done exercise by exercise).
+   */
+  doneBy?: number[]
+  /** The exercise (by index) to look at first for the next set: after the last one done, or the one swapped to. */
+  cursor?: number
 }
 
 /** One line of the training log (store key `history`). */
@@ -147,6 +154,8 @@ export type Cue = {
   stepCount: number
   /** 1-based set of this exercise. */
   set: number
+  /** The exercise's index in the workout. */
+  slot: number
   /** The exercise as the plan wrote it. */
   planExercise: Exercise
   /** The exercise as it is done now: the variant's name and range, and today's target. */
@@ -161,6 +170,13 @@ export type Cue = {
   canHalve?: true
   /** This set belongs to the half version of the workout. */
   isHalf?: true
+  /** Another exercise of the workout has sets left: Swap move can go to it. */
+  canSwap?: true
+  /**
+   * A weighted exercise with no weight of theirs yet (owner, 2026-10-12: "we never asked the user what size
+   * weights for ppl to use"): its first set asks the weight they use, in place of the plan's start.
+   */
+  isNewLoad?: true
 }
 
 /** Edit's steppers, before Save. */

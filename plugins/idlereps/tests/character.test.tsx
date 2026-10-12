@@ -890,9 +890,9 @@ test('the first set ever is a feat, toasted once ever', OPTIONS, async ($, on) =
 
 test('a workout with no skip is perfect; one with a skip is not', () => {
   const plan: Plan = { ...TINY, workouts: [{ name: 'A', exercises: [{ name: 'Push-ups', reps: '10 reps', sets: 1 }] }] }
-  const done = record(storeOf({ totalDoneSets: 5 }), { type: 'set', showing: { workout: 0, step: 1 }, result: 'done', count: 10 }, ctxOf(plan, TODAY))
+  const done = record(storeOf({ totalDoneSets: 5 }), { type: 'set', showing: { workout: 0, step: 1, slot: 0 }, result: 'done', count: 10 }, ctxOf(plan, TODAY))
   expect(done.effects.feats).toContain('perfect-workout')
-  const skipped = record(storeOf({ totalDoneSets: 5 }), { type: 'set', showing: { workout: 0, step: 1 }, result: 'skip' }, ctxOf(plan, TODAY))
+  const skipped = record(storeOf({ totalDoneSets: 5 }), { type: 'set', showing: { workout: 0, step: 1, slot: 0 }, result: 'skip' }, ctxOf(plan, TODAY))
   expect(skipped.effects.feats ?? []).not.toContain('perfect-workout')
 })
 
@@ -907,7 +907,7 @@ test('three workouts in a row is a feat; a full week only for a days plan', () =
   const history = [complete(MONDAY, 0), complete(MONDAY + 1, 1)]
   const third = record(
     storeOf({ history, progress: { ...START, workout: 2, lastCompletedOn: MONDAY + 1 }, totalDoneSets: 2 }),
-    { type: 'set', showing: { workout: 2, step: 1 }, result: 'done', count: 10 },
+    { type: 'set', showing: { workout: 2, step: 1, slot: 0 }, result: 'done', count: 10 },
     ctxOf(plan, MONDAY + 2),
   )
   expect(third.effects.feats).toContain('three-in-a-row')
@@ -915,14 +915,14 @@ test('three workouts in a row is a feat; a full week only for a days plan', () =
   const week = [0, 1, 2, 3, 4, 5].map(i => complete(MONDAY + i, i))
   const sunday = record(
     storeOf({ history: week, progress: { ...START, workout: 6, lastCompletedOn: MONDAY + 5 }, totalDoneSets: 6 }),
-    { type: 'set', showing: { workout: 6, step: 1 }, result: 'done', count: 10 },
+    { type: 'set', showing: { workout: 6, step: 1, slot: 0 }, result: 'done', count: 10 },
     ctxOf(plan, MONDAY + 6),
   )
   expect(sunday.effects.feats).toContain('full-week')
   const everyOther: Plan = { ...plan, schedule: { everyNDays: 1 } }
   const never = record(
     storeOf({ history: week, progress: { ...START, workout: 6, lastCompletedOn: MONDAY + 5 }, totalDoneSets: 6 }),
-    { type: 'set', showing: { workout: 6, step: 1 }, result: 'done', count: 10 },
+    { type: 'set', showing: { workout: 6, step: 1, slot: 0 }, result: 'done', count: 10 },
     ctxOf(everyOther, MONDAY + 6),
   )
   expect(never.effects.feats ?? []).not.toContain('full-week')
