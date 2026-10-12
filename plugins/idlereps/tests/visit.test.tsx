@@ -2,9 +2,9 @@ import { expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
 import type { Plan } from '../types'
-import { arrive, leave, mayVisit, NO_VISIT, VISIT_MS, WORKING_CAP, WORKING_FRESH_MS, withWorking } from '../hooks/visit'
+import { arrive, isHisSession, leave, mayVisit, NO_VISIT, VISIT_MS, WORKING_CAP, WORKING_FRESH_MS, withWorking } from '../hooks/visit'
 import type { Visit } from '../hooks/visit'
-import { BAND, NOON, OPTIONS, ownStore, SESSION, TODAY, workout, world } from './world'
+import { BAND, footerLabelOf, NOON, OPTIONS, ownStore, SESSION, TODAY, workout, world } from './world'
 
 /**
  * One Swolomon (owner, 2026-10-12: "Dp you think we can limit Swolomon to showing up in one agent window at a
@@ -119,4 +119,43 @@ test('a band left up here after the turn: once he shows up in another session, i
   store.set('visit', arrive('other', NOON + 2 * MIN))
   await clock.advance(MIN)
   expect(await keys($)).toEqual([])
+})
+
+test('he goes where they prompted last first; elsewhere only once he left it unanswered, or it is idle', () => {
+  const working = { me: NOON, there: NOON }
+  const there = { session: 'there' }
+  expect(mayVisit(NO_VISIT, 'me', NOON, working, there)).toBe(false)
+  expect(mayVisit(NO_VISIT, 'there', NOON, working, there)).toBe(true)
+  expect(mayVisit(leave('there', NOON), 'me', NOON + 1_000, working, there)).toBe(true)
+  expect(mayVisit(NO_VISIT, 'me', NOON, { me: NOON }, there)).toBe(true)
+  expect(mayVisit(NO_VISIT, 'me', NOON, working, undefined)).toBe(true)
+})
+
+test('his session: the one he visits; else where they prompted last; else any', () => {
+  expect(isHisSession(arrive('me', NOON), { session: 'there' }, 'me', NOON)).toBe(true)
+  expect(isHisSession(arrive('there', NOON), { session: 'me' }, 'me', NOON)).toBe(false)
+  expect(isHisSession(arrive('there', NOON), { session: 'me' }, 'me', NOON + VISIT_MS)).toBe(true)
+  expect(isHisSession(NO_VISIT, { session: 'there' }, 'me', NOON)).toBe(false)
+  expect(isHisSession(NO_VISIT, undefined, 'me', NOON)).toBe(true)
+})
+
+test('the footer: his face only in the session he is in; the others keep the tally and the time', OPTIONS, async ($, on) => {
+  const store = ownStore(on, DUE)
+  const { clock } = world(on, PLAN, 'own-store')
+  await $.session.start(SESSION)
+  // A turn here, ended before any set comes: he is here, but raised nothing.
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  await $.turn.complete({ turnId: 't1', answer: '', reason: 'answer', durationMs: 1_000, isAborted: false } as never)
+  expect(await footerLabelOf($)).toBe('👀 💪 0/5 · ready')
+  // They prompted in another window: he is there.
+  store.set('lastPrompt', { session: 'there', at: NOON + 1_000 })
+  await clock.advance(MIN)
+  expect(await footerLabelOf($)).toBe('💪 0/5 · ready')
+  // A prompt here brings him back.
+  await $.turn.start({ text: 'again', turnId: 't2' })
+  expect(await footerLabelOf($)).toBe('👀 💪 0/5 · ready')
+  // He visits another window (a set up there): not here, prompt or not.
+  store.set('visit', arrive('there', NOON + 2 * MIN))
+  await clock.advance(MIN)
+  expect(await footerLabelOf($)).toMatch(/^💪 /)
 })

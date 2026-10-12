@@ -29,11 +29,34 @@ export const NO_VISIT: Visit = { session: null, until: 0 }
 export const othersWorking = (working: Working, session: string, now: number): boolean =>
   Object.entries(working).some(([id, at]) => id !== session && now - at < WORKING_FRESH_MS)
 
-/** Whether he may show up in `session` now: he is here already, or nowhere, and not just gone looking elsewhere. */
-export function mayVisit(visit: Visit, session: string, now: number, working: Working): boolean {
+/**
+ * Whether he may show up in `session` now: he is here already, or nowhere, and not just gone looking elsewhere.
+ * He goes where they prompted last first, while its agent works; only once he left it unanswered (or it is
+ * idle) does another session get him.
+ */
+export function mayVisit(visit: Visit, session: string, now: number, working: Working, lastPrompt?: { session: string }): boolean {
   if (visit.session === session) return true
   if (visit.session !== null && visit.until > now) return false
-  return !(visit.left === session && visit.until > now && othersWorking(working, session, now))
+  if (visit.left === session && visit.until > now && othersWorking(working, session, now)) return false
+  const where = lastPrompt?.session
+  const isWhereTheyAre = where === undefined || where === session || visit.left === where || !isFresh(working, where, now)
+  return isWhereTheyAre
+}
+
+/** Whether `session`'s agent is working now. */
+const isFresh = (working: Working, session: string, now: number): boolean => {
+  const at = working[session]
+  return at !== undefined && now - at < WORKING_FRESH_MS
+}
+
+/**
+ * The session he is in: the one he is visiting, else the one they prompted in last (where they are), else any
+ * (none prompted yet). Only there does he show in the footer (owner, 2026-10-12: "I still see mutliple
+ * swolomons?").
+ */
+export function isHisSession(visit: Visit, lastPrompt: { session: string } | undefined, session: string, now: number): boolean {
+  if (visit.session !== null && visit.until > now) return visit.session === session
+  return lastPrompt === undefined || lastPrompt.session === session
 }
 
 /** He shows up in `session`, for a minute. */
