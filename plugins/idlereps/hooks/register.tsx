@@ -3015,7 +3015,7 @@ async function openRemindPane($: EngineInterface): Promise<string | null> {
   await update($, statusView, () => view)
   coach.isStatusOpen = true
   const rows = Math.max(PORTRAIT_ROWS, view.head.length + 3) + 1 + view.more.length
-  const opened = await $.ui.open({ id: STATUS_PANE, title: 'IdleReps', rows })
+  const opened = await $.ui.open({ id: STATUS_PANE, title: 'IdleReps', focus: true, closeOnEscape: true, rows })
   if (opened.isPlaced) playPaneMove($, moveById((await isLateNight($)) ? 'nap' : view.isWin ? 'double-biceps' : 'curl'))
   return opened.isPlaced ? null : remindTextOf(facts)
 }
@@ -3659,7 +3659,7 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
     // Inline, it opens tall enough for everything: the portrait's rows or the head's with Swolomon's line,
     // a blank and the buttons; a blank; the rest.
     const rows = Math.max(PORTRAIT_ROWS, view.head.length + 3) + 1 + view.more.length
-    const opened = await $.ui.open({ id: STATUS_PANE, title: 'IdleReps', rows })
+    const opened = await $.ui.open({ id: STATUS_PANE, title: 'IdleReps', focus: true, closeOnEscape: true, rows })
     if (opened.isPlaced) playPaneMove($, (await isLateNight($)) ? moveById('nap') : paneMoveOf(facts, view.isRestDay, view.isWin))
     return opened.isPlaced ? null : statusTextOf(facts)
   }

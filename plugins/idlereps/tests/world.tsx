@@ -116,6 +116,8 @@ export type World = {
   planReads: number
   /** Panes opened, and closed by the plugin, by id. */
   opened: string[]
+  /** Panes opened asking for the keyboard (so their hotkeys answer), by id. */
+  focused: string[]
   closed: string[]
   /** Every other file, as last written (or put there by a test). */
   files: Map<string, string>
@@ -161,6 +163,7 @@ export function world(on: On, plan: Plan | null, seed: Seed = {}, opts: WorldOpt
     prompt: { text: '' },
     planReads: 0,
     opened: [],
+    focused: [],
     closed: [],
     files: new Map(),
   }
@@ -205,6 +208,7 @@ export function world(on: On, plan: Plan | null, seed: Seed = {}, opts: WorldOpt
   on('ui.log', () => ({ value: undefined }))
   on('ui.open', ($, e) => {
     w.opened.push(e.id)
+    if (e.focus === true) w.focused.push(e.id)
     return { value: opts.refuseOpen === true ? { isPlaced: false, reason: 'narrow' } : { isPlaced: true } }
   })
   on('ui.close', ($, e) => {

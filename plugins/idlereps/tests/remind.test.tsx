@@ -115,6 +115,8 @@ test('/workout in Just remind me: today, the week, the rank, and its own buttons
   await $.session.start(SESSION)
   await $.command.run(workout(''))
   expect(w.opened).toContain('workout-status')
+  // It takes the keyboard, so its 1 presses Start a set rather than typing into the prompt.
+  expect(w.focused).toEqual(['workout-status'])
   const pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...STATUS })
   const rows = drawnRows(await pane.drawn()).join('\n')
   expect(rows).toContain('2 sets')

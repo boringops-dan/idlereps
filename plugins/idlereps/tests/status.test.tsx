@@ -117,6 +117,16 @@ test('Built for names what the plan was built for', OPTIONS, async ($, on) => {
   await pane.unmount()
 })
 
+test('/workout opens the pane with the keyboard, so 1 starts a set rather than typing into the prompt', OPTIONS, async ($, on) => {
+  const { w } = world(on, generateProgram(STARTER_ANSWERS))
+  await $.session.start(SESSION)
+  await $.command.run(workout(''))
+  expect(w.focused).toEqual(['workout-status'])
+  const pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...STATUS })
+  expect((await pane.findAll({ type: 'Button' })).map(b => [String(b.key), b.props.hotkey])[0]).toEqual(['now', '1'])
+  await pane.unmount()
+})
+
 test('the pane follows each record while it is open', OPTIONS, async ($, on) => {
   world(on, TINY)
   await $.session.start(SESSION)
