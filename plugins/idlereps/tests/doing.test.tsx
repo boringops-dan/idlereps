@@ -2,10 +2,10 @@ import { expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
 import type { Plan } from '../types'
-import { doingFor, ENCOURAGEMENT, moveById, moveForExercise } from '../hooks/moves'
-import { breathedIn, encodeSprite, idleBeat } from '../hooks/portrait'
+import { DEMOS, doingFor, ENCOURAGEMENT, GESTURES, moveById, moveForExercise, MOVES } from '../hooks/moves'
+import { IDLES } from '../hooks/idles'
+import { idleBeat } from '../hooks/portrait'
 import { ALT_NAMES, DESK_STRETCHES, LIBRARY } from '../hooks/programs'
-import { SPRITE } from '../hooks/swolomon-sprite'
 import { ANIMATED, BAND, blitLog, cellsOf, SESSION, workout, world } from './world'
 
 /**
@@ -14,7 +14,6 @@ import { ANIMATED, BAND, blitLog, cellsOf, SESSION, workout, world } from './wor
  * an encouragement cycle").
  */
 
-const FRAMES = encodeSprite(SPRITE)
 
 test('every exercise a plan of ours can hold, and every rest-day stretch, has its own move', () => {
   const names = [...new Set([...Object.values(LIBRARY).flatMap(rows => rows.flatMap(row => row.levels.map(e => e.name))), ...ALT_NAMES, ...DESK_STRETCHES.map(s => s.name)])]
@@ -42,30 +41,47 @@ test('through a set, his beats are only its move, most of the time; never anothe
 const UNKNOWN: Plan = { version: 1, name: 'U', schedule: { everyNDays: 1 }, workouts: [{ name: 'A', exercises: [{ name: 'Zercher carry', reps: '30 s', sets: 3 }] }] }
 const KNOWN: Plan = { ...UNKNOWN, workouts: [{ name: 'A', exercises: [{ name: 'Push-ups', reps: '10 reps', sets: 3 }, { name: 'Squats', reps: '12 reps', sets: 3 }] }] }
 
-/** What he blitted to the set band over a few minutes, besides his own frames. */
-async function movesSeen($: Engine, on: Parameters<typeof world>[0], plan: Plan) {
+/** What he blitted to the set band over a few minutes. */
+async function blitted($: Engine, on: Parameters<typeof world>[0], plan: Plan): Promise<string[]> {
   const { clock } = world(on, plan)
   const blits = blitLog(on)
   await $.session.start(SESSION)
   await $.turn.start({ text: 'go', turnId: 't1' })
   await $.command.run(workout('now'))
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
-  await clock.advance(3 * 60_000)
+  await clock.advance(4 * 60_000)
   await ui.unmount()
-  const own = new Set([...Object.values(FRAMES), breathedIn(FRAMES.idle, SPRITE.width), breathedIn(FRAMES.flex, SPRITE.width), breathedIn(FRAMES.miniIdle, SPRITE.miniSize)])
-  return blits.filter(b => b.key === 'swolomon' && !own.has(b.cells)).map(b => b.cells)
+  return blits.filter(b => b.key === 'swolomon').map(b => b.cells)
 }
 
-test('live: on a set of push-ups he does push-ups, and nothing else', ANIMATED, async ($, on) => {
-  const seen = await movesSeen($, on, KNOWN)
-  expect(seen.length).toBeGreaterThan(0)
+/** Every frame of every move he has but `allowed`, up close. */
+const othersThan = (allowed: readonly string[]): Set<string> =>
+  new Set([...MOVES, ...GESTURES, ...DEMOS, ...IDLES].filter(m => !allowed.includes(m.id)).flatMap(m => cellsOf(m.id)).filter(c => !allowed.some(id => cellsOf(id).includes(c))))
+
+test('live: on a set of push-ups he does push-ups, and never another move', ANIMATED, async ($, on) => {
+  const seen = await blitted($, on, KNOWN)
   const pushUps = new Set(cellsOf('push-up'))
-  expect(seen.filter(c => !pushUps.has(c))).toEqual([])
+  expect(seen.some(c => pushUps.has(c))).toBe(true)
+  const others = othersThan(['push-up'])
+  expect(seen.filter(c => others.has(c))).toEqual([])
 })
 
-test('live: on a set he has no move for, he cheers you on, and does nothing else', ANIMATED, async ($, on) => {
-  const seen = await movesSeen($, on, UNKNOWN)
-  expect(seen.length).toBeGreaterThan(0)
+test('live: on a set he has no move for, he cheers you on, and never does another move', ANIMATED, async ($, on) => {
+  const seen = await blitted($, on, UNKNOWN)
   const cheering = new Set(ENCOURAGEMENT.flatMap(id => cellsOf(id)))
-  expect(seen.filter(c => !cheering.has(c))).toEqual([])
+  expect(seen.some(c => cheering.has(c))).toBe(true)
+  const others = othersThan(ENCOURAGEMENT)
+  expect(seen.filter(c => others.has(c))).toEqual([])
+})
+
+test('the back of the gym: through a set, only its move back there; off a set, a move he has or an idle of his', () => {
+  const backMoves = (moves: string[], mode: 'band' | 'set') =>
+    Array.from({ length: 600 }, (_, n) => idleBeat(n, 'full', false, moves, mode).steps)
+      .flat()
+      .flatMap(step => ('far' in step && 'move' in step.far.src ? [step.far.src.move] : []))
+  const onSet = backMoves(['push-up'], 'set')
+  expect(onSet.length).toBeGreaterThan(0)
+  expect(new Set(onSet)).toEqual(new Set(['push-up']))
+  const idles = new Set(IDLES.map(m => m.id))
+  expect(backMoves([], 'band').every(id => idles.has(id))).toBe(true)
 })

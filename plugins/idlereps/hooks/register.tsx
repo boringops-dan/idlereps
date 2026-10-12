@@ -135,6 +135,9 @@ import {
   TICK_MS,
   timelineOf,
   walkGrid,
+  BACK_STRIDES,
+  farGrid,
+  decodeRows,
   BREATH_HALF_MS,
   breathedIn,
   cameoGrid,
@@ -143,7 +146,7 @@ import { bandFilmSvg, moveFilmSvg, stillSvg } from './film'
 import { callKind, expectedMs, learn } from './durations'
 import type { CallKind, CallTimes } from './durations'
 import { anticOf, footerLabel, footerOf, isAwake } from './footer'
-import type { Cameo, Fit, IdleStep, Pose, PortraitSize, Timeline, Walk } from './portrait'
+import type { Cameo, Far, Fit, Grid, IdleStep, Pose, PortraitSize, Timeline, Walk } from './portrait'
 import { backupOf, BACKUP_KEYS, backupPathOf, csvPathOf, historyCsv, parseBackup } from './data'
 import { PUSH_NAMES, STARTER_ANSWERS, generateProgram, stretchFor } from './programs'
 import { addInterval, shareLine, workedMs } from './worktime'
@@ -1254,10 +1257,34 @@ function idleFrames(step: IdleStep, size: PortraitSize): IdleFrame[] {
   if ('aside' in step) return [{ aside: step.aside, ms: step.ms }]
   if ('cameo' in step) return [{ cells: cached(art.cameoCells, step.cameo, () => encodeCells(cameoGrid(art.sprite, SPRITE, step.cameo))), ms: step.ms }]
   if ('walk' in step) return [{ cells: cached(art.walkCells, step.walk, () => encodeCells(walkGrid(art.sprite, step.walk))), ms: step.ms }]
+  if ('far' in step) {
+    const cells = farCellsOf(step.far)
+    return cells === undefined ? [] : [{ cells, ms: step.ms }]
+  }
   const move = moveById(step.move)
   const cells = moveCellsOf(step.move)
   if (move === undefined || cells === undefined) return []
   return movePlay(move, step.reps).map(([pose, ms]) => ({ cells: cells[pose] ?? art.frames.idle, ms }))
+}
+
+/** Him further back in the gym, by what he is doing there and where, in what he is wearing: made once. */
+const FAR_CELLS = new Map<string, string>()
+
+function farCellsOf(far: Far): string | undefined {
+  const key = JSON.stringify([art.sprite.outfit?.id, far])
+  const kept = FAR_CELLS.get(key)
+  if (kept !== undefined) return kept
+  const { src } = far
+  const id = 'stride' in src ? BACK_STRIDES.move : src.move
+  const pose = 'stride' in src ? BACK_STRIDES.poses[src.stride] : src.pose
+  const move = moveById(id)
+  const rows = move === undefined ? undefined : drawMove(move, art.sprite.outfit)[pose]
+  if (rows === undefined) return undefined
+  const grid: Grid = decodeRows(art.sprite, rows, `${id} far`, art.sprite.width, art.sprite.height)
+  const made = encodeCells(farGrid(grid, far, art.sprite.width, art.sprite.height))
+  if (FAR_CELLS.size > 400) FAR_CELLS.clear()
+  FAR_CELLS.set(key, made)
+  return made
 }
 
 const SHINY_CELLS = new Map<string, string>()
