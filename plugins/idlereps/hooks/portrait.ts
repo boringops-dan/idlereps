@@ -529,17 +529,84 @@ export const hashUnit = (x: number): number => ((Math.imul(x + 1, 2654435761) >>
 export const idleWait = (n: number, isWin = false): number =>
   isWin ? Math.round(IDLE_WAIT_MS.min + ((n * 997) % 2000)) : Math.round(IDLE_WAIT_MS.min + hashUnit(n * 2 + 1) * (IDLE_WAIT_MS.max - IDLE_WAIT_MS.min))
 
-/**
- * The n-th idle beat: the same for the same n (tests and replays), varied from one to the next. `moves` are
- * the moves he may do between lines (none: no move beats); a win only twinkles.
- */
 /** One of his moves as an idle step: an exercise as a full set (moves.ts idleReps), anything else as drawn. */
 export function idleMoveStep(id: string): IdleStep {
   const move = moveById(id)
   return { move: id, reps: move === undefined ? 0 : idleReps(move), ms: 0 }
 }
 
+/**
+ * How big he is in a step, his whole body's height over his square's: up close (his bust, the square cropped
+ * to his head and shoulders) 2, his whole body 1, at the back less; null where he is off the frame, or for a
+ * word.
+ */
+export function scaleOf(step: IdleStep): number | null {
+  if ('aside' in step || isOffFrame(step)) return null
+  if ('pose' in step || 'cameo' in step || 'walk' in step) return BUST_SCALE
+  if ('move' in step) return 1
+  return step.far.scale
+}
+
+/** Whether he has walked out of his square in a step: whatever size he comes back at, he walks in at it. */
+export function isOffFrame(step: IdleStep): boolean {
+  if ('walk' in step) return Math.abs(step.walk.x) >= 16
+  if (!('far' in step)) return false
+  const size = Math.round(16 * step.far.scale)
+  return step.far.x + size <= 0 || step.far.x >= 16
+}
+
+/** His bust is his whole body twice over, cropped to his head and shoulders. */
+export const BUST_SCALE = 2
+
+/** The most he grows or shrinks from one frame to the next: past it, he walks there (a dolly). */
+export const DOLLY_STEP = 0.2
+
+/** A dolly step's length. */
+export const DOLLY_MS = 180
+
+/** Him front on, mid-stride, at `scale`, his head kept near the top: walking to or from you. */
+export function dollyStep(scale: number, stride: 0 | 1): IdleStep {
+  const size = Math.round(16 * scale)
+  return { far: { src: { approach: stride }, facing: 'right', scale, x: Math.floor((16 - size) / 2), feet: size - 1 + Math.round(scale - 1) }, ms: DOLLY_MS }
+}
+
+/** Walking from `from` to `to` (scales), front on, the frames between, neither end. */
+function dolly(from: number, to: number): IdleStep[] {
+  const n = Math.ceil(Math.abs(to - from) / DOLLY_STEP) - 1
+  return Array.from({ length: Math.max(0, n) }, (_, i) => dollyStep(Math.round((from + ((to - from) * (i + 1)) / (n + 1)) * 100) / 100, i % 2 === 0 ? 0 : 1))
+}
+
+/**
+ * Steps that start and end up close, with a walk wherever he would jump in size (owner, 2026-10-12: "when he
+ * flips scenes he should walk to the right framing portrait or full body or small"): up close to a move, he
+ * steps back till his whole body shows; after it, he walks back up to you.
+ */
+export function framed(steps: readonly IdleStep[]): IdleStep[] {
+  const out: IdleStep[] = []
+  // His size last seen; none once he has walked off.
+  let at: number | null = BUST_SCALE
+  for (const step of [...steps, null]) {
+    const scale = step === null ? BUST_SCALE : scaleOf(step)
+    if (step !== null && isOffFrame(step)) at = null
+    else if (scale !== null) {
+      if (at !== null && Math.abs(scale - at) > DOLLY_STEP + 1e-9) out.push(...dolly(at, scale))
+      at = scale
+    }
+    if (step !== null) out.push(step)
+  }
+  return out
+}
+
+/**
+ * The n-th idle beat: the same for the same n (tests and replays), varied from one to the next. `moves` are
+ * the moves he may do between lines (none: no move beats); a win only twinkles. He walks between framings.
+ */
 export function idleBeat(n: number, size: PortraitSize, isWin = false, moves: readonly string[] = [], mode: 'band' | 'set' = 'band'): IdleBeat {
+  const beat = pickBeat(n, size, isWin, moves, mode)
+  return { ...beat, steps: framed(beat.steps) }
+}
+
+function pickBeat(n: number, size: PortraitSize, isWin: boolean, moves: readonly string[], mode: 'band' | 'set'): IdleBeat {
   const wait = mode === 'set' ? Math.round(idleWait(n) * 0.6) : idleWait(n, isWin)
   if (isWin) return { wait, steps: TWINKLE, rest: 'flex' }
   const pool = (mode === 'set' ? SET_BEATS : BEATS).filter(

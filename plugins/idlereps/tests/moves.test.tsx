@@ -7,7 +7,8 @@ import { drawMove, idleReps, moveById, moveForExercise, moveMs, MOVES, poseAt } 
 import { collected, STARTER_MOVES, UNLOCK_ORDER } from '../hooks/collection'
 import { drawMicro, MICRO_HEIGHT, MICRO_WIDTH } from '../hooks/figure'
 import { IDLES } from '../hooks/idles'
-import { APPROACH_STEPS, BACK_STRIDES, breathedIn, decodeRows, encodeCells, encodeMove, encodeSprite, farGrid, idleBeat, walkGrid } from '../hooks/portrait'
+import { APPROACH_STEPS, BACK_STRIDES, breathedIn, decodeRows, DOLLY_MS, encodeCells, encodeMove, encodeSprite, farGrid, framed, idleBeat, walkGrid } from '../hooks/portrait'
+import type { Far } from '../hooks/portrait'
 import { DESK_STRETCHES, generateProgram, LIBRARY } from '../hooks/programs'
 import { SPRITE } from '../hooks/swolomon-sprite'
 import { ANIMATED, BAND, blitLog, cellsOf, drawnRows, microOf, OPTIONS, SESSION, STATUS, TINY, TODAY, workout, world } from './world'
@@ -183,6 +184,13 @@ test('a rank-up lifts the trophy', ANIMATED, async ($, on) => {
   await ui.unmount()
 })
 
+/** Him further back (or walking to or from you), as a portrait draws him. */
+function farCells(far: Far): string {
+  const { src } = far
+  const [id, pose] = 'stride' in src ? [BACK_STRIDES.move, BACK_STRIDES.poses[src.stride]] : 'approach' in src ? [APPROACH_STEPS.move, APPROACH_STEPS.poses[src.approach]] : [src.move, src.pose]
+  return encodeCells(farGrid(decodeRows(SPRITE, drawMove(moveById(id)!)[pose]!, id, 16, 16), far))
+}
+
 const STATUS_MOUNT = { plugin: 'idlereps', surface: 'terminal', ...STATUS } as const
 
 test('the status pane: a moment after it opens, he demonstrates the next set’s exercise, then idles', ANIMATED, async ($, on) => {
@@ -194,12 +202,17 @@ test('the status pane: a moment after it opens, he demonstrates the next set’s
   expect(((await pane.find({ key: 'swolomon' })) as { props: { cells: string } } | undefined)?.props.cells).toBe(FRAMES.idle)
   const pushUp = moveById('push-up')
   if (pushUp === undefined) throw new Error('no push-up')
-  await clock.advance(1_000 + moveMs(pushUp))
+  // A moment, he steps back till his whole body shows, the move, and he walks back up to you.
+  const dollies = framed([{ move: 'push-up', reps: 1, ms: 0 }]).flatMap(step => ('far' in step ? [farCells(step.far)] : []))
+  await clock.advance(1_000 + moveMs(pushUp) + dollies.length * DOLLY_MS)
   const cells = cellsOf('push-up')
   const toPane = blits.filter(b => b.requestId === STATUS.requestId).map(b => b.cells)
   expect(toPane).toContain(cells[0])
   expect(toPane).toContain(cells[1])
   expect(toPane.at(-1)).toBe(FRAMES.idle)
+  const half = dollies.length / 2
+  expect(toPane.slice(0, toPane.indexOf(cells[0]!)).filter(c => dollies.slice(0, half).includes(c))).toEqual(dollies.slice(0, half))
+  expect(toPane.slice(toPane.lastIndexOf(cells[1]!)).filter(c => dollies.slice(half).includes(c))).toEqual(dollies.slice(half))
   // Then he lives in his square while it is open: looks around, walks, does a move or an idle animation;
   // every frame one of his own, a step of a walk, an idle, or a move that is not a flex (the wins keep those).
   const settled = blits.length
@@ -213,12 +226,7 @@ test('the status pane: a moment after it opens, he demonstrates the next set’s
   const pool = collected([...UNLOCK_ORDER]).filter(m => m.family !== 'flex').map(m => m.id)
   // A minute of beats is a dozen or two: the first 40 cover it.
   const fars = Array.from({ length: 40 }, (_, n) => idleBeat(n, 'full', false, pool)).flatMap(beat =>
-    beat.steps.flatMap(step => {
-      if (!('far' in step)) return []
-      const { src } = step.far
-      const [id, pose] = 'stride' in src ? [BACK_STRIDES.move, BACK_STRIDES.poses[src.stride]] : 'approach' in src ? [APPROACH_STEPS.move, APPROACH_STEPS.poses[src.approach]] : [src.move, src.pose]
-      return [encodeCells(farGrid(decodeRows(SPRITE, drawMove(moveById(id)!)[pose]!, id, 16, 16), step.far))]
-    }),
+    beat.steps.flatMap(step => ('far' in step ? [farCells(step.far)] : [])),
   )
   const own = new Set([...Object.values(FRAMES), ...walks, ...moves, ...fars, breathedIn(FRAMES.idle, SPRITE.width)])
   expect(idling.every(c => own.has(c))).toBe(true)

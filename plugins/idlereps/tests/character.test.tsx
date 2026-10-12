@@ -6,10 +6,12 @@ import { COACH_NAME, emphasisRuns, introLines, plainOf, line, replayLines, SAFET
 import { nextRank, rankFor, RANKS, weekMarks } from '../hooks/history'
 import { START, cueFor } from '../hooks/plan'
 import {
+  breathedIn,
+  BUST_SCALE,
   decodeCells,
   decodeFrame,
+  DOLLY_STEP,
   encodeCells,
-  breathedIn,
   encodeSprite,
   ENTRANCE_MS,
   entranceAt,
@@ -177,9 +179,9 @@ test('his walks: out one side and back (or up to you from the back of the gym), 
   expect(walking.length).toBeGreaterThan(0)
   for (const beat of walking) {
     const walks = walksOf(beat.steps)
-    // Home: walked back in up close, or walked up to the camera till he is full size again.
+    // Home: walked back in up close, or walked up to the camera till he is up close again.
     const lastFar = beat.steps.flatMap(step => ('far' in step ? [step.far] : [])).at(-1)
-    const isHome = walks.at(-1)?.x === 0 || (lastFar !== undefined && 'approach' in lastFar.src && lastFar.scale === 1)
+    const isHome = walks.at(-1)?.x === 0 || (lastFar !== undefined && 'approach' in lastFar.src && lastFar.scale >= BUST_SCALE - DOLLY_STEP)
     expect(isHome).toBe(true)
     expect(walks.every(walk => Math.abs(walk.x) <= SPRITE.width && (walk.y === 0 || walk.y === -1))).toBe(true)
     for (let i = 1; i < walks.length; i += 1) expect(Math.abs((walks[i]?.x ?? 0) - (walks[i - 1]?.x ?? 0))).toBeLessThanOrEqual(2)
@@ -357,10 +359,11 @@ test('animated: once the line is out he idles while the band shows, a beat every
   await clock.advance(30_000)
   const before = blits.length
   await clock.advance(60_000)
-  // At most one beat each 2.5 s, at least one each 5.5 s plus the beat itself; a set of 20 (two frames a rep) on top.
+  // At most one beat each 2.5 s, at least one each 5.5 s plus the beat itself; a set of 20 (two frames a rep) on
+  // top, and around each move he does (a few a minute at most), his steps back and up to you again.
   const beats = blits.length - before
   expect(beats).toBeGreaterThanOrEqual(10)
-  expect(beats).toBeLessThanOrEqual(60_000 / 2_500 * 4 + 4 + 2 * IDLE_SET_REPS)
+  expect(beats).toBeLessThanOrEqual(60_000 / 2_500 * 4 + 4 + 2 * IDLE_SET_REPS + 4 * 2 * 4)
   await $.command.run(workout('later'))
   const gone = blits.length
   await clock.advance(60_000)
@@ -514,7 +517,9 @@ test('animated: a redraw mid-stroll draws him where he is, not back at rest', AN
   const blits = blitLog(on)
   await $.session.start(SESSION)
   let ui = await mountAt($, 100)
-  const rest = new Set(Object.values(encodeSprite(SPRITE)))
+  // At rest: any frame of his, breathing in or out.
+  const frames = Object.entries(encodeSprite(SPRITE))
+  const rest = new Set([...frames.map(([, cells]) => cells), ...frames.filter(([name]) => !name.startsWith('mini')).map(([, cells]) => breathedIn(cells, SPRITE.width))])
   let away: string | undefined
   for (let t = 0; t < 300_000 && away === undefined; t += 50) {
     await clock.advance(50)
@@ -605,7 +610,9 @@ test('animated: the pane, reopened mid-idle, draws him where he is', ANIMATED, a
   await $.session.start(SESSION)
   await $.command.run(workout(''))
   let pane = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...STATUS })
-  const rest = new Set(Object.values(encodeSprite(SPRITE)))
+  // At rest: any frame of his, breathing in or out.
+  const frames = Object.entries(encodeSprite(SPRITE))
+  const rest = new Set([...frames.map(([, cells]) => cells), ...frames.filter(([name]) => !name.startsWith('mini')).map(([, cells]) => breathedIn(cells, SPRITE.width))])
   let away: string | undefined
   await clock.advance(10_000)
   for (let t = 0; t < 300_000 && away === undefined; t += 50) {

@@ -142,6 +142,7 @@ import {
   BREATH_HALF_MS,
   breathedIn,
   cameoGrid,
+  framed,
 } from './portrait'
 import { bandFilmSvg, moveFilmSvg, stillSvg } from './film'
 import { callKind, expectedMs, learn } from './durations'
@@ -995,7 +996,7 @@ async function tick($: EngineInterface, key: number, isWin: boolean, stop: () =>
  * then back to the bust, resting (blinking a while) or, for a win, holding the flex.
  */
 async function playMove($: EngineInterface, move: Move, key: number, isWin: boolean) {
-  const cells = moveCellsOf(move.id) ?? []
+  const frames = movieOf(move)
   const startedAt = await now($)
   let showing = -1
   ticker($, 'band', TICK_MS, stop =>
@@ -1006,20 +1007,41 @@ async function playMove($: EngineInterface, move: Move, key: number, isWin: bool
       }
       // Done, or no full portrait to do it in (a redraw with no room for it): he idles from here.
       const portrait = coach.portrait
-      const pose = portrait?.size === 'full' ? poseAt(move, (await now($)) - startedAt) : null
-      if (portrait === null || pose === null) {
+      const at = portrait?.size === 'full' ? movieAt(frames, (await now($)) - startedAt) : null
+      if (portrait === null || at === null) {
         stop()
         coach.moveFrame = null
         await showPose($, isWin ? 'flex' : 'idle')
         idleWhileShowing($, key, isWin)
         return
       }
-      if (pose === showing) return
-      showing = pose
-      coach.moveFrame = cells[pose] ?? null
+      if (at === showing) return
+      showing = at
+      coach.moveFrame = frames[at]?.cells ?? null
       if (coach.moveFrame !== null) await blitPortrait($, coach.moveFrame)
     })(),
   )
+}
+
+/**
+ * A move as he plays it up close: he steps back till his whole body shows, plays it through, and walks back up
+ * to you (portrait.ts framed).
+ */
+function movieOf(move: Move): { cells: string; ms: number }[] {
+  return framed([{ move: move.id, reps: move.reps, ms: 0 }])
+    .flatMap(step => idleFrames(step, 'full'))
+    .flatMap(frame => ('cells' in frame ? [frame] : []))
+}
+
+/** Which of a movie's frames shows `t` ms in, or null once it has played out. */
+function movieAt(frames: readonly { ms: number }[], t: number): number | null {
+  if (t < 0) return null
+  let rest = t
+  for (const [i, frame] of frames.entries()) {
+    if (rest < frame.ms) return i
+    rest -= frame.ms
+  }
+  return null
 }
 
 /**
@@ -3835,7 +3857,7 @@ function playPaneMove($: EngineInterface, move: Move | undefined) {
   cancelTimers('pane')
   coach.paneFrame = null
   if (move === undefined || !coach.options.coachAnimation) return
-  const cells = moveCellsOf(move.id) ?? []
+  const frames = movieOf(move)
   timer($, 'pane', PANE_MOVE_DELAY_MS, () => {
     let showing = -1
     let startedAt: number | null = null
@@ -3844,8 +3866,8 @@ function playPaneMove($: EngineInterface, move: Move | undefined) {
         const at = await now($)
         startedAt ??= at
         const requestId = coach.panePortrait
-        const pose = coach.isStatusOpen && requestId !== null ? poseAt(move, at - startedAt) : null
-        if (pose === null || requestId === null) {
+        const shown = coach.isStatusOpen && requestId !== null ? movieAt(frames, at - startedAt) : null
+        if (shown === null || requestId === null) {
           stop()
           coach.paneFrame = null
           const isWin = (await read($, statusView))?.isWin === true
@@ -3853,9 +3875,9 @@ function playPaneMove($: EngineInterface, move: Move | undefined) {
           if (coach.isStatusOpen && !isWin) idlePane($)
           return
         }
-        if (pose === showing) return
-        showing = pose
-        coach.paneFrame = cells[pose] ?? null
+        if (shown === showing) return
+        showing = shown
+        coach.paneFrame = frames[shown]?.cells ?? null
         await blitFull($, requestId, coach.paneFrame)
       })(),
     )
