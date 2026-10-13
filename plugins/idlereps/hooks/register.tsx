@@ -73,7 +73,7 @@ import { arrive, isHisSession, leave, mayVisit, NO_VISIT, othersWorking, VISIT_M
 import type { LastPrompt, Visit, Working } from './visit'
 import { ANSWER_IDS, nextQuestion, QUESTIONS, recallFor } from './questions'
 import type { About } from './questions'
-import { ASIDE_GAP, ASIDE_MS, ASIDES, asideSpot, asideText, hasAsides } from './asides'
+import { ASIDE_GAP, ASIDE_MS, ASIDES, asideSpot, asideText, hasAsides, withAside, withoutAside } from './asides'
 import { collected, dueUnlock, setsForUnlock, setsToNext, STARTER_MOVES, UNLOCK_ORDER } from './collection'
 import { due, mark, mondayOf } from './ledger'
 import type { Scope } from './ledger'
@@ -1115,10 +1115,9 @@ async function asidesWhileShowing($: EngineInterface, key: number) {
     timer($, 'band', aside.at, () =>
       void (async () => {
         if (isFirst) await markSeen($, first.mark)
-        await setAside($, key, isFirst ? line(first.id, { day, ...first.ctx }) : line(aside.id, { day }))
+        await sayAside($, key, isFirst ? line(first.id, { day, ...first.ctx }) : line(aside.id, { day }))
       })(),
     )
-    timer($, 'band', aside.at + ASIDE_MS, () => void setAside($, key, undefined))
   }
 }
 
@@ -1162,8 +1161,7 @@ async function react($: EngineInterface, reaction: Reaction) {
     if (said === null || said.key !== shown.talkKey || said.isEntering === true) return
     coach.turnReactions.add(reaction)
     coach.lastReactionAt = at
-    await setAside($, said.key, text)
-    timer($, 'band', ASIDE_MS, () => void setAside($, said.key, undefined))
+    await sayAside($, said.key, text)
     return
   }
   if (coach.tally === undefined) return
@@ -1173,11 +1171,19 @@ async function react($: EngineInterface, reaction: Reaction) {
   await refreshFooter($)
 }
 
-async function setAside($: EngineInterface, key: number, aside: string | undefined) {
-  const said = await read($, talk)
-  if (said === null || said.key !== key || said.isEntering === true || said.aside === aside) return
-  const { aside: _was, ...rest } = said
-  await update($, talk, () => (aside === undefined ? rest : { ...rest, aside }))
+/**
+ * His word beside his line for a moment (hooks/asides.ts), then gone; gone only if it is still his word
+ * there, so a word said after it keeps its moment. `isPolite`: only if nothing else is said there now.
+ */
+async function sayAside($: EngineInterface, key: number, aside: string, isPolite = false) {
+  if (withAside(await read($, talk), key, aside, isPolite) === null) return
+  await update($, talk, was => withAside(was, key, aside, isPolite) ?? was)
+  timer($, 'band', ASIDE_MS, () =>
+    void (async () => {
+      if (withoutAside(await read($, talk), key, aside) === null) return
+      await update($, talk, was => withoutAside(was, key, aside) ?? was)
+    })(),
+  )
 }
 
 /**
@@ -1196,12 +1202,12 @@ function idleWhileShowing($: EngineInterface, key: number, isWin: boolean) {
       void blitPortrait($, cells)
     },
     ...(coach.setMoves === undefined ? {} : { setMoves: coach.setMoves }),
-    // A regular passing: he names them, as an aside (not Quiet).
+    // His word in a beat (a regular passing, a scene of his), as an aside, over nothing else said; none when
+    // Quiet or ignored lately (hooks/attention.ts), as with his other asides.
     onAside: id => {
-      if (coach.options.coachChat === 'quiet') return
       void (async () => {
-        await setAside($, key, line(id, { day: await today($) }))
-        timer($, 'band', ASIDE_MS, () => void setAside($, key, undefined))
+        if (asidesAllowed(coach.options.coachChat, await engagement($)) === 0) return
+        await sayAside($, key, line(id, { day: await today($) }), true)
       })().catch(() => undefined)
     },
   })

@@ -1,11 +1,13 @@
 import { expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
-import { ASIDE_MS, ASIDES, asideSpot, asideText, hasAsides } from '../hooks/asides'
+import { ASIDE_MS, ASIDES, asideSpot, asideText, hasAsides, withAside, withoutAside } from '../hooks/asides'
+import type { Said } from '../hooks/asides'
+import type { Attention } from '../hooks/attention'
 import { introBand, rankupBand, remindBand } from '../hooks/bands'
 import { entryOf, line } from '../hooks/copy'
 import type { LineId } from '../hooks/copy'
-import { ANIMATED, BAND, drawnRows, OPTIONS, SESSION, TINY, TODAY, workout, world } from './world'
+import { ANIMATED, BAND, drawnRows, isSceneWord, OPTIONS, SESSION, TINY, TODAY, workout, world } from './world'
 
 const variantsOf = (id: LineId): readonly string[] => entryOf(id).variants
 
@@ -30,7 +32,8 @@ async function watch($: Engine, clock: Clock, ms: number, mount: typeof BAND | t
   return frames
 }
 
-const asideIn = (rows: readonly string[]) => rows.find(row => /(^|\s)\/ /.test(row))
+/** The row his waiting aside is on; his word in a scene of his (hooks/scenes.ts) is not one. */
+const asideIn = (rows: readonly string[]) => rows.find(row => /(^|\s)\/ /.test(row) && !isSceneWord(row))
 
 /** The runs of steps an aside showed for, and its text each time. */
 function runsOf(frames: readonly string[][]) {
@@ -130,4 +133,77 @@ test('animated: answering the band ends its asides', ANIMATED, async ($, on) => 
   await watch($, clock, 20_000)
   await $.command.run(workout('notnow'))
   expect(runsOf(await watch($, clock, 120_000))).toEqual([])
+})
+
+// One word at a time beside his line: a waiting aside, a word on what a call did, his word in a scene of his
+// or on a regular passing. Each shows its moment, and clears only itself.
+
+const SAID: Said = { key: 7 }
+
+test('a word is said beside his own line, once it is out, and not twice over', () => {
+  expect(withAside(SAID, 7, 'Psst.', false)).toEqual({ key: 7, aside: 'Psst.' })
+  expect(withAside(SAID, 8, 'Psst.', false)).toBe(null)
+  expect(withAside({ key: 7, isEntering: true }, 7, 'Psst.', false)).toBe(null)
+  expect(withAside({ key: 7, aside: 'Psst.' }, 7, 'Psst.', false)).toBe(null)
+  expect(withAside(null, 7, 'Psst.', false)).toBe(null)
+})
+
+test('his word in a scene waits for quiet; a waiting aside says itself over it', () => {
+  const scene = withAside(SAID, 7, 'Boo.', true)!
+  expect(scene.aside).toBe('Boo.')
+  expect(withAside({ ...SAID, aside: 'Hello?' }, 7, 'Boo.', true)).toBe(null)
+  expect(withAside(scene, 7, 'Hello?', false)).toEqual({ key: 7, aside: 'Hello?' })
+})
+
+test('a word clears only itself: gone if still there, else left as it is', () => {
+  expect(withoutAside({ key: 7, aside: 'Boo.' }, 7, 'Boo.')).toEqual({ key: 7 })
+  expect(withoutAside({ key: 7, aside: 'Hello?' }, 7, 'Boo.')).toBe(null)
+  expect(withoutAside({ key: 8, aside: 'Boo.' }, 7, 'Boo.')).toBe(null)
+  expect(withoutAside(SAID, 7, 'Boo.')).toBe(null)
+  expect(withoutAside(null, 7, 'Boo.')).toBe(null)
+})
+
+test('a waiting aside said over his scene word keeps its whole moment when the scene word’s time is up', () => {
+  let said: Said = SAID
+  const say = (aside: string, isPolite: boolean) => (said = withAside(said, 7, aside, isPolite) ?? said)
+  const clear = (aside: string) => (said = withoutAside(said, 7, aside) ?? said)
+  say('Boo.', true)
+  say('Hello?', false)
+  // The scene word's time is up: the waiting aside stays.
+  clear('Boo.')
+  expect(said.aside).toBe('Hello?')
+  // A scene word now waits; then the waiting aside's time is up, and it goes.
+  say('Found you.', true)
+  expect(said.aside).toBe('Hello?')
+  clear('Hello?')
+  expect(said).toEqual(SAID)
+})
+
+/** Whether, over two minutes, he says a word in a scene of his. */
+async function saysSceneWords($: Engine, clock: Clock): Promise<boolean> {
+  const frames = await watch($, clock, 120_000, WIDE, 500)
+  return frames.some(rows => rows.some(row => /(^|\s)\/ /.test(row) && isSceneWord(row)))
+}
+
+const IGNORED: Attention = { outcomes: Array.from({ length: 10 }, () => 0 as const), day: 0, spent: 0 }
+
+test('animated: he says his word in his scenes on a waiting band', ANIMATED, async ($, on) => {
+  const { clock } = world(on, null, { mode: 'remind' })
+  await $.session.start(SESSION)
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  expect(await saysSceneWords($, clock)).toBe(true)
+})
+
+test('animated: ignored lately, not even in his scenes', ANIMATED, async ($, on) => {
+  const { clock } = world(on, null, { mode: 'remind', attention: IGNORED })
+  await $.session.start(SESSION)
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  expect(await saysSceneWords($, clock)).toBe(false)
+})
+
+test('animated: Quiet, not even in his scenes', { options: { ...ANIMATED.options, coachChat: 'quiet' } }, async ($, on) => {
+  const { clock } = world(on, null, { mode: 'remind' })
+  await $.session.start(SESSION)
+  await $.turn.start({ text: 'go', turnId: 't1' })
+  expect(await saysSceneWords($, clock)).toBe(false)
 })

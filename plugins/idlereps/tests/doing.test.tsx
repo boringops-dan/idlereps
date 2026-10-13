@@ -7,7 +7,7 @@ import { STARTER_MOVES } from '../hooks/collection'
 import { IDLES } from '../hooks/idles'
 import { idleBeat } from '../hooks/portrait'
 import { ALT_NAMES, DESK_STRETCHES, LIBRARY } from '../hooks/programs'
-import { ANIMATED, BAND, blitLog, cellsOf, SESSION, workout, world } from './world'
+import { ANIMATED, BAND, blitLog, cellsOf, SCENE_MOVES, SESSION, workout, world } from './world'
 
 /**
  * He does the move he suggests (owner, 2026-10-12: "Swolomon should be doing the move he suggests which means
@@ -77,7 +77,7 @@ test('live: on a set he has no move for, he cheers you on, and never does anothe
   expect(seen.filter(c => others.has(c))).toEqual([])
 })
 
-test('the back of the gym: through a set, only its move back there; off a set, a move he has or an idle of his', () => {
+test('the back of the gym: through a set, only its move back there; off a set, a move he has, an idle of his, or a scene of his', () => {
   const backMoves = (moves: string[], mode: 'band' | 'set') =>
     Array.from({ length: 600 }, (_, n) => idleBeat(n, 'full', false, moves, mode).steps)
       .flat()
@@ -86,5 +86,5 @@ test('the back of the gym: through a set, only its move back there; off a set, a
   expect(onSet.length).toBeGreaterThan(0)
   expect(new Set(onSet)).toEqual(new Set(['push-up']))
   const idles = new Set(IDLES.map(m => m.id))
-  expect(backMoves([], 'band').every(id => idles.has(id))).toBe(true)
+  expect(backMoves([], 'band').every(id => idles.has(id) || SCENE_MOVES.has(id))).toBe(true)
 })

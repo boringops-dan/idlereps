@@ -8,7 +8,13 @@ import { IDLES } from './idles'
 import { idleReps, moveById, movePlay } from './moves'
 import { regularById, REGULARS, regularWalk } from './regulars'
 import type { Regular } from './regulars'
+import { SCENES } from './scenes'
+import { backOfGym, stroll, turned, upToYou, walking } from './stage'
+import type { Cameo, Far, IdleStep, Walk } from './stage'
 import type { EntranceFrameName, FrameName, MiniFrameName, Sprite } from './swolomon-sprite'
+
+export type { Cameo, Far, IdleStep, Walk } from './stage'
+export { APPROACH_STEPS, BACK_STRIDES, backOfGym, upToYou, WALK_IDLE_STEP_MS } from './stage'
 
 export type Grid = (number | null)[][]
 export type PortraitSize = 'full' | 'mini'
@@ -287,31 +293,6 @@ export function frameAt(timeline: Timeline, t: number, isWin: boolean): Frame {
 // Idling (owner, 2026-10-03: "keep Swolomon blinking and moving around a little as he idles ... looking
 // around through the 4th wall"): once his line is out, a beat every few seconds while the band shows.
 
-/** Where he is in his square while walking: the profile frame, which way, and its left edge and bob. */
-export type Walk = { frame: 'walkA' | 'walkB'; facing: 'left' | 'right'; x: number; y: number }
-
-/** A regular walking past behind him (regulars.ts): who, where on their walk, and where his eyes are. */
-export type Cameo = { who: string; walk: Walk; pose: Pose }
-
-/**
- * One step of an idle beat: a pose of the bust, a place on a walk, one of his moves played through, a
- * regular passing behind him, or his word (an aside) on it.
- */
-export type IdleStep =
-  | { pose: Pose; ms: number }
-  | { walk: Walk; ms: number }
-  | { move: string; reps: number; ms: number }
-  | { cameo: Cameo; ms: number }
-  | { aside: LineId; ms: number }
-  | { far: Far; ms: number }
-
-/**
- * Him further back in the gym (owner, 2026-10-12: "let him get smaller too like he's walking into the back of
- * the gym to do his workouts"): a walk frame or a move's pose, drawn at `scale`, its left edge at `x` and its
- * feet on row `feet` (further back, higher up).
- */
-export type Far = { src: { stride: 0 | 1 } | { approach: 0 | 1 } | { move: string; pose: number }; facing: 'left' | 'right'; scale: number; x: number; feet: number }
-
 /** One idle beat: a wait, then its steps in turn, then back to rest (idle, or the flex on a win). */
 export type IdleBeat = { wait: number; steps: readonly IdleStep[]; rest: Pose }
 
@@ -322,29 +303,6 @@ const TWINKLE: readonly IdleStep[] = [
   { pose: 'flexB', ms: 300 },
 ]
 
-const turned = (facing: Walk['facing'], ms: number): IdleStep => ({ walk: { frame: 'walkA', facing, x: 0, y: 0 }, ms })
-
-/** Walking `from` to `to` (left edges), two pixels a step, the stride and the bob changing every other step. */
-function walking(facing: Walk['facing'], from: number, to: number): IdleStep[] {
-  const steps: IdleStep[] = []
-  const dir = to > from ? 2 : -2
-  for (let x = from, i = 0; dir > 0 ? x <= to : x >= to; x += dir, i += 1) {
-    const isB = Math.floor(i / 2) % 2 === 1
-    steps.push({ walk: { frame: isB ? 'walkB' : 'walkA', facing, x, y: isB ? -1 : 0 }, ms: WALK_IDLE_STEP_MS })
-  }
-  return steps
-}
-
-/** A walk's pace in his square: slower than the entrance's, a stroll. */
-export const WALK_IDLE_STEP_MS = 90
-
-/** Off for a bit, then back: out one side, a moment away, in again facing the way he went. */
-function stroll(side: Walk['facing']): IdleStep[] {
-  const far = side === 'left' ? -16 : 16
-  const back = side === 'left' ? 'right' : 'left'
-  return [turned(side, 300), ...walking(side, 0, far), { walk: { frame: 'walkA', facing: side, x: far, y: 0 }, ms: 700 }, ...walking(back, far, 0), turned(back, 250)]
-}
-
 /**
  * A regular walking past behind him, one side to the other, his eyes following; then he names them. Their
  * walk is his stroll's pace; he is in front, so only what his square leaves open shows them.
@@ -354,82 +312,6 @@ function cameo(regular: Regular, from: Walk['facing']): IdleStep[] {
   const [start, end] = facing === 'right' ? [-16, 16] : [16, -16]
   const steps = walking(facing, start, end).flatMap(step => ('walk' in step ? [{ cameo: { who: regular.id, walk: step.walk, pose: eyesOn(step.walk.x) }, ms: step.ms }] : []))
   return [{ pose: from === 'left' ? 'glanceL' : 'glanceR', ms: 500 }, ...steps, { aside: regular.line, ms: 0 }, { pose: 'lookYou', ms: 900 }]
-}
-
-/** At the back of the gym: his size there, where his feet are, where he works out, how fast he walks there. */
-const BACK = { scale: 0.5, feet: 12, x: 4, stepMs: 170 } as const
-
-/** The full-body walk he crosses the back in: his strut's two strides nearest the middle (idles-b.ts), by stride. */
-export const BACK_STRIDES = { move: 'strut', poses: [2, 3] } as const
-
-/** Walking across the back from `from` to `to` (left edges), a pixel a step, the strides in turn. */
-function backWalk(from: number, to: number): IdleStep[] {
-  const dir = to > from ? 1 : -1
-  const facing: Far['facing'] = dir > 0 ? 'right' : 'left'
-  const steps: IdleStep[] = []
-  for (let x = from, i = 0; dir > 0 ? x <= to : x >= to; x += dir, i += 1) {
-    steps.push({ far: { src: { stride: Math.floor(i / 2) % 2 === 0 ? 0 : 1 }, facing, scale: BACK.scale, x, feet: BACK.feet }, ms: BACK.stepMs })
-  }
-  return steps
-}
-
-/** Walking straight at you, front on: his march's two steps (moves.ts), by step. */
-export const APPROACH_STEPS = { move: 'march', poses: [0, 1] } as const
-
-/** The walk up to you: how big he is and where his feet are, a step at a time, back of the gym to up close. */
-const TO_YOU: readonly { scale: number; feet: number }[] = [
-  { scale: 0.5, feet: 12 },
-  { scale: 0.56, feet: 12 },
-  { scale: 0.62, feet: 13 },
-  { scale: 0.7, feet: 13 },
-  { scale: 0.78, feet: 14 },
-  { scale: 0.86, feet: 14 },
-  { scale: 0.94, feet: 15 },
-  { scale: 1, feet: 15 },
-]
-
-/**
- * Up to the camera (owner, 2026-10-12: "he can also be small and walk up to the camera"): he walks out of his
- * square, comes in small at the back, turns to you and walks straight up, bigger every step, till he is up
- * close again, looking at you.
- */
-export function upToYou(side: 'left' | 'right'): IdleStep[] {
-  const out = side === 'left' ? -16 : 16
-  const edge = side === 'left' ? -8 : 16
-  const toward: IdleStep[] = TO_YOU.map((at, i) => {
-    const size = Math.round(16 * at.scale)
-    return { far: { src: { approach: i % 2 === 0 ? 0 : 1 }, facing: 'right', scale: at.scale, x: Math.floor((16 - size) / 2), feet: at.feet }, ms: 260 }
-  })
-  return [turned(side, 300), ...walking(side, 0, out), ...backWalk(edge, BACK.x), ...toward, { pose: 'lookYou', ms: 900 }, { pose: 'wink', ms: 400 }]
-}
-
-/** At the back, how many reps of an exercise he does: a few, not the full set he does up close. */
-const BACK_REPS = 6
-
-/**
- * Off to the back of the gym (owner, 2026-10-12: "let swolomon like walk in and out of the set, and let him
- * get smaller too like he's walking into the back of the gym to do his workouts"): he walks out of his square,
- * comes in small at the back, does a few reps of `id` there, walks off, and comes back in up close.
- */
-export function backOfGym(id: string, side: 'left' | 'right'): IdleStep[] {
-  const move = moveById(id)
-  if (move === undefined) return []
-  const out = side === 'left' ? -16 : 16
-  const back = side === 'left' ? 'right' : 'left'
-  // Small, he is 8 wide: off the frame on his side, and in the middle of it.
-  const edge = side === 'left' ? -8 : 16
-  const reps = move.family === 'exercise' ? BACK_REPS : move.reps
-  const working: IdleStep[] = movePlay(move, reps).map(([pose, ms]) => ({ far: { src: { move: id, pose }, facing: 'right', scale: BACK.scale, x: BACK.x, feet: BACK.feet }, ms }))
-  return [
-    turned(side, 300),
-    ...walking(side, 0, out),
-    ...backWalk(edge, BACK.x),
-    ...working,
-    ...backWalk(BACK.x, edge),
-    ...walking(back, out, 0),
-    turned(back, 250),
-    { pose: 'lookYou', ms: 700 },
-  ]
 }
 
 /**
@@ -465,7 +347,7 @@ export function farGrid(src: Grid, far: Far, width = 16, height = 16): Grid {
 const eyesOn = (x: number): Pose => (x < 0 ? 'glanceL' : 'glanceR')
 
 /** A beat's steps; none for a move beat, its move picked per beat from the moves given. */
-type BeatDef = { weight: number; steps?: readonly IdleStep[]; isFullOnly?: true; isIdle?: true; isBack?: true }
+type BeatDef = { weight: number; steps?: readonly IdleStep[]; isFullOnly?: true; isIdle?: true; isBack?: true; isScene?: true }
 
 const BEATS: readonly BeatDef[] = [
   { weight: 5, steps: [{ pose: 'blink', ms: BLINK_MS }] },
@@ -494,6 +376,8 @@ const BEATS: readonly BeatDef[] = [
   // Off to the back, and straight up to you from there.
   { weight: 1.5, steps: upToYou('left'), isFullOnly: true },
   { weight: 1.5, steps: upToYou('right'), isFullOnly: true },
+  // One of his scenes (scenes.ts): a little story of his, out and back, at the back of the gym, or right there.
+  { weight: 8, isFullOnly: true, isScene: true },
   // Now and then a regular walks past behind him (a few minutes apart, on average).
   ...REGULARS.map((regular, i) => ({ weight: 0.4, steps: cameo(regular, i % 2 === 0 ? 'left' : 'right'), isFullOnly: true as const })),
 ]
@@ -610,12 +494,13 @@ function pickBeat(n: number, size: PortraitSize, isWin: boolean, moves: readonly
   const wait = mode === 'set' ? Math.round(idleWait(n) * 0.6) : idleWait(n, isWin)
   if (isWin) return { wait, steps: TWINKLE, rest: 'flex' }
   const pool = (mode === 'set' ? SET_BEATS : BEATS).filter(
-    beat => (size === 'full' || beat.isFullOnly !== true) && (beat.steps !== undefined || (beat.isIdle === true || beat.isBack === true ? IDLES.length > 0 || moves.length > 0 : moves.length > 0)),
+    beat => (size === 'full' || beat.isFullOnly !== true) && (beat.steps !== undefined || beat.isScene === true || (beat.isIdle === true || beat.isBack === true ? IDLES.length > 0 || moves.length > 0 : moves.length > 0)),
   )
   const total = pool.reduce((sum, beat) => sum + beat.weight, 0)
   let pick = hashUnit(n * 2) * total
   const beat = pool.find(b => (pick -= b.weight) < 0) ?? pool[0]!
   if (beat.steps !== undefined) return { wait, steps: beat.steps, rest: 'idle' }
+  if (beat.isScene === true) return { wait, steps: SCENES[Math.floor(hashUnit(n * 11 + 5) * SCENES.length)]!.steps, rest: 'idle' }
   // At the back: one of the moves given (a set's own), else an idle animation of his.
   if (beat.isBack === true) {
     const pool = moves.length > 0 ? moves : IDLES.map(move => move.id)

@@ -9,6 +9,7 @@ import { IDLES_C } from '../hooks/idles-c'
 import { IDLES_D } from '../hooks/idles-d'
 import { encodeMove, idleBeat } from '../hooks/portrait'
 import { SPRITE } from '../hooks/swolomon-sprite'
+import { SCENE_MOVES } from './world'
 
 /** His idle animations (owner, 2026-10-12: "He also needs like 100 more idle animations to keep it fun"). */
 
@@ -68,6 +69,7 @@ test('his idle beats play them from the first day, at full size only, and many o
     for (const step of idleBeat(n, 'full', false, []).steps) if ('move' in step) played.add(step.move)
     expect(idleBeat(n, 'mini', false, []).steps.some(step => 'move' in step)).toBe(false)
   }
-  expect([...played].every(id => IDS.has(id))).toBe(true)
-  expect(played.size).toBeGreaterThanOrEqual(Math.min(60, IDLES.length))
+  // His idle animations, and what his scenes (scenes.ts) have him do.
+  expect([...played].every(id => IDS.has(id) || SCENE_MOVES.has(id))).toBe(true)
+  expect([...played].filter(id => IDS.has(id)).length).toBeGreaterThanOrEqual(Math.min(60, IDLES.length))
 })

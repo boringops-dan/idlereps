@@ -15,6 +15,8 @@ import { encodeMicro, encodeMove } from '../hooks/portrait'
 import { dressed, SEASONS } from '../hooks/season'
 import type { Outfit } from '../hooks/season'
 import { SPRITE } from '../hooks/swolomon-sprite'
+import { SCENES } from '../hooks/scenes'
+import { LINES } from '../hooks/copy'
 
 /** Noon UTC on Friday 2026-10-02. */
 export const NOON = Date.UTC(2026, 9, 2, 12)
@@ -400,3 +402,12 @@ export async function answerSet(ui: { find: (q: { key: string }) => Promise<unkn
 export async function setShown(ui: { find: (q: { key: string }) => Promise<unknown> }): Promise<boolean> {
   return (await ui.find({ key: 'notoday' })) !== undefined || (await ui.find({ key: 'all' })) !== undefined
 }
+
+/** Every move his scenes (hooks/scenes.ts) have him do, up close or further back in the gym. */
+export const SCENE_MOVES: ReadonlySet<string> = new Set(
+  SCENES.flatMap(scene => scene.steps.flatMap(step => ('move' in step ? [step.move] : 'far' in step && 'move' in step.far.src ? [step.far.src.move] : []))),
+)
+
+/** Whether words he said (address term filled in) are his word in one of his scenes. */
+export const isSceneWord = (text: string): boolean =>
+  LINES.some(entry => entry.id.startsWith('scene-') && entry.variants.some(variant => variant.split('{mate}').every(part => text.includes(part))))

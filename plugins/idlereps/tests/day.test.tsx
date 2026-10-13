@@ -2,21 +2,21 @@ import { expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
 import type { HistoryEntry } from '../types'
-import { ANIMATED, blitLog, cellsOf, drawnRows, mountAt, NOON, SESSION, STATUS, TINY, TODAY, workout, world } from './world'
+import { ANIMATED, blitLog, cellsOf, drawnRows, isSceneWord, mountAt, NOON, SESSION, STATUS, TINY, TODAY, workout, world } from './world'
 
 /** His day, and their history (owner, 2026-10-03: "a real person"): the first aside of a band, once a day. */
 
 const at = (hour: number, minute = 0) => new Date(2026, 9, 2, hour, minute).getTime()
 const REMIND = { mode: 'remind' }
 
-/** The first aside a waiting reminder band shows, wide enough for it. */
+/** The first aside a waiting reminder band shows, wide enough for it; his word in a scene of his is not one. */
 async function firstAside($: Engine, clock: { advance: (ms: number) => Promise<void> }): Promise<string | undefined> {
   await $.turn.start({ text: 'go', turnId: 't1' })
   const ui = await mountAt($, 200)
   let aside: string | undefined
   for (let t = 0; t < 120_000 && aside === undefined; t += 500) {
     await clock.advance(500)
-    aside = drawnRows(await ui.drawn()).find(r => r.includes('   / '))
+    aside = drawnRows(await ui.drawn()).find(r => r.includes('   / ') && !isSceneWord(r))
   }
   await ui.unmount()
   return aside?.slice(aside.indexOf('/ ') + 2)

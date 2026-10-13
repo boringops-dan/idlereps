@@ -36,7 +36,7 @@ import type { RecordStore } from '../hooks/record'
 import { rankText } from '../hooks/status'
 import { SPRITE } from '../hooks/swolomon-sprite'
 import type { FrameName, MiniFrameName } from '../hooks/swolomon-sprite'
-import { setShown, answerSet, ANIMATED, BAND, blitLog, cellsOf, drawnRows, mountAt, NOON, OPTIONS, PLAN_PATH, SESSION, STATUS, tallyOf, TINY, TODAY, workout, ownStore, world } from './world'
+import { setShown, answerSet, ANIMATED, BAND, blitLog, cellsOf, drawnRows, mountAt, NOON, OPTIONS, PLAN_PATH, SESSION, STATUS, tallyOf, TINY, TODAY, workout, ownStore, world, isSceneWord, SCENE_MOVES } from './world'
 
 /** Swolomon as a character (plan §1.11, §1.13), and the first-run and status polish around him. */
 
@@ -184,11 +184,14 @@ test('his walks: out one side and back (or up to you from the back of the gym), 
     const isHome = walks.at(-1)?.x === 0 || (lastFar !== undefined && 'approach' in lastFar.src && lastFar.scale >= BUST_SCALE - DOLLY_STEP)
     expect(isHome).toBe(true)
     expect(walks.every(walk => Math.abs(walk.x) <= SPRITE.width && (walk.y === 0 || walk.y === -1))).toBe(true)
-    for (let i = 1; i < walks.length; i += 1) expect(Math.abs((walks[i]?.x ?? 0) - (walks[i - 1]?.x ?? 0))).toBeLessThanOrEqual(2)
-    // The way he faces is the way he goes.
+    // Two pixels a step in sight; out of it, he may come back round the other side.
+    const isOut = (x: number) => Math.abs(x) >= SPRITE.width
     for (let i = 1; i < walks.length; i += 1) {
-      const dx = (walks[i]?.x ?? 0) - (walks[i - 1]?.x ?? 0)
-      if (dx !== 0) expect(walks[i]?.facing).toBe(dx > 0 ? 'right' : 'left')
+      const [from, to] = [walks[i - 1]?.x ?? 0, walks[i]?.x ?? 0]
+      if (isOut(from) && isOut(to)) continue
+      expect(Math.abs(to - from)).toBeLessThanOrEqual(2)
+      // The way he faces is the way he goes.
+      if (to !== from) expect(walks[i]?.facing).toBe(to > from ? 'right' : 'left')
     }
     expect(beat.rest).toBe('idle')
   }
@@ -201,8 +204,8 @@ test('he turns his head both ways, on the full portrait only', () => {
   expect(mini.every(beat => beat.steps.every(step => 'pose' in step))).toBe(true)
 })
 
-test('move beats: only the moves given, or his idle animations (from the first day)', () => {
-  const idles = new Set(IDLES.map(m => m.id))
+test('move beats: only the moves given, or his idle animations (from the first day), or what his scenes have him do', () => {
+  const idles = new Set([...IDLES.map(m => m.id), ...SCENE_MOVES])
   expect(fullBeats().every(beat => beat.steps.every(step => !('move' in step) || idles.has(step.move)))).toBe(true)
   const done = new Set(fullBeats(['squat', 'push-up']).flatMap(beat => beat.steps.flatMap(step => ('move' in step && !idles.has(step.move) ? [step.move] : []))))
   expect([...done].sort()).toEqual(['push-up', 'squat'])
@@ -573,7 +576,8 @@ test('animated: each aside drawn and cleared, and nothing more written for it', 
   await $.session.start(SESSION)
   const ui = await mountAt($, 100)
   await clock.advance(240_000)
-  const shown = asides.filter(a => a !== undefined)
+  // His waiting asides; his word in a scene of his comes and goes between them.
+  const shown = asides.filter(a => a !== undefined && !isSceneWord(a))
   expect(shown).toHaveLength(5)
   // Each one shown, then cleared: they alternate, and never twice in a row the same.
   const after = asides.slice(asides.indexOf(shown[0]))

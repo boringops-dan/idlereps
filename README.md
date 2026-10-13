@@ -231,6 +231,11 @@ costume once a season, and his banter on your sets is the season's.
 **The regulars.** Big Greg, Deadlift Doris and Cardio Kevin now and then walk past behind him, his eyes
 following them, and he tells you who that was.
 
+**His scenes.** Between lines he has fifty little bits of his own. He pops out for his towel, peeks
+in from the edge, runs laps at the back of the gym, naps back there till you catch him, offers you a high
+five and pulls it away, and loses count. He has a word for most of them, beside his line. He stays quiet
+when you've set him to Quiet, or when you've been ignoring him lately.
+
 **Spot him.** Every few days he's the one stuck on his last rep. `1: You got this!` and he gets it up.
 
 **Every set, celebrated.** After each set he holds something out for `1`: a high five, low five, side

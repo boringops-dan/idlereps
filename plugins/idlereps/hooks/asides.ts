@@ -40,3 +40,23 @@ export function asideSpot(spec: BandSpec, aside: string, room: { columns: number
   if (spec.headerFirst === true && spec.header !== undefined) return room.columns >= width ? 'under-title' : 'none'
   return room.columns >= room.lineColumns + ASIDE_GAP + width ? 'after-line' : 'none'
 }
+
+/** His words beside his line, as the band keeps them: whose line (`key`), still coming in, and the aside. */
+export type Said = { key: number; isEntering?: boolean; aside?: string }
+
+/**
+ * `said` with `aside` beside its line, or null where it is not said: another line now, his own still coming
+ * in, the same already there; or, `isPolite`, anything else said there now.
+ */
+export function withAside<T extends Said>(said: T | null, key: number, aside: string, isPolite: boolean): T | null {
+  if (said === null || said.key !== key || said.isEntering === true || said.aside === aside) return null
+  if (isPolite && said.aside !== undefined) return null
+  return { ...said, aside }
+}
+
+/** `said` with `aside` gone, or null where it is not there any more (gone, or another word said over it). */
+export function withoutAside<T extends Said>(said: T | null, key: number, aside: string): T | null {
+  if (said === null || said.key !== key || said.aside !== aside) return null
+  const { aside: _was, ...rest } = said
+  return rest as T
+}
