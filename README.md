@@ -72,7 +72,8 @@ Any exercise is better than none, so IdleReps never makes it all or nothing:
 - **Good days push.** Rate a workout Easy and you get one bonus set at your new target.
 - **No streak shame.** Miss a day and the Workout pane says how many days you showed up this month, not
   "Streak 0".
-- **It backs off.** Three Laters in a row and IdleReps waits twice as long for the rest of the day. Say
+- **It backs off.** Each Later in a row waits twice as long as the one before (15, 30, 60 minutes, up to
+  midnight), and three in a row stretch the rest between sets for the rest of the day. Say
   Not today on the same weekday three weeks running and Swolomon offers to move that day.
 - **Rest days.** A long turn on a day off offers one desk stretch instead of a set.
 - **A target that follows you.** In Just remind me the footer counts today's moves against a target taken

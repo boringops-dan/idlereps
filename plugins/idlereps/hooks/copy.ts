@@ -439,7 +439,7 @@ export const LINES = [
   { id: 'hold-go', voice: 'swolomon', variants: ['Hold it, {mate}. Breathe.', 'Steady, {mate}. The clock is on our side.'] },
   { id: 'hold-switch', voice: 'swolomon', variants: ['Side one, done. Switch, {mate}.', 'Other side, {mate}. Symmetry is beauty.'] },
   { id: 'hold-time', voice: 'swolomon', variants: ['Time! Beautiful hold, {mate}.', 'Time! Rock solid, {mate}.'] },
-  { id: 'busy-day', voice: 'swolomon', variants: ["Busy day, {mate}. I'll check back every {n} min instead."] },
+  { id: 'busy-day', voice: 'swolomon', variants: ["Busy day, {mate}. I'll check back in {n} min, then less often."] },
   // The turn-end line, when the person trained through it: Swolomon on what the agent got done.
   // What the agent got done, as Swolomon understands it: never correctly (owner: he always misreads it).
   {

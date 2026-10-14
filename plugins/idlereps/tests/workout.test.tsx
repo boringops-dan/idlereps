@@ -361,7 +361,7 @@ test('Later, then the turn ends: nothing appears while idle', OPTIONS, async ($,
   await ui.unmount()
 })
 
-test('a second Later restarts the cooldown from the second press', OPTIONS, async ($, on) => {
+test('a second Later in a row waits twice as long, from the second press', OPTIONS, async ($, on) => {
   const { clock } = world(on, TINY)
   await $.session.start(SESSION)
   await $.turn.start({ text: 'go', turnId: 't1' })
@@ -370,7 +370,7 @@ test('a second Later restarts the cooldown from the second press', OPTIONS, asyn
   await ui.press({ key: 'later' })
   await clock.advance(15 * 60_000)
   await ui.press({ key: 'later' })
-  await clock.advance(10 * 60_000)
+  await clock.advance(25 * 60_000)
   expect(await ui.find({ key: 'start' })).toBeUndefined()
   await clock.advance(5 * 60_000)
   expect(await ui.find({ key: 'start' })).toBeDefined()

@@ -47,7 +47,15 @@ export function inQuietHours(option: string, hour: number): boolean {
 export const cueDelayMs = (turnWaitMs: number, nextCueAt: number | undefined, now: number): number =>
   Math.max(turnWaitMs, (nextCueAt ?? 0) - now)
 
-export type Message = { channel: 'band' | 'toast' | 'sound'; cause: 'timer' | 'keypress' | 'command' }
+/**
+ * When the `n`th Later in a row (1 for the first) hides the set until (owner, 2026-10-14: "Everytime someone
+ * says later, double the wait times for consecutive laters."): `baseMs`, doubled for each Later before it in
+ * the run. The doubling never carries past `midnight` (tomorrow is a fresh day), but the base wait always holds.
+ */
+export const laterUntil = (now: number, baseMs: number, n: number, midnight: number): number =>
+  Math.max(now + baseMs, Math.min(now + baseMs * 2 ** Math.max(0, n - 1), midnight))
+
+export type Message ={ channel: 'band' | 'toast' | 'sound'; cause: 'timer' | 'keypress' | 'command' }
 export type GateContext = {
   paused: boolean
   isQuietHours: boolean

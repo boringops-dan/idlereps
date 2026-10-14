@@ -158,6 +158,7 @@ import type { Feat, Inverse, Patch, RecordStore } from './record'
 import {
   cueAllowed,
   cueDelayMs,
+  laterUntil,
   gate,
   inQuietHours,
   isTrainingDay,
@@ -716,11 +717,8 @@ async function gapMs($: EngineInterface): Promise<number> {
  */
 const LATER_MIN_MS = 15 * 60_000
 
-/** How long Later hides the set for: the gap, at least LATER_MIN_MS (twice that on a busy day). */
-async function laterMs($: EngineInterface): Promise<number> {
-  const isBusy = (await load<number | undefined>($, 'easyDay', undefined)) === (await today($))
-  return Math.max(await gapMs($), isBusy ? LATER_MIN_MS * 2 : LATER_MIN_MS)
-}
+/** How long the first Later in a run hides the set for: the setting's gap, at least LATER_MIN_MS. */
+const laterBaseMs = (): number => Math.max(Number(coach.options.cueEvery) * 60_000, LATER_MIN_MS)
 const turnWaitMs = (isBig: boolean) => (isBig ? BIG_ASK_WAIT_MS : Number(coach.options.cueAfter) * 1000)
 
 /** The once ledger: whether `id` may happen now, and marking it. */
@@ -2050,36 +2048,39 @@ async function moveTrainingDay($: EngineInterface, move: { from: Weekday; to: We
   await refreshStatus($)
 }
 
-/**
- * Three Laters in a row in a day mean a busy day: the gap doubles for the rest of it, and Swolomon says
- * so, once. Any Start or Done ends the run.
- */
-async function countLater($: EngineInterface) {
+/** Laters in a row today: this one counted. Any Start or Done ends the run; so does midnight. */
+async function countLater($: EngineInterface): Promise<number> {
   const day = await today($)
   const streak = await load<{ day: number; n: number } | undefined>($, 'laterStreak', undefined)
   const n = streak?.day === day ? streak.n + 1 : 1
-  if (n < 3 || (await load<number | undefined>($, 'easyDay', undefined)) === day) {
-    await save($, 'laterStreak', { day, n })
-    return
-  }
-  await save($, 'laterStreak', undefined)
-  await save($, 'easyDay', day)
-  await toast($, await coachLine($, 'busy-day', { day, n: Math.round((await laterMs($)) / 60_000) }), 'keypress')
+  await save($, 'laterStreak', { day, n })
+  return n
 }
 
-/** Later: hides the set or the question for one gap (at least LATER_MIN_MS), recording nothing. */
-async function snooze($: EngineInterface) {
+/**
+ * Later: hides the set or the question, recording nothing. Each Later in a row waits twice the one before
+ * (see `laterUntil`). The third means a busy day: the gap between sets doubles for the rest of it, and
+ * Swolomon says so, once. Returns how long it hides for.
+ */
+async function snooze($: EngineInterface): Promise<number> {
   stopCue()
   const showing = await read($, band)
   void track($, showing?.kind === 'ask' ? { event: 'ask_answered', properties: { answer: 'later' } } : { event: 'cue_later', properties: {} })
   if (['ask', 'set', 'edit', 'timer', 'switch', 'time', 'remind', 'still'].includes(showing?.kind ?? '')) await clearBand($)
-  await countLater($)
+  const n = await countLater($)
+  const day = await today($)
   const at = await now($)
-  const until = at + (await laterMs($))
+  const until = laterUntil(at, laterBaseMs(), n, startOfDayMs(day + 1))
   await save($, 'nextCueAt', until)
   await save($, 'laterUntil', until)
+  const isBusyNow = n >= 3 && (await load<number | undefined>($, 'easyDay', undefined)) !== day
+  if (isBusyNow) {
+    await save($, 'easyDay', day)
+    await toast($, await coachLine($, 'busy-day', { day, n: Math.round((until - at) / 60_000) }), 'keypress')
+  }
   await refreshFooter($)
   if (coach.isTurnRunning) scheduleCue($, cueDelayMs(turnWaitMs(false), until, at))
+  return until - at
 }
 
 async function recordStoreOf($: EngineInterface): Promise<RecordStore> {
@@ -3808,8 +3809,7 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
       return cue === null ? line('reply-no-swap', { day }) : line('reply-swapped', { day, exercise: cue.exercise.name })
     }
     case 'later':
-      await snooze($)
-      return line('reply-hidden', { day, n: Math.round((await laterMs($)) / 60_000) })
+      return line('reply-hidden', { day, n: Math.round((await snooze($)) / 60_000) })
     case 'undo':
       return line((await undoLast($, undefined)) ? 'reply-undone' : 'reply-nothing-to-undo', { day })
     case 'easy':

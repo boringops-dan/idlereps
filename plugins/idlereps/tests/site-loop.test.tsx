@@ -310,13 +310,10 @@ test('site: Later: the band goes and nothing is said; it asks again after the ga
   await ui.unmount()
 })
 
-test('site: three Laters in a row: twice the wait for the rest of the day', OPTIONS, async ($, on) => {
+test('site: each Later in a row waits twice as long as the one before', OPTIONS, async ($, on) => {
   world(on, STARTER)
   await $.session.start(SESSION)
-  expect((await $.command.run(workout('later'))).text).toBe(line('reply-hidden', { day: TODAY, n: 15 }))
-  expect((await $.command.run(workout('later'))).text).toBe(line('reply-hidden', { day: TODAY, n: 15 }))
-  expect((await $.command.run(workout('later'))).text).toBe(line('reply-hidden', { day: TODAY, n: 30 }))
-  expect((await $.command.run(workout('later'))).text).toBe(line('reply-hidden', { day: TODAY, n: 30 }))
+  for (const n of [15, 30, 60, 120]) expect((await $.command.run(workout('later'))).text).toBe(line('reply-hidden', { day: TODAY, n }))
 })
 
 // ---------------------------------------------------------------------------------------------------------

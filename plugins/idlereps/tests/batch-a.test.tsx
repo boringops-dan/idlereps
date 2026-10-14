@@ -78,16 +78,15 @@ test('the pane draws an exercise’s sparkline once it has three days', OPTIONS,
 // ---------------------------------------------------------------------------------------------------------
 // Adapting instead of nagging.
 
-test('three Laters in a row: a busy day, the gap doubles for the rest of it, and Swolomon says so once', OPTIONS, async ($, on) => {
+test('each Later in a row waits twice the one before; the third is a busy day, and Swolomon says so once', OPTIONS, async ($, on) => {
   const { w } = world(on, TINY)
   await $.session.start(SESSION)
-  for (let i = 0; i < 2; i += 1) expect((await $.command.run(workout('later'))).text).toBe(line('reply-hidden', { day: TODAY, n: 15 }))
-  expect((await $.command.run(workout('later'))).text).toBe(line('reply-hidden', { day: TODAY, n: 30 }))
-  expect(w.toasts).toContain(line('busy-day', { day: TODAY, n: 30 }))
+  const waits: (string | undefined)[] = []
+  for (let i = 0; i < 4; i += 1) waits.push((await $.command.run(workout('later'))).text)
+  expect(waits).toEqual([15, 30, 60, 120].map(n => line('reply-hidden', { day: TODAY, n })))
+  expect(w.toasts).toContain(line('busy-day', { day: TODAY, n: 60 }))
   await $.command.run(workout('later'))
-  await $.command.run(workout('later'))
-  await $.command.run(workout('later'))
-  expect(w.toasts.filter(t => t === line('busy-day', { day: TODAY, n: 30 })).length).toBe(1)
+  expect(w.toasts.filter(t => t.startsWith('Busy day')).length).toBe(1)
 })
 
 test('a Start breaks the run of Laters', OPTIONS, async ($, on) => {
@@ -96,9 +95,9 @@ test('a Start breaks the run of Laters', OPTIONS, async ($, on) => {
   await $.command.run(workout('later'))
   await $.command.run(workout('later'))
   await $.command.run(workout('start'))
-  await $.command.run(workout('later'))
-  expect(w.toasts.some(t => t.startsWith('Busy day'))).toBe(false)
   expect((await $.command.run(workout('later'))).text).toBe(line('reply-hidden', { day: TODAY, n: 15 }))
+  expect(w.toasts.some(t => t.startsWith('Busy day'))).toBe(false)
+  expect((await $.command.run(workout('later'))).text).toBe(line('reply-hidden', { day: TODAY, n: 30 }))
 })
 
 test('the busy day ends at midnight: the next day’s gap is the setting again', OPTIONS, async ($, on) => {
