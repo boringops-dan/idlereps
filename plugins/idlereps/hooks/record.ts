@@ -154,13 +154,14 @@ function recordSet(store: RecordStore, action: Extract<RecordAction, { type: 'se
     lastByExercise = { ...store.lastByExercise, [exercise.name]: { last: entry, best } }
   }
 
-  // The weight or band used is where the next set starts.
+  // The weight or band used is where the next set starts: under the move done instead, when it was.
   let targets = store.targets
   if (isDone && (action.weight !== undefined || action.band !== undefined)) {
-    const target = targetFor(planExercise, store.targets)
+    const own = current.replacedBy ?? planExercise
+    const target = targetFor(own, store.targets)
     targets = {
       ...store.targets,
-      [planExercise.name]: {
+      [own.name]: {
         ...target,
         ...(action.weight === undefined ? {} : { weight: action.weight }),
         ...(action.band === undefined ? {} : { band: action.band }),
@@ -176,7 +177,9 @@ function recordSet(store: RecordStore, action: Extract<RecordAction, { type: 'se
     const workout = ctx.plan.workouts[current.workout]
     if (workout !== undefined) {
       const history = [...store.history, entry].slice(-HISTORY_CAP)
-      const results = resultsOf(history, current.workout, workout, targets)
+      // An exercise done as another move today moves no target of its own.
+      const replaced = workout.exercises.filter((_, i) => store.progress.replaced?.[i] !== undefined).map(e => e.name)
+      const results = resultsOf(history, current.workout, workout, targets, new Set(replaced))
       const basis: RatingBasis = { workout: current.workout, targetsBefore: targets, results, ...(half ? { half } : {}) }
       const before = targets
       // The half version counts as showing up, and moves no targets: a full workout earns those.

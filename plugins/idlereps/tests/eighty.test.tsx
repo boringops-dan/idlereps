@@ -31,7 +31,10 @@ test('80 columns: the ask, the first set, a later set, the celebration, the high
   await $.session.start(SESSION)
   await $.turn.start({ text: 'go', turnId: 't1' })
   await clock.advance(30_000)
-  expect(['ask', await sizeOf($)]).toEqual(['ask', 16])
+  // The ask's five buttons (Swap day the fifth) need 59 columns: his head at 80 and 81, all of him from 82.
+  expect(['ask', await sizeOf($)]).toEqual(['ask', 6])
+  expect(['ask at 81', await sizeOf($, 76)]).toEqual(['ask at 81', 6])
+  expect(['ask at 82', await sizeOf($, 77)]).toEqual(['ask at 82', 16])
   await $.command.run(workout('start'))
   expect(['first set', await sizeOf($)]).toEqual(['first set', 16])
   await $.command.run(workout('done'))

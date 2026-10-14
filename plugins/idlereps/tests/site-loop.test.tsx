@@ -96,7 +96,7 @@ for (const [what, call] of [
 // ---------------------------------------------------------------------------------------------------------
 // 2. The demo's ask band.
 
-test('site: the ask for npm test: his timed line, the first set in words, the safety row, four buttons', OPTIONS, async ($, on) => {
+test('site: the ask for npm test: his timed line, the first set in words, the safety row, its buttons', OPTIONS, async ($, on) => {
   // Before the first Start: the safety note not yet seen.
   const { clock } = world(on, STARTER, { seen: { safety: undefined } })
   await longTask($, clock, bash('npm test'))
@@ -105,7 +105,7 @@ test('site: the ask for npm test: his timed line, the first set in words, the sa
   expect(rows).toContain(line('reason-long-run-timed', { day: TODAY, wait: 'about a minute' }))
   expect(rows).toContain('First up: Desk push-ups, 10 reps · about 45 s.')
   expect(rows).toContain(line('safety-short', { day: TODAY }))
-  expect(rows.at(-1)).toBe('1: Start   2: Later   0: Not today   3: Just half')
+  expect(rows.at(-1)).toBe('1: Start   2: Later   0: Not today   3: Just half   4: Swap day')
 })
 
 test('site: the ask after a helper agent opens with the helpers line', OPTIONS, async ($, on) => {

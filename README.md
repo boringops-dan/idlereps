@@ -65,9 +65,16 @@ Update: `claude plugin marketplace update idlereps` (or `/plugin marketplace upd
 
 Any exercise is better than none, so IdleReps never makes it all or nothing:
 
-- **Just half.** The "Ready for a workout?" band has `4: Just half` (or `/workout half`) until you're past
+- **Just half.** The "Ready for a workout?" band has `3: Just half` (or `/workout half`) until you're past
   halfway: each exercise's sets halved. It counts
   for your week and your streak; it just doesn't raise your targets.
+- **Swap day.** Not feeling legs today? `4: Swap day` on "Ready for a workout?" (or `5` on the first set,
+  or `/workout swapday`) trades today's workout with the next one of another kind in your plan, so legs
+  comes next time instead. Press again for the next kind; once more puts it back. Only before today's first set.
+- **Different move.** `4: Different move` on a set (`5` once started, or `/workout different`) does this
+  exercise as another one for the same job today, from what your equipment allows: Squats as Sumo squats,
+  Dumbbell rows as Band rows. Press again for the next; it comes back round to the plan's own. Your plan
+  and its targets stay as they are, and the weight you use is remembered under the move you did.
 - **Low days count.** After a week away, or after a workout you rated Tough, Swolomon suggests half. No catching up, ever.
 - **Good days push.** Rate a workout Easy and you get one bonus set at your new target.
 - **No streak shame.** Miss a day and the Workout pane says how many days you showed up this month, not
@@ -145,9 +152,9 @@ What each band's numbers do:
 | Do a set (Just remind me) | `1` Upper · `2` Lower · `3` Cardio · `4` Other · `5` Later · `0` Not today |
 | New move unlocked | `1` Nice · `2` Again · `0` Undo |
 | Rest-day stretch | `1` Done · `0` Not now |
-| Ready for a workout? | `1` Start · `2` Later · `3` Just half · `0` Not today |
+| Ready for a workout? | `1` Start · `2` Later · `3` Just half · `4` Swap day · `0` Not today |
 | Bonus set (after an Easy workout) | `1` One more · `0` Done for today |
-| A set | `1` Start · `2` Later · `0` Not today; once started: `1` All (the target, e.g. `All 12`) · `2` Fewer · `3` Couldn't do it |
+| A set | `1` Start · `2` Later · `3` Swap move · `4` Different move · `5` Swap day · `0` Not today; once started: `1` All (the target, e.g. `All 12`) · `2` Fewer · `3` Couldn't do it · `4` Swap move · `5` Different move |
 | Hold timer (Start on a timed set) | `1` Done · `2` Stop timer; between sides: `1` Start side 2 · `2` Stop timer; at zero: `1` All (e.g. `All 30 s`) · `2` Fewer · `3` Couldn't do it |
 | Move a training day? | `1` Move to (day) · `2` Keep (day) |
 | Edit a set | `1` Save · `2` `< reps` · `3` `reps >` · `4` `< weight` · `5` `weight >` (seconds on timed sets, band levels for bands; weight only where there is one) |
@@ -162,6 +169,8 @@ What each band's numbers do:
 - **Fewer** is for a set that went differently: step the reps (or seconds) and the weight, then Save.
   Typed: `/workout done 8` (8 reps) or `/workout done 8 14` (8 reps at 14 kg).
 - **Couldn't do it** logs the set as skipped. **Later** hides it without logging anything.
+- **Swap move** does another exercise of today's workout first; this one waits its turn. **Different move**
+  and **Swap day** are under [Showing up beats doing nothing](#showing-up-beats-doing-nothing).
 - **Undo** puts back exactly what the last set changed, and shows the set again. `/workout undo` works
   even after the Logged line has gone.
 - **A timed set** counts down once started (Swolomon counts the last three) and beeps once at zero

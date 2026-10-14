@@ -67,6 +67,16 @@ export type Progress = {
   doneBy?: number[]
   /** The exercise (by index) to look at first for the next set: after the last one done, or the one swapped to. */
   cursor?: number
+  /**
+   * Different move: the exercises (by index in the workout) done as another move today, and that move. Gone
+   * once the workout is done; the plan's own exercise and its target are as they were.
+   */
+  replaced?: { [slot: number]: Exercise }
+  /**
+   * Swap day: today's workout was traded with the one at this index, later in the plan (the plan file
+   * holds the trade). Kept until a set is done, so pressing again tries the next one, and in the end undoes it.
+   */
+  tradedWith?: number
 }
 
 /** One line of the training log (store key `history`). */
@@ -172,6 +182,12 @@ export type Cue = {
   isHalf?: true
   /** Another exercise of the workout has sets left: Swap move can go to it. */
   canSwap?: true
+  /** Done as another move today (Different move): the move. `exercise` is it, at its own target. */
+  replacedBy?: Exercise
+  /** The library has another move for this exercise: Different move can go to it, and round. */
+  canReplace?: true
+  /** Today's workout is not begun and another kind is ahead: Swap day can trade with it. */
+  canTrade?: true
   /**
    * A weighted exercise with no weight of theirs yet (owner, 2026-10-12: "we never asked the user what size
    * weights for ppl to use"): its first set asks the weight they use, in place of the plan's start.

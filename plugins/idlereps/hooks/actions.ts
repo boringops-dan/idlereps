@@ -83,6 +83,9 @@ export const ACTIONS: readonly Action[] = [
   { kind: 'ask', id: 'no', hotkey: '0', label: 'Not today' },
   // Showing up beats doing nothing: each exercise's sets halved, while the half version is still open.
   { kind: 'ask', id: 'half', hotkey: '3', label: 'Just half' },
+  // Another day's workout today, this one next time (owner, 2026-10-14: "I may want to skip leg day and swap
+  // it with another day"): in turn, then back. Only before today's first set.
+  { kind: 'ask', id: 'swapday', hotkey: '4', label: 'Swap day' },
 
   // A set: Start it, then say how it went (owner, 2026-10-07: "why not START and then they can say how many
   // they did?"). Before: Start, Later, or nothing more today. A timed set's Start runs its hold timer.
@@ -92,11 +95,16 @@ export const ACTIONS: readonly Action[] = [
   // Another move first (owner, 2026-10-12: "a 'skip move' or 'replace move' that lets ppl cycle through the
   // ask"): the workout's next exercise with sets left, in turn; nothing recorded. Only while there is one.
   { kind: 'set', id: 'swap', hotkey: '3', label: 'Swap move' },
+  // This exercise as another move today (owner, 2026-10-14: "I also can't choose to do a different move"):
+  // the library's others for it, in turn, then back. Only while it has one.
+  { kind: 'set', id: 'different', hotkey: '4', label: 'Different move' },
+  { kind: 'set', id: 'swapday', hotkey: '5', label: 'Swap day' },
   // Started (the set band's doing state, and a hold that ran out): how many. All's label names the target.
   { kind: 'doing', id: 'all', hotkey: '1', label: 'All', isPrimary: true },
   { kind: 'doing', id: 'fewer', hotkey: '2', label: 'Fewer' },
   { kind: 'doing', id: 'couldnt', hotkey: '3', label: "Couldn't do it" },
   { kind: 'doing', id: 'swap', hotkey: '4', label: 'Swap move' },
+  { kind: 'doing', id: 'different', hotkey: '5', label: 'Different move' },
 
   { kind: 'timer', id: 'done', hotkey: '1', label: 'Done', isPrimary: true },
   { kind: 'timer', id: 'stop', hotkey: '2', label: 'Stop timer' },
@@ -110,6 +118,7 @@ export const ACTIONS: readonly Action[] = [
   { kind: 'edit', id: 'heavier', hotkey: '5', label: 'weight >' },
   // A move's first set, its weight asked: another move first is still a key away.
   { kind: 'edit', id: 'swap', hotkey: '6', label: 'Swap move' },
+  { kind: 'edit', id: 'different', hotkey: '7', label: 'Different move' },
 
   { kind: 'logged', id: 'highfive', hotkey: '1', label: 'High five' },
   { kind: 'logged', id: 'undo', hotkey: '0', label: 'Undo' },

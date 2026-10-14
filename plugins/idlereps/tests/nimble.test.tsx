@@ -168,12 +168,12 @@ async function waitingSet($: Engine, clock: { advance: (ms: number) => Promise<v
 
 const historyOf = (store: Map<string, unknown>) => (store.get('history') as { kind: string; result?: string; count?: number }[] | undefined) ?? []
 
-test('a set waits for Start (1 Start, 2 Later, 0 Not today); Start asks how it went: 1 All 10, 2 Fewer, 3 Couldn’t do it', OPTIONS, async ($, on) => {
+test('a set waits for Start (1 Start, 2 Later, 0 Not today, and the moves open to it); Start asks how it went: 1 All 10, 2 Fewer, 3 Couldn’t do it', OPTIONS, async ($, on) => {
   const { clock } = world(on, TINY, { startedOn: TODAY })
   const ui = await waitingSet($, clock)
-  expect(drawnRows(await ui.drawn()).at(-1)).toBe('1: Start   2: Later   0: Not today')
+  expect(drawnRows(await ui.drawn()).at(-1)).toBe('1: Start   2: Later   0: Not today   4: Different move   5: Swap day')
   await ui.press({ key: 'start' })
-  expect(drawnRows(await ui.drawn()).at(-1)).toBe("1: All 10   2: Fewer   3: Couldn't do it")
+  expect(drawnRows(await ui.drawn()).at(-1)).toBe("1: All 10   2: Fewer   3: Couldn't do it   5: Different move")
   await ui.unmount()
 })
 

@@ -360,7 +360,7 @@ export function askBand(cue: Cue, coachLine: string, day: number, reason: LongTa
     coach: [coachLine],
     portrait: 'mini',
     body: [[{ text: detail, tone: 'muted' }], ...(opts.withSafety === true ? [safetyRow(day)] : [])],
-    actions: actionIdsOf('ask').filter(id => id !== 'half' || cue.canHalve === true),
+    actions: actionIdsOf('ask').filter(id => mayShow(id, cue)),
     cue,
     ...(reason === undefined ? {} : { reason }),
   }
@@ -446,9 +446,21 @@ export function setBand(
   }
 }
 
-/** A set band's buttons, before Start or started: Swap move only while another exercise has sets left. */
+/**
+ * A set band's buttons, before Start or started: Swap move only while another exercise has sets left,
+ * Different move while this one has another move, Swap day before today's first set.
+ */
 export const setActionIds = (cue: Cue, isStarted: boolean): string[] =>
-  actionIdsOf(isStarted ? 'doing' : 'set').filter(id => id !== 'swap' || cue.canSwap === true)
+  actionIdsOf(isStarted ? 'doing' : 'set').filter(id => mayShow(id, cue))
+
+/** The buttons of the ask and set bands that show only while what they do is open. */
+const ONLY_WHILE: Record<string, (cue: Cue) => boolean> = {
+  half: cue => cue.canHalve === true,
+  swap: cue => cue.canSwap === true,
+  different: cue => cue.canReplace === true,
+  swapday: cue => cue.canTrade === true,
+}
+const mayShow = (id: string, cue: Cue): boolean => ONLY_WHILE[id]?.(cue) ?? true
 
 /** `0:23`, `1:05`. */
 export const clockText = (seconds: number): string => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
@@ -483,7 +495,7 @@ export function holdBand(cue: Cue, hold: NonNullable<BandSpec['hold']>, coachLin
     progress: { done: cue.step - 1, total: cue.stepCount },
     body: [body],
     // Time! asks how it went; the set is done, so no Swap move.
-    actions: kind === 'time' ? actionIdsOf('doing').filter(id => id !== 'swap') : actionIdsOf(kind),
+    actions: kind === 'time' ? actionIdsOf('doing').filter(id => id !== 'swap' && id !== 'different') : actionIdsOf(kind),
     cue,
     hold,
   }
@@ -503,7 +515,7 @@ function draftParts(cue: Cue, draft: Draft): BandLine {
 export function editBand(cue: Cue, draft: Draft, day: number): BandSpec {
   const hasCount = targetOf(cue.exercise.reps) !== null
   const hasLoad = cue.exercise.weight !== undefined || cue.exercise.band !== undefined
-  const actions = ['save', ...(hasCount ? ['fewer', 'more'] : []), ...(hasLoad ? ['lighter', 'heavier'] : []), ...(cue.isNewLoad === true && cue.canSwap === true ? ['swap'] : [])]
+  const actions = ['save', ...(hasCount ? ['fewer', 'more'] : []), ...(hasLoad ? ['lighter', 'heavier'] : []), ...(cue.isNewLoad === true && cue.canSwap === true ? ['swap'] : []), ...(cue.isNewLoad === true && cue.canReplace === true ? ['different'] : [])]
   const values = draftParts(cue, draft)
   return {
     kind: 'edit',

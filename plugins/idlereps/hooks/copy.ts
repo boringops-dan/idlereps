@@ -812,6 +812,12 @@ export const LINES = [
   { id: 'scene-proud', voice: 'swolomon', variants: ["Proud of you, {mate}. That's all.", "Just checking in, {mate}. You're doing great."] },
   { id: 'scene-dizzy', voice: 'swolomon', variants: ["The room's spinning, {mate}.", 'Which one of you is the real one, {mate}?'] },
   { id: 'scene-secret', voice: 'swolomon', variants: ["Psst, {mate}. Your agent's doing great.", "Between us, {mate}: you're my favourite."] },
+  // Swap day and Different move (owner, 2026-10-14).
+  { id: 'trade-ask', voice: 'swolomon', variants: ['{workout} today then, {mate}. The other one keeps.', 'Fine by me, {mate}. {workout} it is.'] },
+  { id: 'reply-different', voice: 'plain', variants: ['Different move. Next up: {exercise}.'] },
+  { id: 'reply-no-different', voice: 'plain', variants: ['No other move for this one.'] },
+  { id: 'reply-traded', voice: 'plain', variants: ["Traded. Today's workout: {workout}. The other comes next time."] },
+  { id: 'reply-no-trade', voice: 'plain', variants: ["Nothing to trade: today's workout has begun, or no other workout is ahead."] },
 ] as const satisfies readonly LineEntry[]
 
 export type LineId = (typeof LINES)[number]['id']

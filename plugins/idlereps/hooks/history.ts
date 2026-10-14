@@ -102,9 +102,9 @@ export const setsThisWeek = (history: readonly HistoryEntry[], today: number): n
 
 /**
  * Each plan exercise's sets in the workout just done: its newest `sets` set entries since the previous
- * completion, by the name it is done under (its variant's, once it moved to one).
+ * completion, by the name it is done under (its variant's, once it moved to one). None for those in `skip`.
  */
-export function resultsOf(history: readonly HistoryEntry[], index: number, workout: Workout, targets: Targets): Record<string, SetResult[]> {
+export function resultsOf(history: readonly HistoryEntry[], index: number, workout: Workout, targets: Targets, skip: ReadonlySet<string> = new Set()): Record<string, SetResult[]> {
   const since: HistoryEntry[] = []
   for (let i = history.length - 1; i >= 0; i -= 1) {
     const entry = history[i]
@@ -113,6 +113,7 @@ export function resultsOf(history: readonly HistoryEntry[], index: number, worko
   }
   const results: Record<string, SetResult[]> = {}
   for (const exercise of workout.exercises) {
+    if (skip.has(exercise.name)) continue
     const shownAs = targets[exercise.name]?.variant?.name ?? exercise.name
     const sets = since
       .filter((e): e is Extract<HistoryEntry, { kind: 'set' }> => e.kind === 'set' && e.w === index && e.exercise === shownAs)
@@ -201,7 +202,8 @@ export function progressWorkout(
 ): Targets {
   const targets: Targets = { ...targetsBefore }
   for (const exercise of workout.exercises) {
-    if (targets[exercise.name] !== targetsBefore[exercise.name]) continue
+    // No results for it (done as another move today): its target holds.
+    if (targets[exercise.name] !== targetsBefore[exercise.name] || results[exercise.name] === undefined) continue
     const current = targetFor(exercise, targetsBefore)
     targets[exercise.name] = nextTarget(exercise, current, results[exercise.name] ?? [], rating, setting)
   }

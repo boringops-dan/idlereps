@@ -256,7 +256,7 @@ const DUMBBELL_START: Record<'kg' | 'lb', [number, number, number]> = { kg: [6, 
 const DUMBBELL_STEP = { kg: 2, lb: 5 } as const
 export const BAND_LEVELS = ['light', 'medium', 'heavy', 'x-heavy'] as const
 
-function exerciseOf(picked: { entry: Entry; requires: Requires; isReplaced: boolean }, answers: Answers, sets: number, isMobility: boolean): Exercise {
+function exerciseOf(picked: { entry: Entry; requires: Requires; isReplaced: boolean }, answers: Pick<Answers, 'level' | 'weightUnit'>, sets: number, isMobility: boolean): Exercise {
   const { entry, requires, isReplaced } = picked
   const level = LEVELS.indexOf(answers.level)
   const exercise: Exercise = { name: entry.name, reps: repsText(entry.value, entry.unit), sets }
@@ -466,3 +466,34 @@ export const DESK_STRETCHES: readonly { name: string; seconds: number; note: str
 ]
 
 export const stretchFor = (day: number) => DESK_STRETCHES[((day % DESK_STRETCHES.length) + DESK_STRETCHES.length) % DESK_STRETCHES.length] ?? DESK_STRETCHES[0]!
+
+/**
+ * The moves that can stand in for an exercise today (owner, 2026-10-14: "I also can't choose to do a different
+ * move"): the library's other exercises for the same slot, at the same level, that the equipment allows,
+ * in the library's order; none already in the workout (`taken`). The equipment and setting are the plan's
+ * answers; a plan without them (hand-written, imported) gets bodyweight moves and those needing the same
+ * kit as the exercise itself. Empty for an exercise the library does not have.
+ */
+export function alternativesTo(exercise: Exercise, taken: ReadonlySet<string>, answers: Answers | undefined): Exercise[] {
+  const setting = answers?.setting ?? 'home'
+  const rowsOf = (slot: Slot): Row[] => (setting === 'office' ? LIBRARY[slot] : [...LIBRARY[slot], ...ALTS[slot]])
+  const found = (Object.keys(LIBRARY) as Slot[]).flatMap(slot =>
+    rowsOf(slot).flatMap(row => row.levels.flatMap((_, level) => (entryAt(row, level, setting).name === exercise.name ? [{ slot, level, requires: row.requires }] : []))),
+  )
+  const wanted = answers === undefined ? -1 : LEVELS.indexOf(answers.level)
+  const home = found.find(f => f.level === wanted) ?? found[0]
+  if (home === undefined) return []
+  const allows = (requires: Requires) => (answers === undefined ? requires === 'any' || found.some(f => f.requires === requires) : meets(answers.equipment, requires))
+  const level = LEVELS[home.level] ?? 'beginner'
+  const weightUnit = exercise.weight?.unit ?? answers?.weightUnit ?? 'kg'
+  const seen = new Set([exercise.name, ...taken])
+  return rowsOf(home.slot)
+    .filter(row => allows(row.requires))
+    .flatMap(row => {
+      const entry = entryAt(row, home.level, setting)
+      if (seen.has(entry.name)) return []
+      seen.add(entry.name)
+      const isReplaced = setting === 'office' && OFFICE[row.levels[home.level]?.name ?? ''] !== undefined
+      return [exerciseOf({ entry, requires: row.requires, isReplaced }, { level, weightUnit }, exercise.sets, home.slot.startsWith('MOB'))]
+    })
+}

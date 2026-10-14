@@ -155,7 +155,7 @@ test('the weight they say on a move’s first set is where its next sets start; 
   expect(cueFor(LIFTS, store.get('progress') as typeof START, targets as never)).toMatchObject({ exercise: { name: 'Dumbbell overhead triceps extension' }, isNewLoad: true })
   // The triceps' weight asked, Swap move is on the steppers too: back to the press, at 40.
   await $.command.run(workout('now'))
-  expect((await bandOf($)).keys).toEqual(['save', 'fewer', 'more', 'lighter', 'heavier', 'swap'])
+  expect((await bandOf($)).keys).toEqual(['save', 'fewer', 'more', 'lighter', 'heavier', 'swap', 'different'])
   await $.command.run(workout('swap'))
   // The press has its weight: how it went, at 40.
   expect((await bandOf($)).rows.some(row => row.startsWith('Dumbbell overhead press: 10 reps @ 40 kg'))).toBe(true)

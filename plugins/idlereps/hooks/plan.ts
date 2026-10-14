@@ -3,6 +3,7 @@
  * advancing past it. Pure.
  */
 
+import { alternativesTo } from './programs'
 import type { Answers, Cue, Equipment, Exercise, HistoryEntry, Plan, Progress, Schedule, Target, Targets, Weekday, Workout } from '../types'
 
 export const START: Progress = { workout: 0, done: 0, lastCompletedOn: null, extraDay: null }
@@ -346,8 +347,11 @@ export function cueFor(plan: Plan, progress: Progress, targets: Targets): Cue | 
   const planExercise = workout.exercises[slot]
   if (planExercise === undefined) return null
   const doneBy = doneByOf(workout, progress)
-  const target = targetFor(planExercise, targets)
-  const exercise = effectiveExercise(planExercise, target)
+  // Done as another move today: that move, at its own target (its weight remembered under its own name).
+  const replacedBy = progress.replaced?.[slot]
+  const own = replacedBy ?? planExercise
+  const target = targetFor(own, targets)
+  const exercise = effectiveExercise(own, target)
   // The half version is open while no exercise is past its halved sets, and one of them is left.
   const canHalve = workout.exercises.every((e, i) => doneBy[i]! <= setsOf(e, true)) && progress.done < stepsOf(workout, { half: true }).length
   return {
@@ -366,7 +370,10 @@ export function cueFor(plan: Plan, progress: Progress, targets: Targets): Cue | 
     band: exercise.band === undefined ? null : (target.band ?? exercise.band.start),
     ...(progress.half === true ? { isHalf: true as const } : canHalve ? { canHalve: true as const } : {}),
     ...(slotsLeft(workout, progress, slot + 1).some(i => i !== slot) ? { canSwap: true as const } : {}),
-    ...(exercise.weight !== undefined && targets[planExercise.name]?.weight === undefined ? { isNewLoad: true as const } : {}),
+    ...(replacedBy === undefined ? {} : { replacedBy }),
+    ...(replacedBy !== undefined || movesFor(plan, workout, slot, targets).length > 0 ? { canReplace: true as const } : {}),
+    ...(canTrade(plan, progress) ? { canTrade: true as const } : {}),
+    ...(exercise.weight !== undefined && targets[own.name]?.weight === undefined ? { isNewLoad: true as const } : {}),
   }
 }
 
@@ -383,6 +390,89 @@ export function swapMove(plan: Plan, progress: Progress): Progress | null {
   return slot === -1 || other === undefined ? null : { ...progress, doneBy: doneByOf(workout, progress), cursor: other }
 }
 
+/**
+ * The moves Different move can go to for the exercise at `slot` (owner, 2026-10-14: "I also can't choose to do
+ * a different move"): the library's others for it as it is done now, none the workout already has.
+ */
+function movesFor(plan: Plan, workout: Workout, slot: number, targets: Targets): Exercise[] {
+  const planExercise = workout.exercises[slot]
+  if (planExercise === undefined) return []
+  const shown = effectiveExercise(planExercise, targetFor(planExercise, targets))
+  const taken = new Set(workout.exercises.flatMap((e, i) => (i === slot ? [] : [effectiveExercise(e, targetFor(e, targets)).name])))
+  return alternativesTo({ ...shown, sets: planExercise.sets }, taken, plan.answers)
+}
+
+/**
+ * Different move: the next set's exercise is done as the next of its other moves today, and round to the
+ * plan's own after the last. Its sets so far count; nothing is recorded. Null when it has no other move.
+ */
+export function replaceMove(plan: Plan, progress: Progress, targets: Targets): Progress | null {
+  const workout = plan.workouts[progress.workout]
+  if (workout === undefined) return null
+  const slot = nextSlot(workout, progress)
+  const moves = movesFor(plan, workout, slot, targets)
+  if (slot === -1 || moves.length === 0) return null
+  const { [slot]: current, ...others } = progress.replaced ?? {}
+  const next = moves[current === undefined ? 0 : moves.findIndex(m => m.name === current.name) + 1]
+  const replaced = next === undefined ? others : { ...others, [slot]: next }
+  const { replaced: _, ...rest } = progress
+  return { ...rest, doneBy: doneByOf(workout, progress), cursor: slot, ...(Object.keys(replaced).length === 0 ? {} : { replaced }) }
+}
+
+/** How far ahead Swap day looks for a workout to trade today's with. */
+const TRADE_REACH = 7
+
+/** The plan with the workouts at `a` and `b` traded; each place keeps its "Week N · " (the week stays in order). */
+function tradeWorkouts(plan: Plan, a: number, b: number): Plan {
+  const workouts = [...plan.workouts]
+  const atA = workouts[a]
+  const atB = workouts[b]
+  if (atA === undefined || atB === undefined) return plan
+  const weekPart = (name: string) => name.slice(0, name.length - shortWorkoutName(name).length)
+  workouts[a] = { ...atB, name: `${weekPart(atA.name)}${shortWorkoutName(atB.name)}` }
+  workouts[b] = { ...atA, name: `${weekPart(atB.name)}${shortWorkoutName(atA.name)}` }
+  return { ...plan, workouts }
+}
+
+/** The workouts today's can be traded with: the next of each other kind, within TRADE_REACH. */
+function tradesFrom(plan: Plan, index: number): number[] {
+  const kinds = new Set([shortWorkoutName(plan.workouts[index]?.name ?? '')])
+  const found: number[] = []
+  for (let i = index + 1; i < Math.min(plan.workouts.length, index + 1 + TRADE_REACH); i += 1) {
+    const kind = shortWorkoutName(plan.workouts[i]!.name)
+    if (kinds.has(kind)) continue
+    kinds.add(kind)
+    found.push(i)
+  }
+  return found
+}
+
+/** Whether Swap day has something to offer: today's workout not begun, and another kind ahead. */
+export const canTrade = (plan: Plan, progress: Progress): boolean =>
+  progress.done === 0 && (progress.tradedWith !== undefined || tradesFrom(plan, progress.workout).length > 0)
+
+/**
+ * Swap day (owner, 2026-10-14: "I may want to skip leg day and swap it with another day"): today's
+ * workout trades places with the next one of another kind, so it comes next time instead; pressed again,
+ * the one after that; past the last, back as the plan had it. Only before today's first set. Null when there
+ * is nothing to trade with.
+ */
+export function tradeWorkout(plan: Plan, progress: Progress): { plan: Plan; progress: Progress } | null {
+  if (!canTrade(plan, progress)) return null
+  const index = progress.workout
+  const { tradedWith, ...rest } = progress
+  const asPlanned = tradedWith === undefined ? plan : tradeWorkouts(plan, index, tradedWith)
+  const trades = tradesFrom(asPlanned, index)
+  const next = trades[tradedWith === undefined ? 0 : trades.indexOf(tradedWith) + 1]
+  return next === undefined ? { plan: asPlanned, progress: rest } : { plan: tradeWorkouts(asPlanned, index, next), progress: { ...rest, tradedWith: next } }
+}
+
+/** A workout's progress without what holds for its own day only (half, sets by exercise, the moves done instead). */
+function withoutTodayOnly(progress: Progress): Progress {
+  const { half: _, doneBy: __, cursor: ___, replaced: ____, tradedWith: _____, ...rest } = progress
+  return rest
+}
+
 export type Advanced = { progress: Progress; finished: 'set' | 'workout' | 'plan' }
 
 /** Marks the current set done (or skipped); finishing the workout records today as its day. */
@@ -393,8 +483,7 @@ export function advance(plan: Plan, progress: Progress, today: number): Advanced
   const doneBy = doneByOf(workout, progress).map((n, i) => (i === slot ? n + 1 : n))
   const after: Progress = { ...progress, done: progress.done + 1, doneBy, cursor: (slot + 1) % workout.exercises.length }
   if (nextSlot(workout, after) !== -1) return { progress: after, finished: 'set' }
-  const { half: _, doneBy: __, cursor: ___, ...rest } = progress
-  const next: Progress = { ...rest, workout: progress.workout + 1, done: 0, lastCompletedOn: today }
+  const next: Progress = { ...withoutTodayOnly(progress), workout: progress.workout + 1, done: 0, lastCompletedOn: today }
   return { progress: next, finished: next.workout >= plan.workouts.length ? 'plan' : 'workout' }
 }
 
@@ -408,9 +497,8 @@ export function closeUnfinished(plan: Plan, progress: Progress, history: readonl
   const last = history.findLast((entry): entry is Extract<HistoryEntry, { kind: 'set' }> => entry.kind === 'set' && entry.w === progress.workout)
   // With no set in the log (a store edited by hand), the day it was done is unknown: left as it is.
   if (last === undefined || last.d >= today) return null
-  const { half: _, doneBy: __, cursor: ___, ...rest } = progress
   return {
-    progress: { ...rest, workout: progress.workout + 1, done: 0, lastCompletedOn: last.d },
+    progress: { ...withoutTodayOnly(progress), workout: progress.workout + 1, done: 0, lastCompletedOn: last.d },
     entry: { kind: 'workout-complete', t: last.t, d: last.d, w: progress.workout, partial: true },
   }
 }

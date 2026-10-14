@@ -98,6 +98,8 @@ import {
   startOfDayMs,
   stepsOf,
   swapMove,
+  replaceMove,
+  tradeWorkout,
   effectiveExercise,
   targetFor,
   stepWeight,
@@ -784,10 +786,15 @@ async function loadPlan($: EngineInterface): Promise<Plan | null> {
   return (await planFile($)).plan
 }
 
-/** Writes a new plan: workout 1, fresh targets; history, bests and the log are kept (§1.7 real-world 8). */
-async function writePlan($: EngineInterface, plan: Plan) {
+/** Writes the plan file as it stands; nothing else changes. */
+async function savePlanFile($: EngineInterface, plan: Plan) {
   await $.fs.write(planPath(), `${JSON.stringify(plan, null, 2)}\n`)
   coach.planCache = null
+}
+
+/** Writes a new plan: workout 1, fresh targets; history, bests and the log are kept (§1.7 real-world 8). */
+async function writePlan($: EngineInterface, plan: Plan) {
+  await savePlanFile($, plan)
   // A plan replaces Just remind me: one way of training at a time. Choosing one is being in.
   await save($, 'mode', undefined)
   await markSeen($, 'onboarded')
@@ -2042,8 +2049,7 @@ async function offerReschedule($: EngineInterface, plan: Plan | null, declines: 
 async function moveTrainingDay($: EngineInterface, move: { from: Weekday; to: Weekday }) {
   const plan = await loadPlan($)
   if (plan === null || !('days' in plan.schedule)) return
-  await $.fs.write(planPath(), `${JSON.stringify({ ...plan, schedule: { days: moveWeekday(plan.schedule.days, move.from, move.to) } }, null, 2)}\n`)
-  coach.planCache = null
+  await savePlanFile($, { ...plan, schedule: { days: moveWeekday(plan.schedule.days, move.from, move.to) } })
   $.ui.toast(line('rescheduled', { day: await today($), from: weekdayLongName(move.from), to: weekdayLongName(move.to) }))
   await refreshStatus($)
 }
@@ -2317,18 +2323,57 @@ async function startSet($: EngineInterface) {
  * other exercise has sets left.
  */
 async function swapSet($: EngineInterface): Promise<Cue | null> {
+  return changeSet($, (plan, progress) => swapMove(plan, progress))
+}
+
+/**
+ * Different move: the next set's exercise as another move of the library's today (plan.ts replaceMove),
+ * shown as Swap move shows its set. The new next set; null when the exercise has no other move.
+ */
+async function replaceSet($: EngineInterface): Promise<Cue | null> {
+  return changeSet($, replaceMove)
+}
+
+/** The next set changed by `change`, shown in place of this one; null when it changed nothing. */
+async function changeSet($: EngineInterface, change: (plan: Plan, progress: Progress, targets: Targets) => Progress | null): Promise<Cue | null> {
   const plan = await loadPlan($)
   if (plan === null) return null
-  const swapped = swapMove(plan, await load($, 'progress', START))
-  if (swapped === null) return null
-  await save($, 'progress', swapped)
+  const targets = await load<Targets>($, 'targets', {})
+  const changed = change(plan, await load($, 'progress', START), targets)
+  if (changed === null) return null
+  await save($, 'progress', changed)
   void track($, { event: 'set_swapped', properties: {} })
-  const cue = cueFor(plan, swapped, await load<Targets>($, 'targets', {}))
+  const cue = cueFor(plan, changed, targets)
   const shown = await read($, band)
   if (cue !== null && shown !== null && ['set', 'timer', 'switch', 'edit'].includes(shown.kind)) {
     await replaceBand($, await setBandFor($, cue, undefined))
     const wasStarted = (shown.kind === 'set' && shown.isStarted === true) || shown.kind === 'edit'
     if (wasStarted && targetOf(cue.exercise.reps)?.isTimed !== true) await startSet($)
+  }
+  await refreshStatus($)
+  return cue
+}
+
+/**
+ * Swap day: today's workout trades places with a later one of another kind (plan.ts tradeWorkout; the
+ * plan file holds the trade), and the ask or set band shows the new one. The new first set; null when there
+ * is nothing to trade with (today's workout begun, or no other kind ahead).
+ */
+async function tradeToday($: EngineInterface): Promise<Cue | null> {
+  const plan = await loadPlan($)
+  if (plan === null) return null
+  const traded = tradeWorkout(plan, await load($, 'progress', START))
+  if (traded === null) return null
+  await savePlanFile($, traded.plan)
+  await save($, 'progress', traded.progress)
+  const cue = cueFor(traded.plan, traded.progress, await load<Targets>($, 'targets', {}))
+  const shown = await read($, band)
+  if (cue !== null && shown?.kind === 'ask') {
+    const day = await today($)
+    const text = await coachLine($, 'trade-ask', { day, workout: shortWorkoutName(cue.workoutName) })
+    await replaceBand($, askBand(cue, text, day, shown.reason, { withSafety: !(await isSafetyAcknowledged($)) }))
+  } else if (cue !== null && shown?.kind === 'set') {
+    await replaceBand($, await setBandFor($, cue, undefined))
   }
   await refreshStatus($)
   return cue
@@ -2606,8 +2651,7 @@ async function nextBlock($: EngineInterface): Promise<string> {
   const progress = await load($, 'progress', START)
   if (progress.workout < plan.workouts.length) return line('reply-not-finished', { day, n: plan.workouts.length - progress.workout })
   const next = plan.answers === undefined ? plan : generateProgram(plan.answers)
-  await $.fs.write(planPath(), `${JSON.stringify(next, null, 2)}\n`)
-  coach.planCache = null
+  await savePlanFile($, next)
   await save($, 'progress', { ...START, lastCompletedOn: progress.lastCompletedOn })
   await save($, 'undo', undefined)
   await save($, 'planStartedOn', day)
@@ -3595,6 +3639,12 @@ async function answerAction($: EngineInterface, kind: ActionKind, given: string,
     case 'swap':
       await swapSet($)
       return
+    case 'different':
+      await replaceSet($)
+      return
+    case 'swapday':
+      await tradeToday($)
+      return
     case 'save':
       await saveDraft($)
       return
@@ -3807,6 +3857,14 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
     case 'swap': {
       const cue = await swapSet($)
       return cue === null ? line('reply-no-swap', { day }) : line('reply-swapped', { day, exercise: cue.exercise.name })
+    }
+    case 'different': {
+      const cue = await replaceSet($)
+      return cue === null ? line('reply-no-different', { day }) : line('reply-different', { day, exercise: cue.exercise.name })
+    }
+    case 'swapday': {
+      const cue = await tradeToday($)
+      return cue === null ? line('reply-no-trade', { day }) : line('reply-traded', { day, workout: shortWorkoutName(cue.workoutName) })
     }
     case 'later':
       return line('reply-hidden', { day, n: Math.round((await snooze($)) / 60_000) })

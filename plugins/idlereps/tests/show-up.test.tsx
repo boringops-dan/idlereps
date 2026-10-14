@@ -77,7 +77,7 @@ test('the ask band offers Just half while it is still open', OPTIONS, async ($, 
   const ui = await $.ui.mount({ plugin: 'idlereps', surface: 'terminal', ...BAND })
   await $.turn.start({ text: 'go', turnId: 't1' })
   await clock.advance(30_000)
-  expect(drawnRows(await ui.drawn()).at(-1)).toBe('1: Start   2: Later   0: Not today   3: Just half')
+  expect(drawnRows(await ui.drawn()).at(-1)).toMatch(/^1: Start {3}2: Later {3}0: Not today {3}3: Just half\b/)
   await ui.unmount()
 })
 
