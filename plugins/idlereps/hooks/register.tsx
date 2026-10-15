@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { ElementTable, EngineInterface, PluginOptions, Register, RenderSurface, Timer } from 'claude-code'
+import type { ElementTable, EngineInterface, PluginOptions, PromptOrigin, Register, RenderSurface, Timer } from 'claude-code'
 
 import type { Answers, BandKind, BandLine, BandPart, BandSpec, Cue, Draft, HistoryEntry, LongTaskReason, Mode, Moved, Plan, Progress, Rating, Seen, SetupState, Targets, Tone, Weekday } from '../types'
 import { STORE_KEYS } from '../types/store-keys'
@@ -409,6 +409,11 @@ const coach: {
   unprompted: BandSpec | null
   /** A press or a /workout command is being handled: a band leaving now was answered. */
   isAnswering: boolean
+  /**
+   * A /workout command is being handled for someone who sees no band or pane (see `isTextOnlyAsk`): what
+   * would open setup notes `setupAsked` instead, and the reply says where setup is.
+   */
+  textOnly: { setupAsked: boolean } | null
   /** The band showing is a shiny one (hooks/shiny.ts): every blit to its portrait recoloured. */
   isShiny: boolean
   /** A where-am-I toast on its way, so a burst of redraws sends one. */
@@ -516,6 +521,7 @@ const coach: {
   turnCanStill: false,
   unprompted: null,
   isAnswering: false,
+  textOnly: null,
   isShiny: false,
   isLookingForRoom: false,
   setMoves: undefined,
@@ -2909,6 +2915,11 @@ async function offerToday($: EngineInterface, plan: Plan): Promise<boolean> {
 }
 
 async function openSetup($: EngineInterface, opts: { isQuickStart: boolean }) {
+  // Asked from where no pane shows (the phone): opening it on the terminal would answer no one.
+  if (coach.textOnly !== null) {
+    coach.textOnly.setupAsked = true
+    return
+  }
   const plan = await loadPlan($)
   const state = newSetup({
     isSafetyAcknowledged: await isSafetyAcknowledged($),
@@ -3681,10 +3692,10 @@ async function answerAction($: EngineInterface, kind: ActionKind, given: string,
 const SET_ANSWERS: readonly string[] = ['done', 'edit', 'skip']
 
 /**
- * `/workout <args>`: its reply, or null where a band or pane drawn now is the reply. `isRemote`: asked over
- * Remote Control (the mobile app), which draws neither, so the reply is always text.
+ * `/workout <args>`: its reply, or null where a band or pane drawn now is the reply. `isTextOnly`: the asker
+ * sees neither (`isTextOnlyAsk`), so the reply is always text.
  */
-async function workoutCommand($: EngineInterface, args: string, isRemote = false): Promise<string | null> {
+async function workoutCommand($: EngineInterface, args: string, isTextOnly = false): Promise<string | null> {
   const [arg = '', ...rest] = args.trim().split(/\s+/)
   const day = await today($)
   // Answering a set (or ask) a prompt put away: it comes back to be answered, so the command lands on it.
@@ -3704,7 +3715,7 @@ async function workoutCommand($: EngineInterface, args: string, isRemote = false
       return line('reply-meet', { day })
     }
     // Just remind me: today, the week, the rank.
-    if (await isRemindMode($)) return arg === '' && !isRemote ? openRemindPane($) : remindTextOf(await remindFacts($))
+    if (await isRemindMode($)) return arg === '' && !isTextOnly ? openRemindPane($) : remindTextOf(await remindFacts($))
   }
   if (arg === 'remind') {
     if (!(await isRemindMode($))) {
@@ -3736,7 +3747,7 @@ async function workoutCommand($: EngineInterface, args: string, isRemote = false
       return line('reply-meet', { day })
     }
     const facts = await statusFacts($, plan)
-    if (isRemote) return statusTextOf(facts)
+    if (isTextOnly) return statusTextOf(facts)
     await update($, statusView, () => statusViewOf(facts))
     coach.isStatusOpen = true
     const view = statusViewOf(facts)
@@ -3753,6 +3764,7 @@ async function workoutCommand($: EngineInterface, args: string, isRemote = false
   }
   if (arg === 'setup') {
     await openSetup($, { isQuickStart: false })
+    if (coach.textOnly?.setupAsked === true) return line('reply-setup-elsewhere', { day })
     return line('reply-setup-opened', { day })
   }
   if (arg === 'plan') return planFromText($, rest.join(' '))
@@ -3795,7 +3807,7 @@ async function workoutCommand($: EngineInterface, args: string, isRemote = false
     if (move !== undefined && (await placeIfFree($, flexBand(day, move)))) return null
     return `${COACH_NAME}: ${line('flex', { day })}`
   }
-  if (arg === 'moves') return openMoves($, day)
+  if (arg === 'moves') return isTextOnly ? movesReply($, day) : openMoves($, day)
   if (arg === 'protein' || arg === 'wisdom') return `${COACH_NAME}: ${line(arg, { day })}`
   // Hidden ones (owner, 2026-10-03: "found by word of mouth"): in no usage line, never tracked.
   // On a logged set, high five is that band's own button.
@@ -4059,6 +4071,15 @@ function rowText(Text: unknown, row: string | readonly BandPart[], key: string, 
 }
 
 // ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Whoever asked sees no band and no pane, so a reply must be text: a Remote Control client (the mobile app,
+ * the web), which draws neither, or a session with no surface attached (`claude -p`). VS Code is not one:
+ * the band is its own pane there (`syncBandPane`).
+ */
+async function isTextOnlyAsk($: EngineInterface, origin: PromptOrigin): Promise<boolean> {
+  return origin.kind === 'bridge' || (await $.session.surfaces()).length === 0
+}
 
 /** A band's button label for action `id`: the band's own name for it, else the action's. */
 function bandLabelOf(spec: BandSpec, id: string): string {
@@ -4609,16 +4630,20 @@ export const register: Register = (on, options) => {
 
   on('command.run', { command: 'workout' }, async ($, e) => {
     coach.isAnswering = true
-    const isRemote = e.origin.kind === 'bridge'
-    const text = await workoutCommand($, e.args, isRemote)
+    const isTextOnly = await isTextOnlyAsk($, e.origin)
+    coach.textOnly = isTextOnly ? { setupAsked: false } : null
+    const text = await workoutCommand($, e.args, isTextOnly)
       .then(async reply => {
-        if (reply !== null || !isRemote) return reply
-        // The phone draws no band: the one the command left showing, as text, else where things stand.
+        if (reply !== null || !isTextOnly) return reply
+        // No band shows where they are: setup if that is what they asked for, else the band the command left
+        // showing, as text, else where things stand.
+        if (coach.textOnly?.setupAsked === true) return line('reply-setup-elsewhere', { day: await today($) })
         const shown = await read($, band)
         return shown === null ? workoutCommand($, 'status', true) : bandTextOf(shown)
       })
       .finally(() => {
         coach.isAnswering = false
+        coach.textOnly = null
       })
     if (text === null) return {}
     const isPauseReply = /^\s*(pause|resume)\b/.test(e.args)

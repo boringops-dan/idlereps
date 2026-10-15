@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { line } from '../hooks/copy'
-import { OPTIONS, SESSION, STATUS, TINY, TODAY, workout, world } from './world'
+import { COLLECTION, OPTIONS, SESSION, STATUS, TINY, TODAY, workout, world } from './world'
 
 /** `/workout` asked from the mobile app over Remote Control: the app draws no band and no pane, so it answers in text. */
 
@@ -55,4 +55,49 @@ test('with no plan, the phone gets the same no-plan reply the terminal does', OP
   const terminal = await $.command.run(workout('status'))
   expect(phone.text).toEqual(expect.any(String))
   expect(phone.text).toBe(terminal.text)
+})
+
+test('/workout moves from the phone answers with the collection as text and opens no pane', OPTIONS, async ($, on) => {
+  const { w } = world(on, TINY)
+  await $.session.start(SESSION)
+  const reply = await $.command.run(fromPhone('moves'))
+  expect(reply.text?.split('\n').length).toBe(2)
+  expect(w.opened).not.toContain(COLLECTION.requestId)
+})
+
+test('/workout setup from the phone says where setup opens, and opens nothing', OPTIONS, async ($, on) => {
+  const { w } = world(on, TINY)
+  await $.session.start(SESSION)
+  const reply = await $.command.run(fromPhone('setup'))
+  expect(reply.text).toBe(line('reply-setup-elsewhere', { day: TODAY }))
+  expect(w.opened).not.toContain('workout-setup')
+})
+
+test('/workout setup at the terminal still opens setup', OPTIONS, async ($, on) => {
+  const { w } = world(on, TINY)
+  await $.session.start(SESSION)
+  const reply = await $.command.run(workout('setup'))
+  expect(reply.text).toBe(line('reply-setup-opened', { day: TODAY }))
+  expect(w.opened).toContain('workout-setup')
+})
+
+test('with no surface attached (claude -p), a band command answers in text', OPTIONS, async ($, on) => {
+  world(on, TINY, {}, { surfaces: [] })
+  await $.session.start({ ...SESSION, surface: null })
+  const reply = await $.command.run(workout('erase'))
+  expect(reply.text).toContain('/workout erase (Erase) · /workout cancel (Cancel)')
+})
+
+test('VS Code draws the band as its own pane, so a band command there prints nothing', OPTIONS, async ($, on) => {
+  world(on, TINY, {}, { surfaces: ['vscode'] })
+  await $.session.start({ ...SESSION, surface: 'vscode' })
+  const reply = await $.command.run(workout('erase'))
+  expect(reply.text).toBeUndefined()
+})
+
+test('the desktop app draws the band, so a band command there prints nothing', OPTIONS, async ($, on) => {
+  world(on, TINY, {}, { surfaces: ['desktop'] })
+  await $.session.start({ ...SESSION, surface: 'desktop' })
+  const reply = await $.command.run(workout('erase'))
+  expect(reply.text).toBeUndefined()
 })

@@ -718,6 +718,7 @@ export const LINES = [
   { id: 'reply-plan-failed', voice: 'plain', variants: ["That didn't turn into a plan ({reason}). Nothing changed. Try describing it differently."] },
   { id: 'reply-plan-unreachable', voice: 'plain', variants: ["Couldn't reach the model ({reason}). Nothing changed."] },
   { id: 'reply-setup-opened', voice: 'plain', variants: ['Setup is open.'] },
+  { id: 'reply-setup-elsewhere', voice: 'plain', variants: ['Setup opens in the terminal or the desktop app. From here, /workout plan and your plan in any words, e.g. /workout plan 5x5 squats and push-ups Mon Wed Fri'] },
   { id: 'reply-swolomon-busy', voice: 'plain', variants: ['{coach} is spotting your set. /workout swolomon again after it.'] },
   // Swolomon: his seasons (hooks/season.ts): the day's hello in costume, and banter on the set band.
   { id: 'season-birthday', voice: 'swolomon', variants: ["It's my birthday, {mate}! Party hat's on. Cake counts as protein, right?"] },
