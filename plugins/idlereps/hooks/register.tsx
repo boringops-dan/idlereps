@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { ElementTable, EngineInterface, PluginOptions, Register, RenderSurface, Timer } from 'claude-code'
 
-import type { Answers, BandKind, BandPart, BandSpec, Cue, Draft, HistoryEntry, LongTaskReason, Mode, Moved, Plan, Progress, Rating, Seen, SetupState, Targets, Tone, Weekday } from '../types'
+import type { Answers, BandKind, BandLine, BandPart, BandSpec, Cue, Draft, HistoryEntry, LongTaskReason, Mode, Moved, Plan, Progress, Rating, Seen, SetupState, Targets, Tone, Weekday } from '../types'
 import { STORE_KEYS } from '../types/store-keys'
 import type { StoreKey } from '../types/store-keys'
 import { ACTIONS, actionIdsOf, actionOf, loadLabel, stepperLabel } from './actions'
@@ -3680,7 +3680,11 @@ async function answerAction($: EngineInterface, kind: ActionKind, given: string,
 /** The commands that answer a set even when it is not showing: the set's own, typed. */
 const SET_ANSWERS: readonly string[] = ['done', 'edit', 'skip']
 
-async function workoutCommand($: EngineInterface, args: string): Promise<string | null> {
+/**
+ * `/workout <args>`: its reply, or null where a band or pane drawn now is the reply. `isRemote`: asked over
+ * Remote Control (the mobile app), which draws neither, so the reply is always text.
+ */
+async function workoutCommand($: EngineInterface, args: string, isRemote = false): Promise<string | null> {
   const [arg = '', ...rest] = args.trim().split(/\s+/)
   const day = await today($)
   // Answering a set (or ask) a prompt put away: it comes back to be answered, so the command lands on it.
@@ -3700,7 +3704,7 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
       return line('reply-meet', { day })
     }
     // Just remind me: today, the week, the rank.
-    if (await isRemindMode($)) return arg === '' ? openRemindPane($) : remindTextOf(await remindFacts($))
+    if (await isRemindMode($)) return arg === '' && !isRemote ? openRemindPane($) : remindTextOf(await remindFacts($))
   }
   if (arg === 'remind') {
     if (!(await isRemindMode($))) {
@@ -3732,6 +3736,7 @@ async function workoutCommand($: EngineInterface, args: string): Promise<string 
       return line('reply-meet', { day })
     }
     const facts = await statusFacts($, plan)
+    if (isRemote) return statusTextOf(facts)
     await update($, statusView, () => statusViewOf(facts))
     coach.isStatusOpen = true
     const view = statusViewOf(facts)
@@ -4055,6 +4060,37 @@ function rowText(Text: unknown, row: string | readonly BandPart[], key: string, 
 
 // ---------------------------------------------------------------------------------------------------------
 
+/** A band's button label for action `id`: the band's own name for it, else the action's. */
+function bandLabelOf(spec: BandSpec, id: string): string {
+  const isTimed = spec.cue === undefined ? false : (targetOf(spec.cue.exercise.reps)?.isTimed ?? false)
+  const named = spec.labels?.[id]
+  if (named !== undefined) return named
+  if (spec.kind === 'edit' && (id === 'fewer' || id === 'more')) return stepperLabel(id, isTimed)
+  if (spec.kind === 'edit' && (id === 'lighter' || id === 'heavier')) return loadLabel(id, spec.cue?.exercise.band !== undefined)
+  if (spec.kind === 'question' && spec.question !== undefined && id !== 'pass') return spec.question.labels[ANSWER_IDS.indexOf(id as (typeof ANSWER_IDS)[number])] ?? id
+  if (spec.kind === 'reschedule' && spec.move !== undefined) return id === 'move' ? `Move to ${weekdayShortName(spec.move.to)}` : `Keep ${weekdayShortName(spec.move.from)}`
+  // All names what it logs: `All 12`, `All 30 s`.
+  if (id === 'all' && spec.cue?.count != null) return `All ${spec.cue.count}${isTimed ? ' s' : ''}`
+  return actionOf(actionKindOf(spec), id).label
+}
+
+/**
+ * The band as text, for a `/workout` asked where no band is drawn (the mobile app over Remote Control):
+ * its header, Swolomon's lines, its rows, and each button as the command that presses it.
+ */
+function bandTextOf(spec: BandSpec): string {
+  const rowText = (row: BandLine) => (typeof row === 'string' ? row : row.map(part => part.text).join(''))
+  const rows = [
+    ...(spec.header === undefined ? [] : [spec.header]),
+    ...(spec.coach ?? []).map(text => `${COACH_NAME}: ${plainOf(text)}`),
+    ...spec.body.map(rowText),
+    ...(spec.extras ?? []),
+    ...(spec.footer ?? []),
+  ].filter(row => row.trim() !== '')
+  const buttons = spec.actions.map(id => `/workout ${id} (${bandLabelOf(spec, id)})`)
+  return [...rows, ...(buttons.length === 0 ? [] : [buttons.join(' · ')])].join('\n')
+}
+
 /** Where a band is drawn: above the prompt, or (where no surface draws that) in its own pane. */
 type BandSite = { surface: RenderSurface; requestId: string; maxRows: number; bodyColumns: number; isWorking: boolean }
 
@@ -4079,20 +4115,8 @@ async function drawBand($: EngineInterface, site: BandSite, elements: ElementTab
   const surface = site.surface
   const numbered = (hotkey: string, label: string) =>
     surface === 'terminal' ? ({ hotkey, label, plain: true } as const) : ({ hotkey, label: `${hotkey} · ${label}` } as const)
-  const isTimed = spec.cue === undefined ? false : (targetOf(spec.cue.exercise.reps)?.isTimed ?? false)
-  const isBand = spec.cue?.exercise.band !== undefined
   const actionKind = actionKindOf(spec)
-  const labelOf = (id: string) => {
-    const named = spec.labels?.[id]
-    if (named !== undefined) return named
-    if (spec.kind === 'edit' && (id === 'fewer' || id === 'more')) return stepperLabel(id, isTimed)
-    if (spec.kind === 'edit' && (id === 'lighter' || id === 'heavier')) return loadLabel(id, isBand)
-    if (spec.kind === 'question' && spec.question !== undefined && id !== 'pass') return spec.question.labels[ANSWER_IDS.indexOf(id as (typeof ANSWER_IDS)[number])] ?? id
-    if (spec.kind === 'reschedule' && spec.move !== undefined) return id === 'move' ? `Move to ${weekdayShortName(spec.move.to)}` : `Keep ${weekdayShortName(spec.move.from)}`
-    // All names what it logs: `All 12`, `All 30 s`.
-    if (id === 'all' && spec.cue?.count != null) return `All ${spec.cue.count}${isTimed ? ' s' : ''}`
-    return actionOf(actionKind, id).label
-  }
+  const labelOf = (id: string) => bandLabelOf(spec, id)
 
   // The header: its lead, then the workout's sets as dots (when they fit on a row) and in words.
   const lead = spec.headerLead === true ? `${line(site.isWorking ? 'lead-working' : 'lead-idle', { day: 0 })} · ` : ''
@@ -4585,9 +4609,17 @@ export const register: Register = (on, options) => {
 
   on('command.run', { command: 'workout' }, async ($, e) => {
     coach.isAnswering = true
-    const text = await workoutCommand($, e.args).finally(() => {
-      coach.isAnswering = false
-    })
+    const isRemote = e.origin.kind === 'bridge'
+    const text = await workoutCommand($, e.args, isRemote)
+      .then(async reply => {
+        if (reply !== null || !isRemote) return reply
+        // The phone draws no band: the one the command left showing, as text, else where things stand.
+        const shown = await read($, band)
+        return shown === null ? workoutCommand($, 'status', true) : bandTextOf(shown)
+      })
+      .finally(() => {
+        coach.isAnswering = false
+      })
     if (text === null) return {}
     const isPauseReply = /^\s*(pause|resume)\b/.test(e.args)
     return { text: !isPauseReply && (await load($, 'paused', false)) ? `${line('reply-paused-prefix', { day: await today($) })} ${text}` : text }
